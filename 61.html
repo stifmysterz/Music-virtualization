@@ -498,6 +498,14 @@
     }
     .mode-sheet-head{flex:0 0 auto}
     .mode-grid{grid-template-columns:1fr; flex:1 1 auto; overflow-y:auto; padding-right:4px; align-content:start}
+
+    /* dock dropdowns (Logo/Sound/Background/3D/Looks/Tools) get the same right-sidebar treatment as the mode panel */
+    .dock-dd{
+      top:0; right:0; bottom:0; left:auto;
+      width:300px; max-width:300px; height:100%; max-height:none;
+      border-radius:0; border-width:0 0 0 1px; border-style:solid; border-color:var(--line);
+      padding:16px;
+    }
   }
 </style>
 </head>
@@ -4562,7 +4570,14 @@ let g2 = cv.getContext('2d');
 const mainCtx = g2;
 let W,H,CX,CY,DPR;
 let DOCK_SAFE_ZONE = 100;   // CSS px reserved at the bottom of the canvas so effects don't render under the dock — recalculated from the dock's real on-screen size, see updateDockSafeZone()
+let PANEL_SAFE_ZONE = 0;    // CSS px reserved on the right while a right-side panel (mode panel / dock dropdown, desktop only) is open — see updatePanelSafeZone()
+function updatePanelSafeZone(){
+  const isDesktopPanel = matchMedia('(hover:hover) and (pointer:fine)').matches;
+  const panelOpen = isDesktopPanel && (document.querySelector('.mode-panel.show') || document.querySelector('.dock-dd.show'));
+  PANEL_SAFE_ZONE = panelOpen ? 300 : 0;   // 300 matches the sidebar width in the (hover:hover) and (pointer:fine) CSS block
+}
 function updateDockSafeZone(){
+  updatePanelSafeZone();
   const dockEl = document.querySelector('.dock');
   if(!dockEl) return;
   if(document.fullscreenElement){
@@ -4575,35 +4590,41 @@ function updateDockSafeZone(){
   resizeBg3D();
 }
 function applyBgDockSafeCentering(){
-  // recenter the uploaded photo/video background on the area above the dock, not the full viewport,
-  // so its visual center doesn't default toward the strip the dock covers. Skipped once the user has
-  // manually dragged it (dataset.positioned) — their placement always wins over this default.
+  // recenter the uploaded photo/video background on the area above the dock and clear of any open
+  // right-side panel, not the full viewport, so its visual center doesn't default toward a strip
+  // that's covered. Skipped once the user has manually dragged it (dataset.positioned) — their
+  // placement always wins over this default.
   ['bgImage','bgVideo'].forEach(id=>{
     const el = document.getElementById(id);
-    if(el && !el.dataset.positioned) el.style.top = `calc(50% - ${DOCK_SAFE_ZONE/2}px)`;
+    if(el && !el.dataset.positioned){
+      el.style.top = `calc(50% - ${DOCK_SAFE_ZONE/2}px)`;
+      el.style.left = `calc(50% - ${PANEL_SAFE_ZONE/2}px)`;
+    }
   });
 }
 let aspectMode = 'free';   // 'free' | 'portrait' | 'square' | 'landscape'
 function resize(){
-  updateDockSafeZone();   // also triggers resizeBg3D() internally, now that DOCK_SAFE_ZONE is current
+  updateDockSafeZone();   // also triggers resizeBg3D() internally, now that DOCK_SAFE_ZONE/PANEL_SAFE_ZONE are current
   DPR = Math.min(window.devicePixelRatio||1, 2);
   const availH = Math.max(1, innerHeight - DOCK_SAFE_ZONE);   // the canvas itself stops above the dock now, not just its drawn content
-  let cssW = innerWidth, cssH = availH;
+  const availW = Math.max(1, innerWidth - PANEL_SAFE_ZONE);   // ditto for an open right-side panel
+  let cssW = availW, cssH = availH;
   if(aspectMode==='portrait'){
     const ratio = 9/16;
-    if(innerWidth/availH > ratio){ cssH = availH; cssW = availH*ratio; }
-    else{ cssW = innerWidth; cssH = innerWidth/ratio; }
+    if(availW/availH > ratio){ cssH = availH; cssW = availH*ratio; }
+    else{ cssW = availW; cssH = availW/ratio; }
   }else if(aspectMode==='square'){
-    const s = Math.min(innerWidth, availH);
+    const s = Math.min(availW, availH);
     cssW = s; cssH = s;
   }else if(aspectMode==='landscape'){
     const ratio = 16/9;
-    if(innerWidth/availH > ratio){ cssH = availH; cssW = availH*ratio; }
-    else{ cssW = innerWidth; cssH = innerWidth/ratio; }
+    if(availW/availH > ratio){ cssH = availH; cssW = availH*ratio; }
+    else{ cssW = availW; cssH = availW/ratio; }
   }
   W = cv.width  = cssW * DPR;
   H = cv.height = cssH * DPR;
   cv.style.width = cssW+'px'; cv.style.height = cssH+'px';
+  cv.style.left = (availW/2)+'px';   // center within the panel-free region instead of the CSS default (50% of the full viewport)
   CX = W/2; CY = H/2;
 }
 addEventListener('resize', resize); resize();
@@ -11152,12 +11173,13 @@ const BG3D_BUILDERS = { particles: buildBg3DParticles, tunnel: buildBg3DTunnel, 
 
 function resizeBg3D(){
   const availH = Math.max(1, window.innerHeight - DOCK_SAFE_ZONE);   // keep 3D content out of the strip reserved for the dock, same idea as the 2D canvas clip
-  if(bg3DRenderer) bg3DRenderer.setSize(window.innerWidth, availH, false);
+  const availW = Math.max(1, window.innerWidth - PANEL_SAFE_ZONE);   // ditto for an open right-side panel
+  if(bg3DRenderer) bg3DRenderer.setSize(availW, availH, false);
   const canvasEl = document.getElementById('bgThree');   // resize() runs once at page load, before the bgThreeCanvas const below is initialized — look it up fresh instead
-  if(canvasEl) canvasEl.style.height = availH + 'px';
+  if(canvasEl){ canvasEl.style.width = availW + 'px'; canvasEl.style.height = availH + 'px'; }
   Object.values(bg3DScenes).forEach(s=>{
-    if(s.camera){ s.camera.aspect = window.innerWidth/availH; s.camera.updateProjectionMatrix(); }
-    if(s.composer) s.composer.setSize(window.innerWidth, availH);
+    if(s.camera){ s.camera.aspect = availW/availH; s.camera.updateProjectionMatrix(); }
+    if(s.composer) s.composer.setSize(availW, availH);
   });
 }
 function applyBgBounceToCamera(camera, p){
@@ -18658,20 +18680,28 @@ volumeBtn.onclick = ()=>{
 function setupDockDropdown(btnId, menuId){
   const btn = document.getElementById(btnId);
   const menu = document.getElementById(menuId);
+  const isDesktopDock = ()=> matchMedia('(hover:hover) and (pointer:fine)').matches;
   btn.onclick = (e)=>{
     e.stopPropagation();
     const isOpen = menu.classList.contains('show');
     document.querySelectorAll('.dock-dd.show').forEach(m=>m.classList.remove('show'));
     if(!isOpen){
-      const r = btn.getBoundingClientRect();
-      menu.style.maxHeight = Math.max(120, r.top - 20) + 'px';   // never taller than the space actually available above the trigger
-      menu.classList.add('show');                                // show first so we can measure its real rendered width
-      const menuW = menu.offsetWidth || 200;
-      let left = Math.round(r.left + r.width/2);
-      left = Math.max(menuW/2+8, Math.min(left, innerWidth-menuW/2-8));
-      menu.style.left = left + 'px';
-      menu.style.bottom = Math.round(innerHeight - r.top + 10) + 'px';
-      menu.style.transform = 'translateX(-50%)';
+      if(isDesktopDock()){
+        // desktop: fixed right-sidebar via CSS (see the (hover:hover) and (pointer:fine) block) —
+        // clear any leftover inline positioning from a previous mobile-width open so it can't fight the CSS
+        menu.style.left = ''; menu.style.bottom = ''; menu.style.transform = ''; menu.style.maxHeight = '';
+        menu.classList.add('show');
+      }else{
+        const r = btn.getBoundingClientRect();
+        menu.style.maxHeight = Math.max(120, r.top - 20) + 'px';   // never taller than the space actually available above the trigger
+        menu.classList.add('show');                                // show first so we can measure its real rendered width
+        const menuW = menu.offsetWidth || 200;
+        let left = Math.round(r.left + r.width/2);
+        left = Math.max(menuW/2+8, Math.min(left, innerWidth-menuW/2-8));
+        menu.style.left = left + 'px';
+        menu.style.bottom = Math.round(innerHeight - r.top + 10) + 'px';
+        menu.style.transform = 'translateX(-50%)';
+      }
     }
   };
   menu.addEventListener('click', e=> e.stopPropagation());
@@ -19750,7 +19780,7 @@ function clampPositionedElements(){
   [titleDisplay, textADisplay, textBDisplay, bgImageEl, bgVideoEl].forEach(el=>{
     if(!el || !el.dataset.positioned) return;
     const r = el.getBoundingClientRect();
-    const maxLeft = Math.max(0, innerWidth - r.width);
+    const maxLeft = Math.max(0, innerWidth - PANEL_SAFE_ZONE - r.width);   // also stay clear of an open right-side panel
     const maxTop = Math.max(0, innerHeight - DOCK_SAFE_ZONE - r.height);
     const left = Math.min(Math.max(r.left, 0), maxLeft);
     const top = Math.min(Math.max(r.top, 0), maxTop);
@@ -19760,6 +19790,10 @@ function clampPositionedElements(){
 }
 addEventListener('resize', clampPositionedElements);
 document.addEventListener('fullscreenchange', clampPositionedElements);
+/* also reclamp whenever a right-side panel opens/closes, since that shifts the safe area too */
+document.querySelectorAll('.mode-panel, .dock-dd').forEach(el=>{
+  new MutationObserver(()=>{ resize(); clampPositionedElements(); }).observe(el, {attributes:true, attributeFilter:['class']});
+});
 
 /* ---------- toggle: let pointer gestures reach the background instead of the canvas ---------- */
 let bgAdjustOn = false;
