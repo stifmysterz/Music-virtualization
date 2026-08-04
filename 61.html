@@ -702,6 +702,7 @@
     <option value="shake">🎥 Camera: Shake Impact</option>
     <option value="drift">🎥 Camera: Rotation Drift</option>
   </select>
+  <button id="bg3DDirectorBtn" class="dock-dd-item" title="Auto-detects Build Up / Drop / Breakdown from the music and nudges the current 3D style's intensity accordingly">🎬 Auto Director: Off</button>
   <div class="dock-dd-slider-row" id="bg3DOpacityRow" title="How visible the 3D background is — independent of the photo/video background's own brightness slider">
     <span>◐</span>
     <input type="range" id="bg3DOpacitySel" class="mode-bright-slider" min="0" max="100" value="100" step="1">
@@ -5552,6 +5553,7 @@ function applyBounceStyleNames(){
   if(bgBtn) bgBtn.textContent = (currentLang==='zh'?'弹跳：':'Bounce: ') + (bgBounceOn ? (currentLang==='zh'?'开':'On') : (currentLang==='zh'?'关':'Off'));
   const bg3DShuffleBtn = document.getElementById('bg3DShuffleToggle');
   if(bg3DShuffleBtn) bg3DShuffleBtn.textContent = (currentLang==='zh'?'自动轮换：':'Auto-Shuffle: ') + (typeof bg3DShuffleOn!=='undefined' && bg3DShuffleOn ? (currentLang==='zh'?'开':'On') : (currentLang==='zh'?'关':'Off'));
+  if(typeof syncBg3DDirectorBtn==='function') syncBg3DDirectorBtn();
 }
 const T2 = {
   en:{play:'Play',pause:'Pause',show:'Show',hidden:'Hidden',front:'Front',back:'Back',
@@ -12331,17 +12333,59 @@ function applyBg3DCameraMotion(camera, bass, mid, high, dt){
   }
   camera.updateProjectionMatrix();
 }
+/* ---------- 3D "director": auto-detects Build Up / Drop / Breakdown from the bass trend
+   (same short-vs-long rolling-average idea as checkSuddenChangeShuffle's "On Sudden Change",
+   just classified into 3 states instead of a single change flag) and globally nudges whatever
+   3D effect is currently active — boosted/dampened bass fed into its own update(), bg3DSpeed,
+   and scene.fog density if the scene has fog — instead of touching any of the 118 individual
+   effect functions. Off by default; toggled from the 3D menu. ---------- */
+let bg3DDirectorOn = false;
+let bg3DDirectorPhase = 'normal';   // 'normal' | 'buildup' | 'drop' | 'breakdown'
+let dirShortHist = [], dirLongHist = [];
+let dirDropPunch = 0;   // decaying one-shot kick fired the instant Drop is detected (camera punch + canvas flash)
+function updateBg3DDirector(){
+  if(!bg3DDirectorOn){ bg3DDirectorPhase = 'normal'; return; }
+  dirShortHist.push(lastBass); if(dirShortHist.length>30) dirShortHist.shift();    // ~0.5s at 60fps
+  dirLongHist.push(lastBass); if(dirLongHist.length>360) dirLongHist.shift();      // ~6s at 60fps
+  if(dirLongHist.length < 180) return;   // need a few seconds of history before classifying anything
+  const shortAvg = dirShortHist.reduce((a,b)=>a+b,0)/dirShortHist.length;
+  const longAvg = dirLongHist.reduce((a,b)=>a+b,0)/dirLongHist.length;
+  const diff = shortAvg - longAvg;
+  const prevPhase = bg3DDirectorPhase;
+  if(diff > 0.35 && shortAvg > 0.55) bg3DDirectorPhase = 'drop';
+  else if(diff > 0.1) bg3DDirectorPhase = 'buildup';
+  else if(diff < -0.2 && shortAvg < 0.35) bg3DDirectorPhase = 'breakdown';
+  else bg3DDirectorPhase = 'normal';
+  if(bg3DDirectorPhase==='drop' && prevPhase!=='drop') dirDropPunch = 1;   // rising edge into Drop — fire the one-shot kick
+  if(prevPhase!==bg3DDirectorPhase) syncBg3DDirectorBtn();
+}
+function bg3DDirectorMultipliers(){
+  if(!bg3DDirectorOn) return { bassMul:1, speedMul:1, fogMul:1 };
+  if(bg3DDirectorPhase==='buildup') return { bassMul:1.2, speedMul:1.15, fogMul:0.9 };
+  if(bg3DDirectorPhase==='drop') return { bassMul:1.4, speedMul:1.3, fogMul:0.7 };
+  if(bg3DDirectorPhase==='breakdown') return { bassMul:0.7, speedMul:0.6, fogMul:1.4 };
+  return { bassMul:1, speedMul:1, fogMul:1 };
+}
 let bg3DSpeed = 1;   // global playback-speed multiplier, applies uniformly since every style scales its own animation by dt
 function renderBg3D(bass, mid, high, dt){
   if(!hasBg3D || !bg3DKind || !bg3DScenes[bg3DKind]) return;
   const s = bg3DScenes[bg3DKind];
-  s.update(bass, mid, high, dt*bg3DSpeed);
+  const dirM = bg3DDirectorMultipliers();
+  s.update(Math.min(1,bass*dirM.bassMul), Math.min(1,mid*dirM.bassMul), Math.min(1,high*dirM.bassMul), dt*bg3DSpeed*dirM.speedMul);
+  if(s.scene.fog){
+    if(s.scene.userData.baseFogDensity===undefined) s.scene.userData.baseFogDensity = s.scene.fog.density;
+    s.scene.fog.density = s.scene.userData.baseFogDensity * dirM.fogMul;
+  }
   applyBgBounceToCamera(s.camera, computeBgBounceParams(bass, mid, high, performance.now()));
-  s.camera.zoom *= 1 + beat*0.16 + bass*0.04;   // beat (sharp transient, snaps to 1 then decays) drives the punch; bass adds a little continuous life — always-on, independent of the optional Bounce toggle, so every style — current and future — visibly pulses with the music
+  s.camera.zoom *= 1 + beat*0.16 + bass*0.04 + dirDropPunch*0.6;   // beat (sharp transient, snaps to 1 then decays) drives the punch; bass adds a little continuous life — always-on, independent of the optional Bounce toggle, so every style — current and future — visibly pulses with the music
   applyBg3DCameraMotion(s.camera, bass, mid, high, dt*bg3DSpeed);
   s.camera.updateProjectionMatrix();
   if(s.composer) s.composer.render();
   else bg3DRenderer.render(s.scene, s.camera);
+  if(bg3DDirectorOn){
+    dirDropPunch *= 0.9;
+    bgThreeCanvas.style.filter = dirDropPunch>0.01 ? `brightness(${1+dirDropPunch*0.6})` : '';
+  }
 }
 let bg3DVisible = true;
 function enableBg3D(kind){
@@ -12694,6 +12738,7 @@ function draw(now){
   drawPreviewFrame(now, dt);
   checkSchedule();
   checkSuddenChangeShuffle(now);
+  updateBg3DDirector();
 
   if(transitionAlpha > 0 && transitionSnapshot){
     mainCtx.globalAlpha = transitionAlpha;
@@ -21300,6 +21345,31 @@ document.getElementById('bg3DShuffleToggle').onclick = ()=>{
   btn.classList.toggle('active', bg3DShuffleOn);
   if(bg3DShuffleOn) startBg3DShuffleTimer();
   else stopBg3DShuffleTimer();
+};
+const DIRECTOR_PHASE_NAMES = {
+  en:{normal:'Normal',buildup:'Build Up',drop:'Drop!',breakdown:'Breakdown'},
+  zh:{normal:'正常',buildup:'爬升中',drop:'炸场！',breakdown:'回落中'}
+};
+function syncBg3DDirectorBtn(){
+  const btn = document.getElementById('bg3DDirectorBtn');
+  if(!btn) return;
+  const prefix = currentLang==='zh' ? '🎬 自动导演：' : '🎬 Auto Director: ';
+  if(!bg3DDirectorOn){
+    btn.textContent = prefix + (currentLang==='zh'?'关':'Off');
+  }else{
+    const names = DIRECTOR_PHASE_NAMES[currentLang] || DIRECTOR_PHASE_NAMES.en;
+    btn.textContent = prefix + (names[bg3DDirectorPhase] || bg3DDirectorPhase);
+  }
+  btn.classList.toggle('active', bg3DDirectorOn);
+}
+document.getElementById('bg3DDirectorBtn').onclick = ()=>{
+  bg3DDirectorOn = !bg3DDirectorOn;
+  if(!bg3DDirectorOn){
+    bg3DDirectorPhase = 'normal';
+    dirShortHist = []; dirLongHist = []; dirDropPunch = 0;
+    bgThreeCanvas.style.filter = '';
+  }
+  syncBg3DDirectorBtn();
 };
 document.getElementById('bg3DShuffleIntervalSel').addEventListener('change', ()=>{
   const isCustom = document.getElementById('bg3DShuffleIntervalSel').value === 'custom';
