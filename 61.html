@@ -164,7 +164,7 @@
   body.dock-light .mode-panel .mode-done{color:#1a1d29;border-color:#0891b2}
   body.dock-light .mode-panel .mode-done:hover{color:#031014;border-color:#065f7a}
   body.dock-light .mode-cat-header{color:#065a72}
-  body.dock-light .tools-section-header{color:#0891b2}
+  body.dock-light .tools-section-header{color:#0d2b6b}
   body.dock-light .style-row select, body.dock-light .font-picker-trigger,
   body.dock-light .mode-search, body.dock-light .font-picker-search,
   body.dock-light .preset-save-row input[type=text], body.dock-light input[type=number],
@@ -4592,7 +4592,20 @@ function updateDockSafeZone(){
     if(gapAboveDock > 0) DOCK_SAFE_ZONE = Math.ceil(gapAboveDock);   // hugs the dock's top edge, no extra buffer
   }
   applyBgDockSafeCentering();
+  applyTextPanelSafeCentering();
   resizeBg3D();
+}
+function applyTextPanelSafeCentering(){
+  // recenter Text A/B/C horizontally within the panel-free region while a right-side panel is open,
+  // same idea as applyBgDockSafeCentering() below. Skipped once dragged (dataset.positioned).
+  // Known gap: this only affects the CSS-default centered state — once audio starts, updateTextBounceDom()
+  // overwrites transform every frame without a centering term of its own (pre-existing, independent of
+  // this fix), so a non-dragged text's on-screen center can still drift slightly during active bounce
+  // playback. Left alone here rather than touching the shared per-frame animation system.
+  ['titleDisplay','textADisplay','textBDisplay'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el && !el.dataset.positioned) el.style.left = `calc(50% - ${PANEL_SAFE_ZONE/2}px)`;
+  });
 }
 function applyBgDockSafeCentering(){
   // recenter the uploaded photo/video background on the area above the dock and clear of any open
@@ -6052,6 +6065,17 @@ function ensureBg3DDotTexture(){
   bg3DDotTexture = new THREE.CanvasTexture(c);
   return bg3DDotTexture;
 }
+/* shared bloom post-processing layer — phase 1 test set, see CLAUDE.md 3D section.
+   Mirrors the composer/RenderPass/UnrealBloomPass boilerplate each of the 21 earlier effects
+   (Prism..RainbowWormhole) already duplicates inline, so new effects don't have to repeat it.
+   Returns bloom too, since several existing effects modulate bloom.strength per-frame from audio. */
+function createBg3DBloom(scene, camera, strength, radius, threshold){
+  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  composer.addPass(new THREE.RenderPass(scene, camera));
+  const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), strength, radius, threshold);
+  composer.addPass(bloom);
+  return { composer, bloom };
+}
 
 /* -- style 1: particle field -- */
 function buildBg3DParticles(){
@@ -6079,7 +6103,8 @@ function buildBg3DParticles(){
   const mat = new THREE.PointsMaterial({ size:0.9, map:ensureBg3DDotTexture(), vertexColors:true, transparent:true, opacity:0.85, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending });
   const points = new THREE.Points(geo, mat);
   scene.add(points);
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     points.rotation.y += (0.0006 + bass*0.003) * dt;
     points.rotation.x += 0.0002 * dt;
     points.material.size = 0.9 * (0.85 + bass*0.9 + mid*0.25);
@@ -6121,7 +6146,8 @@ function buildBg3DTunnel(){
     orb.userData.speed = 0.3+Math.random()*0.5;
     scene.add(orb); orbs.push(orb);
   }
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     const speed = (0.35 + bass*1.6) * dt;
     rings.forEach(r=>{ r.position.z += speed; if(r.position.z>4) r.position.z -= totalLen; });
     floor.position.z += speed; if(floor.position.z > -totalLen/2+4) floor.position.z -= totalLen;
@@ -8228,7 +8254,8 @@ function buildBg3DVhsCube(){
   scene.add(scan);
 
   let clock=0, glitchT=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt;
     glitchT -= dt; if(glitchT<0) glitchT = 40+Math.random()*80;
     const glitching = glitchT < 6;
@@ -8266,7 +8293,8 @@ function buildBg3DVaporwaveSunset(){
   scene.add(grid);
 
   let clock=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt;
     sun.scale.setScalar(1+bass*0.1);
     gridMat.color.setHSL((0.85+Math.sin(clock*0.001)*0.05)%1,0.9,0.6);
@@ -8296,7 +8324,8 @@ function buildBg3DHologramCity(){
   scene.add(scan);
 
   let clock=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt;
     towers.forEach(t=>{ t.mat.opacity = 0.25+Math.sin(clock*0.02+t.phase)*0.15+bass*0.2; });
     scan.position.z = 10-((clock*0.05)%90);
@@ -8330,7 +8359,8 @@ function buildBg3DMatrixDataRain(){
   const rain = new THREE.Points(geo, mat);
   scene.add(rain);
 
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     const arr = geo.attributes.position.array;
     for(let i=0;i<COUNT;i++){
       const c = i%COLS;
@@ -8363,7 +8393,8 @@ function buildBg3DWarpSpeedStreaks(){
   const streaks = new THREE.LineSegments(geo, mat);
   scene.add(streaks);
 
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     const speed = (2+bass*10)*dt;
     const arr = geo.attributes.position.array;
     for(let i=0;i<COUNT;i++){
@@ -8400,7 +8431,8 @@ function buildBg3DPixelGlitchField(){
   }
 
   let clock=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt;
     voxels.forEach(v=>{
       const flick = Math.random() < 0.01+bass*0.02;
@@ -8440,7 +8472,8 @@ function buildBg3DBlackHoleAccretion(){
   disk.rotation.x = Math.PI/2 * 0.94;
   scene.add(disk);
 
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.8, 0.12);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     const arr = geo.attributes.position.array, carr = geo.attributes.color.array;
     for(let i=0;i<COUNT;i++){
       ang[i] += (0.01+bass*0.03)*dt*(18/rad[i]);
@@ -8489,7 +8522,8 @@ function buildBg3DSupernovaBurst(){
   scene.add(shell);
 
   let burstAge = 999, burstTimer = 0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.8, 0.12);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     burstTimer += dt;
     if(burstTimer > 260+Math.random()*160){ burstTimer=0; burstAge=0; }
     burstAge += dt;
@@ -8541,7 +8575,8 @@ function buildBg3DMeteorShower(){
     m.active = true; m.age = 0;
   }
   let launchTimer = 0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     launchTimer += dt;
     if(launchTimer > 12+Math.random()*20){ launchTimer=0; const m = meteors.find(x=>!x.active); if(m) launch(m); }
     meteors.forEach(m=>{
@@ -8590,7 +8625,8 @@ function buildBg3DCometTrail(){
   scene.add(tail);
 
   let t=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     t += (0.15+bass*0.3)*dt;
     const angle = (t*0.01%1)*Math.PI*2;
     core.position.set(Math.cos(angle)*32, Math.sin(angle*1.3)*14, Math.sin(angle)*20-10);
@@ -8636,7 +8672,8 @@ function buildBg3DPulsarBeacon(){
   }
 
   let clock=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.8, 0.12);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt;
     beamGroup.rotation.z += (0.02+bass*0.05)*dt;
     beamMat.opacity = 0.2+bass*0.25;
@@ -8966,7 +9003,8 @@ function buildBg3DBreathingHalo(){
   scene.add(halo2);
 
   let clock=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt;
     const breath = 1+Math.sin(clock*0.012)*0.06;
     halo.scale.setScalar(breath+bass*0.08);
@@ -8999,7 +9037,8 @@ function buildBg3DStardustDrift(){
 
   const basePos = pos.slice();
   let clock=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt;
     const arr = geo.attributes.position.array;
     for(let i=0;i<COUNT;i++){
@@ -9149,7 +9188,8 @@ function buildBg3DRedAlertScan(){
   scene.add(flash);
 
   let clock=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.75, 0.12);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt;
     beamGroup.rotation.z += (0.05+bass*0.08)*dt;
     beamMat.opacity = 0.25+bass*0.25;
@@ -9213,7 +9253,8 @@ function buildBg3DHighVoltageGrid(){
     a.age = 0;
   }
   let clock=0, spawnTimer=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt;
     spawnTimer += dt;
     if(spawnTimer > 16+Math.random()*24){ spawnTimer=0; spawnArc(arcs.reduce((x,y)=>x.age>y.age?x:y)); }
@@ -9260,7 +9301,8 @@ function buildBg3DChaseLightTrails(){
   }
 
   let clock=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += (0.03+bass*0.08)*dt;
     chasers.forEach(c=>{
       const arr = c.geo.attributes.position.array;
@@ -10008,7 +10050,8 @@ function buildBg3DRibbonBloom(){
   }
 
   let clock=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt;
     core.scale.setScalar(1+Math.sin(clock*0.02)*0.15+bass*0.3);
     ribbons.forEach(rb=>{
@@ -10132,7 +10175,8 @@ function buildBg3DNeonRiot(){
     }
   }
 
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     depthGridMat.opacity = 0.12+bass*0.15;
     blocks.forEach(b=>{
       b.timer -= dt*(1+bass*2);
@@ -10182,7 +10226,8 @@ function buildBg3DChromaExplosion(){
   scene.add(shell);
 
   let clock=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt;
     const arr = geo.attributes.position.array, carr = geo.attributes.color.array;
     const sarr = shellGeo.attributes.position.array, scarr = shellGeo.attributes.color.array;
@@ -10233,7 +10278,8 @@ function buildBg3DStrobeMatrix(){
     }
   }
 
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.75, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     ambientMat.opacity = 0.15+bass*0.2;
     const flipChance = 0.02+bass*0.1;
     cells.forEach(c=>{
@@ -10280,7 +10326,8 @@ function buildBg3DKineticSpectrum(){
   }
 
   let clock=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt;
     bands.forEach((b,i)=>{
       const h = 1+Math.sin(clock*0.05+b.phase)*0.6+bass*1.2;
@@ -10334,7 +10381,8 @@ function buildBg3DSpeedColorRings(){
   }
 
   let clock=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt;
     rings.forEach((r,i)=>{
       r.ring.rotation.z += r.dir*(0.03+bass*0.15)*dt;
@@ -10389,7 +10437,8 @@ function buildBg3DElectroPartyFlash(){
   scene.add(flash);
 
   let flashAge=999, flashTimer=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.8, 0.12);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     dustMat.opacity = 0.15+bass*0.15;
     flashTimer += dt;
     if(flashTimer > 18+Math.random()*30 || (bass>0.9 && flashTimer>8)){
@@ -10449,7 +10498,8 @@ function buildBg3DStageSpotlightSweep(){
   }
 
   let clock=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt;
     mirrorBall.rotation.y += 0.005*dt;
     spots.forEach(s=>{
@@ -10493,7 +10543,8 @@ function buildBg3DLaserGridShow(){
   }
 
   let clock=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.75, 0.12);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt;
     lasers.forEach((l,i)=>{
       const a = clock*0.01*l.speed+l.phase;
@@ -10603,7 +10654,8 @@ function buildBg3DEnergyCoreOverload(){
   scene.add(burstRing);
 
   let cyc=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.8, 0.12);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     cyc += dt;
     const period = 150;
     const phase = (cyc%period)/period;
@@ -10657,7 +10709,8 @@ function buildBg3DEdmPulseWall(){
   }
 
   let clock=0;
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt;
     blocks.forEach(b=>{
       const wave = Math.max(0, Math.sin((clock-b.delay)*0.04));
@@ -10696,7 +10749,8 @@ function buildBg3DLightWaveSurge(){
     waves.push({ mesh, mat, z:-10-i*20 });
   }
 
-  return { scene, camera, update(bass,mid,high,dt){
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
     const speed = (0.5+bass*2)*dt;
     waves.forEach(w=>{
       w.z += speed;
