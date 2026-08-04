@@ -12447,7 +12447,14 @@ function renderBg3D(bass, mid, high, dt){
   if(!hasBg3D || !bg3DKind || !bg3DScenes[bg3DKind]) return;
   const s = bg3DScenes[bg3DKind];
   const dirM = bg3DDirectorMultipliers();
-  s.update(Math.min(1,bass*dirM.bassMul), Math.min(1,mid*dirM.bassMul), Math.min(1,high*dirM.bassMul), dt*bg3DSpeed*dirM.speedMul);
+  // raw bass can saturate near 1 for long stretches on bass-heavy tracks (detectBeat clamps it), so
+  // some effects' own "1+bass*X" formulas can sit at a static elevated value instead of visibly
+  // pulsing. Add (never subtract) the beat transient — a sharp, non-saturating 0→1→decay impulse —
+  // on top of the untouched raw bass, so effects that already relied on the full sustained bass level
+  // (e.g. fractal tree's opacity/scale) keep working exactly as before, and only gain an extra snap
+  // right on each detected beat.
+  const pulsedBass = Math.min(1, bass + beat*0.4);
+  s.update(Math.min(1,pulsedBass*dirM.bassMul), Math.min(1,mid*dirM.bassMul), Math.min(1,high*dirM.bassMul), dt*bg3DSpeed*dirM.speedMul);
   if(s.scene.fog){
     if(s.scene.userData.baseFogDensity===undefined) s.scene.userData.baseFogDensity = s.scene.fog.density;
     s.scene.fog.density = s.scene.userData.baseFogDensity * dirM.fogMul;
