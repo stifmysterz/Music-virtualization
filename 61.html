@@ -19742,6 +19742,25 @@ applyTextLayerOrder();
 makeTransformable(bgImageEl);
 makeTransformable(bgVideoEl);
 
+/* ---------- keep dragged text/background overlays on-screen after a viewport size change ---------- */
+/* makeTransformable() switches an element to absolute left/top px the first time it's dragged
+   (dataset.positioned) — those coordinates are only valid for the viewport size they were set in.
+   Exiting fullscreen (or any resize) can otherwise leave them off-screen or under the dock. */
+function clampPositionedElements(){
+  [titleDisplay, textADisplay, textBDisplay, bgImageEl, bgVideoEl].forEach(el=>{
+    if(!el || !el.dataset.positioned) return;
+    const r = el.getBoundingClientRect();
+    const maxLeft = Math.max(0, innerWidth - r.width);
+    const maxTop = Math.max(0, innerHeight - DOCK_SAFE_ZONE - r.height);
+    const left = Math.min(Math.max(r.left, 0), maxLeft);
+    const top = Math.min(Math.max(r.top, 0), maxTop);
+    if(left !== r.left) el.style.left = left + 'px';
+    if(top !== r.top) el.style.top = top + 'px';
+  });
+}
+addEventListener('resize', clampPositionedElements);
+document.addEventListener('fullscreenchange', clampPositionedElements);
+
 /* ---------- toggle: let pointer gestures reach the background instead of the canvas ---------- */
 let bgAdjustOn = false;
 document.getElementById('bgAdjustBtn').onclick = ()=>{
