@@ -105,12 +105,20 @@
   .dock .grp-tools{border-color:rgba(200,206,222,.55)}
   .dock .grp-tools:hover{border-color:#c8cede;color:#c8cede}
   .dock-dd{
-    position:fixed;display:none;flex-direction:column;gap:5px;min-width:190px;
+    position:fixed;display:flex;flex-direction:column;gap:5px;min-width:190px;
     background:rgba(10,12,22,.96);backdrop-filter:blur(16px);
     border:1px solid var(--line);border-radius:12px;padding:8px;z-index:25;
     overflow-y:auto;
+    opacity:0;visibility:hidden;pointer-events:none;transform:translateY(6px);
+    transition:opacity .15s ease,transform .15s ease,visibility 0s linear .15s;
   }
-  .dock-dd.show{display:flex}
+  .dock-dd.show{
+    opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0);
+    transition:opacity .15s ease,transform .15s ease;
+  }
+  @media (prefers-reduced-motion: reduce){
+    .dock-dd{transition:none}
+  }
   .dock-dd-item{
     appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.02);color:var(--ink);
     font:inherit;font-size:12px;letter-spacing:.06em;padding:9px 12px;border-radius:9px;
@@ -5164,6 +5172,7 @@ const UI_STRINGS = {
     bg3DWaveformTerrainBtn:"🏔 Waveform Terrain",
     bg3DBeatTunnelBtn:"🥁 Beat Tunnel",
     bg3DParticleDNAHelixBtn:"🧬 Particle DNA Helix",
+    bg3DFrequencyGalaxyBtn:"🌌 Frequency Galaxy",
     bg3DBounceHint:"💡 Bounce animation (also applies here) is in the Background menu",
     bg3DChapterTimeTravelBtn:"↳ Time Travel",
     bg3DChapterMalaysiaBtn:"↳ Magical Malaysia",
@@ -5390,6 +5399,7 @@ const UI_STRINGS = {
     bg3DWaveformTerrainBtn:"🏔 线框地形波形",
     bg3DBeatTunnelBtn:"🥁 节拍隧道",
     bg3DParticleDNAHelixBtn:"🧬 粒子DNA螺旋",
+    bg3DFrequencyGalaxyBtn:"🌌 频率银河",
     bg3DBounceHint:"💡 弹跳动画（这里同样生效）设置在「背景」菜单里",
     bg3DChapterTimeTravelBtn:"↳ 穿越历史",
     bg3DChapterMalaysiaBtn:"↳ 梦幻马来西亚",
@@ -12280,7 +12290,73 @@ function buildBg3DParticleDNAHelix(){
   }};
 }
 
-const BG3D_BUILDERS = { particles: buildBg3DParticles, tunnel: buildBg3DTunnel, prism: buildBg3DPrism, festival: buildBg3DFestivalBuilding, galaxy: buildBg3DGalaxy, colorTunnel: buildBg3DColorTunnel, synthwave: buildBg3DSynthwave, helix: buildBg3DHelix, fireworkSky: buildBg3DFireworkSky, aurora: buildBg3DAurora, particleStorm: buildBg3DParticleStorm, particleWaves: buildBg3DParticleWaves, particleRings: buildBg3DParticleRings, particleRain: buildBg3DParticleRain, galaxyMerge: buildBg3DGalaxyMerge, particleVortex: buildBg3DParticleVortex, particleStardust: buildBg3DParticleStardust, particlePulseOrb: buildBg3DParticlePulseOrb, particleWaterfall: buildBg3DParticleWaterfall, rainbowNebula: buildBg3DRainbowNebula, cosmicRings: buildBg3DCosmicRings, galaxySpiral: buildBg3DGalaxySpiral, rainbowWormhole: buildBg3DRainbowWormhole, fireflyForest: buildBg3DFireflyForest, cherryBlossom: buildBg3DCherryBlossom, glacierAurora: buildBg3DGlacierAurora, dandelionSeeds: buildBg3DDandelionSeeds, duneRipple: buildBg3DDuneRipple, rainforestVines: buildBg3DRainforestVines, coralReef: buildBg3DCoralReef, jellyfishSwarm: buildBg3DJellyfishSwarm, bioluminescentDeep: buildBg3DBioluminescentDeep, tideRippleGrid: buildBg3DTideRippleGrid, oceanVortex: buildBg3DOceanVortex, lightningStorm: buildBg3DLightningStorm, snowfallDrift: buildBg3DSnowfallDrift, sandstorm: buildBg3DSandstorm, foggyMoonlight: buildBg3DFoggyMoonlight, rainbowRain: buildBg3DRainbowRain, vhsCube: buildBg3DVhsCube, vaporwaveSunset: buildBg3DVaporwaveSunset, hologramCity: buildBg3DHologramCity, matrixDataRain: buildBg3DMatrixDataRain, warpSpeedStreaks: buildBg3DWarpSpeedStreaks, pixelGlitchField: buildBg3DPixelGlitchField, blackHoleAccretion: buildBg3DBlackHoleAccretion, supernovaBurst: buildBg3DSupernovaBurst, meteorShower: buildBg3DMeteorShower, cometTrail: buildBg3DCometTrail, pulsarBeacon: buildBg3DPulsarBeacon, kaleidoscope: buildBg3DKaleidoscope, fractalTree: buildBg3DFractalTree, voronoiShatter: buildBg3DVoronoiShatter, waveformRings: buildBg3DWaveformRings, mobiusRibbon: buildBg3DMobiusRibbon, liquidMetalWave: buildBg3DLiquidMetalWave, zenRipplePond: buildBg3DZenRipplePond, floatingOrbs: buildBg3DFloatingOrbs, breathingHalo: buildBg3DBreathingHalo, stardustDrift: buildBg3DStardustDrift, horizonGlow: buildBg3DHorizonGlow, heartbeatPulse: buildBg3DHeartbeatPulse, redAlertScan: buildBg3DRedAlertScan, highVoltageGrid: buildBg3DHighVoltageGrid, chaseLightTrails: buildBg3DChaseLightTrails, dangerScanSweep: buildBg3DDangerScanSweep, ambushBeacon: buildBg3DAmbushBeacon, shockwavePulse: buildBg3DShockwavePulse, impactCraterBurst: buildBg3DImpactCraterBurst, groundCrackRift: buildBg3DGroundCrackRift, glassShatterBurst: buildBg3DGlassShatterBurst, thunderStrikeFlash: buildBg3DThunderStrikeFlash, sonicBoomRing: buildBg3DSonicBoomRing, confettiExplosion: buildBg3DConfettiExplosion, giftRevealBurst: buildBg3DGiftRevealBurst, partyBalloonRise: buildBg3DPartyBalloonRise, surpriseStarburst: buildBg3DSurpriseStarburst, ribbonBloom: buildBg3DRibbonBloom, bubblePopBurst: buildBg3DBubblePopBurst, neonRiot: buildBg3DNeonRiot, chromaExplosion: buildBg3DChromaExplosion, strobeMatrix: buildBg3DStrobeMatrix, kineticSpectrum: buildBg3DKineticSpectrum, speedColorRings: buildBg3DSpeedColorRings, electroPartyFlash: buildBg3DElectroPartyFlash, stageSpotlightSweep: buildBg3DStageSpotlightSweep, laserGridShow: buildBg3DLaserGridShow, flameBurstColumn: buildBg3DFlameBurstColumn, energyCoreOverload: buildBg3DEnergyCoreOverload, edmPulseWall: buildBg3DEdmPulseWall, lightWaveSurge: buildBg3DLightWaveSurge, suspenseFlicker: buildBg3DSuspenseFlicker, popScareBurst: buildBg3DPopScareBurst, emergencySignalPulse: buildBg3DEmergencySignalPulse, climaxFlashBurst: buildBg3DClimaxFlashBurst, electricShockArc: buildBg3DElectricShockArc, surpriseFirecrackerPop: buildBg3DSurpriseFirecrackerPop, tensionCountdownRing: buildBg3DTensionCountdownRing, highEnergyFlashStage: buildBg3DHighEnergyFlashStage, criticalMassBurst: buildBg3DCriticalMassBurst, birthdayCake: buildBg3DBirthdayCake, balloonArch: buildBg3DBalloonArch, confettiCannon: buildBg3DConfettiCannon, partyStreamerSwirl: buildBg3DPartyStreamerSwirl, sprinkleShower: buildBg3DSprinkleShower, weddingRings: buildBg3DWeddingRings, doveFlight: buildBg3DDoveFlight, rosePetalFall: buildBg3DRosePetalFall, fairyLightCanopy: buildBg3DFairyLightCanopy, floatingLanterns: buildBg3DFloatingLanterns, birthdayCombo: buildBg3DBirthdayCombo, weddingCombo: buildBg3DWeddingCombo, neonSpiralTunnel: buildBg3DNeonSpiralTunnel, hologramPortal: buildBg3DHologramPortal, hyperspaceRush: buildBg3DHyperspaceRush, waveformTerrain: buildBg3DWaveformTerrain, beatTunnel: buildBg3DBeatTunnel, particleDNAHelix: buildBg3DParticleDNAHelix };
+/* -- frequency galaxy: a large central body driven by bass, an orbiting nebula cloud driven by
+   mid, and a twinkling starfield driven by high — bass/mid/high each own one distinct visual
+   layer instead of all blending into the same parameter, per the user's original brief. -- */
+function buildBg3DFrequencyGalaxy(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x03020a, 0.008);
+  const camera = new THREE.PerspectiveCamera(58, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 220);
+  camera.position.set(0,4,50);
+
+  const bodyMat = new THREE.MeshBasicMaterial({ color:0xffd68a, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, depthWrite:false });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(4,24,20), bodyMat);
+  scene.add(body);
+
+  const NEB_COUNT=400;
+  const nebPos = new Float32Array(NEB_COUNT*3), nebCol = new Float32Array(NEB_COUNT*3);
+  const nebAng = new Float32Array(NEB_COUNT), nebRad = new Float32Array(NEB_COUNT), nebTilt = new Float32Array(NEB_COUNT);
+  const tmpColor = new THREE.Color();
+  for(let i=0;i<NEB_COUNT;i++){
+    nebAng[i]=Math.random()*Math.PI*2; nebRad[i]=8+Math.random()*22; nebTilt[i]=(Math.random()-0.5)*0.6;
+    tmpColor.setHSL(0.7+Math.random()*0.25,0.8,0.55);
+    nebCol[i*3]=tmpColor.r; nebCol[i*3+1]=tmpColor.g; nebCol[i*3+2]=tmpColor.b;
+  }
+  const nebGeo = new THREE.BufferGeometry();
+  nebGeo.setAttribute('position', new THREE.BufferAttribute(nebPos,3));
+  nebGeo.setAttribute('color', new THREE.BufferAttribute(nebCol,3));
+  const nebMat = new THREE.PointsMaterial({ size:1.4, map:ensureBg3DDotTexture(), vertexColors:true, transparent:true, opacity:0.5, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending });
+  scene.add(new THREE.Points(nebGeo, nebMat));
+
+  const STAR_COUNT=500;
+  const starPos = new Float32Array(STAR_COUNT*3);
+  for(let i=0;i<STAR_COUNT;i++){ starPos[i*3]=(Math.random()-0.5)*160; starPos[i*3+1]=(Math.random()-0.5)*100; starPos[i*3+2]=-40-Math.random()*80; }
+  const starGeo = new THREE.BufferGeometry();
+  starGeo.setAttribute('position', new THREE.BufferAttribute(starPos,3));
+  const starMat = new THREE.PointsMaterial({ size:0.5, map:ensureBg3DDotTexture(), color:0xffffff, transparent:true, opacity:0.6, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending });
+  scene.add(new THREE.Points(starGeo, starMat));
+
+  let clock=0;
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.8, 0.12);
+  return { scene, camera, composer, update(bass,mid,high,dt){
+    clock += dt;
+    // bass = large body movement/pulse
+    body.position.x = Math.sin(clock*0.006)*4*(1+bass*0.5);
+    body.position.y = Math.cos(clock*0.004)*2;
+    body.scale.setScalar(1+bass*0.5);
+    bodyMat.opacity = 0.7+bass*0.3;
+
+    // mid = nebula rotation speed / radius / hue drift
+    const nArr = nebGeo.attributes.position.array;
+    const ncArr = nebGeo.attributes.color.array;
+    for(let i=0;i<NEB_COUNT;i++){
+      nebAng[i] += (0.001+mid*0.006)*dt;
+      const r = nebRad[i]*(1+mid*0.15);
+      nArr[i*3]=Math.cos(nebAng[i])*r; nArr[i*3+1]=Math.sin(nebAng[i])*r*Math.cos(nebTilt[i])*0.4; nArr[i*3+2]=Math.sin(nebAng[i])*r*Math.sin(nebTilt[i])*0.4-10;
+      tmpColor.setHSL((0.7+Math.random()*0.02+mid*0.1)%1,0.8,0.55);
+      ncArr[i*3]=tmpColor.r; ncArr[i*3+1]=tmpColor.g; ncArr[i*3+2]=tmpColor.b;
+    }
+    nebGeo.attributes.position.needsUpdate = true;
+    nebGeo.attributes.color.needsUpdate = true;
+    nebMat.opacity = 0.35+mid*0.35;
+
+    // high = starfield twinkle
+    starMat.opacity = 0.4+Math.sin(clock*0.05)*0.1+high*0.4;
+    starMat.size = 0.5*(1+high*0.6);
+  }};
+}
+
+const BG3D_BUILDERS = { particles: buildBg3DParticles, tunnel: buildBg3DTunnel, prism: buildBg3DPrism, festival: buildBg3DFestivalBuilding, galaxy: buildBg3DGalaxy, colorTunnel: buildBg3DColorTunnel, synthwave: buildBg3DSynthwave, helix: buildBg3DHelix, fireworkSky: buildBg3DFireworkSky, aurora: buildBg3DAurora, particleStorm: buildBg3DParticleStorm, particleWaves: buildBg3DParticleWaves, particleRings: buildBg3DParticleRings, particleRain: buildBg3DParticleRain, galaxyMerge: buildBg3DGalaxyMerge, particleVortex: buildBg3DParticleVortex, particleStardust: buildBg3DParticleStardust, particlePulseOrb: buildBg3DParticlePulseOrb, particleWaterfall: buildBg3DParticleWaterfall, rainbowNebula: buildBg3DRainbowNebula, cosmicRings: buildBg3DCosmicRings, galaxySpiral: buildBg3DGalaxySpiral, rainbowWormhole: buildBg3DRainbowWormhole, fireflyForest: buildBg3DFireflyForest, cherryBlossom: buildBg3DCherryBlossom, glacierAurora: buildBg3DGlacierAurora, dandelionSeeds: buildBg3DDandelionSeeds, duneRipple: buildBg3DDuneRipple, rainforestVines: buildBg3DRainforestVines, coralReef: buildBg3DCoralReef, jellyfishSwarm: buildBg3DJellyfishSwarm, bioluminescentDeep: buildBg3DBioluminescentDeep, tideRippleGrid: buildBg3DTideRippleGrid, oceanVortex: buildBg3DOceanVortex, lightningStorm: buildBg3DLightningStorm, snowfallDrift: buildBg3DSnowfallDrift, sandstorm: buildBg3DSandstorm, foggyMoonlight: buildBg3DFoggyMoonlight, rainbowRain: buildBg3DRainbowRain, vhsCube: buildBg3DVhsCube, vaporwaveSunset: buildBg3DVaporwaveSunset, hologramCity: buildBg3DHologramCity, matrixDataRain: buildBg3DMatrixDataRain, warpSpeedStreaks: buildBg3DWarpSpeedStreaks, pixelGlitchField: buildBg3DPixelGlitchField, blackHoleAccretion: buildBg3DBlackHoleAccretion, supernovaBurst: buildBg3DSupernovaBurst, meteorShower: buildBg3DMeteorShower, cometTrail: buildBg3DCometTrail, pulsarBeacon: buildBg3DPulsarBeacon, kaleidoscope: buildBg3DKaleidoscope, fractalTree: buildBg3DFractalTree, voronoiShatter: buildBg3DVoronoiShatter, waveformRings: buildBg3DWaveformRings, mobiusRibbon: buildBg3DMobiusRibbon, liquidMetalWave: buildBg3DLiquidMetalWave, zenRipplePond: buildBg3DZenRipplePond, floatingOrbs: buildBg3DFloatingOrbs, breathingHalo: buildBg3DBreathingHalo, stardustDrift: buildBg3DStardustDrift, horizonGlow: buildBg3DHorizonGlow, heartbeatPulse: buildBg3DHeartbeatPulse, redAlertScan: buildBg3DRedAlertScan, highVoltageGrid: buildBg3DHighVoltageGrid, chaseLightTrails: buildBg3DChaseLightTrails, dangerScanSweep: buildBg3DDangerScanSweep, ambushBeacon: buildBg3DAmbushBeacon, shockwavePulse: buildBg3DShockwavePulse, impactCraterBurst: buildBg3DImpactCraterBurst, groundCrackRift: buildBg3DGroundCrackRift, glassShatterBurst: buildBg3DGlassShatterBurst, thunderStrikeFlash: buildBg3DThunderStrikeFlash, sonicBoomRing: buildBg3DSonicBoomRing, confettiExplosion: buildBg3DConfettiExplosion, giftRevealBurst: buildBg3DGiftRevealBurst, partyBalloonRise: buildBg3DPartyBalloonRise, surpriseStarburst: buildBg3DSurpriseStarburst, ribbonBloom: buildBg3DRibbonBloom, bubblePopBurst: buildBg3DBubblePopBurst, neonRiot: buildBg3DNeonRiot, chromaExplosion: buildBg3DChromaExplosion, strobeMatrix: buildBg3DStrobeMatrix, kineticSpectrum: buildBg3DKineticSpectrum, speedColorRings: buildBg3DSpeedColorRings, electroPartyFlash: buildBg3DElectroPartyFlash, stageSpotlightSweep: buildBg3DStageSpotlightSweep, laserGridShow: buildBg3DLaserGridShow, flameBurstColumn: buildBg3DFlameBurstColumn, energyCoreOverload: buildBg3DEnergyCoreOverload, edmPulseWall: buildBg3DEdmPulseWall, lightWaveSurge: buildBg3DLightWaveSurge, suspenseFlicker: buildBg3DSuspenseFlicker, popScareBurst: buildBg3DPopScareBurst, emergencySignalPulse: buildBg3DEmergencySignalPulse, climaxFlashBurst: buildBg3DClimaxFlashBurst, electricShockArc: buildBg3DElectricShockArc, surpriseFirecrackerPop: buildBg3DSurpriseFirecrackerPop, tensionCountdownRing: buildBg3DTensionCountdownRing, highEnergyFlashStage: buildBg3DHighEnergyFlashStage, criticalMassBurst: buildBg3DCriticalMassBurst, birthdayCake: buildBg3DBirthdayCake, balloonArch: buildBg3DBalloonArch, confettiCannon: buildBg3DConfettiCannon, partyStreamerSwirl: buildBg3DPartyStreamerSwirl, sprinkleShower: buildBg3DSprinkleShower, weddingRings: buildBg3DWeddingRings, doveFlight: buildBg3DDoveFlight, rosePetalFall: buildBg3DRosePetalFall, fairyLightCanopy: buildBg3DFairyLightCanopy, floatingLanterns: buildBg3DFloatingLanterns, birthdayCombo: buildBg3DBirthdayCombo, weddingCombo: buildBg3DWeddingCombo, neonSpiralTunnel: buildBg3DNeonSpiralTunnel, hologramPortal: buildBg3DHologramPortal, hyperspaceRush: buildBg3DHyperspaceRush, waveformTerrain: buildBg3DWaveformTerrain, beatTunnel: buildBg3DBeatTunnel, particleDNAHelix: buildBg3DParticleDNAHelix, frequencyGalaxy: buildBg3DFrequencyGalaxy };
 
 function resizeBg3D(){
   const availH = Math.max(1, window.innerHeight - DOCK_SAFE_ZONE);   // keep 3D content out of the strip reserved for the dock, same idea as the 2D canvas clip
@@ -12553,7 +12629,8 @@ function updateTextBounceDom(bass){
     const baseScale = parseFloat(el.dataset.txScale) || 1;
     const baseRotation = parseFloat(el.dataset.txRotation) || 0;
     const p = computeTextBounceParams(id, bass);
-    el.style.transform = `translate(${p.shakeX+p.orbitX}px, ${p.shakeY+p.bounceY+p.orbitY}px) scale(${baseScale*p.pulse*p.scaleX}, ${baseScale*p.pulse*p.scaleY}) rotate(${baseRotation+p.extraRot}rad) skewX(${p.skewAmt}rad)`;
+    const centering = el.dataset.positioned ? '' : 'translateX(-50%) ';   // only needed before the first drag, while it's still CSS-centered via left:50% — same idea as updateBgBounceDom's centering
+    el.style.transform = `${centering}translate(${p.shakeX+p.orbitX}px, ${p.shakeY+p.bounceY+p.orbitY}px) scale(${baseScale*p.pulse*p.scaleX}, ${baseScale*p.pulse*p.scaleY}) rotate(${baseRotation+p.extraRot}rad) skewX(${p.skewAmt}rad)`;
     let filterStr = '';
     if(p.flashAmt>0) filterStr += `brightness(${Math.round(100+p.flashAmt*180)}%) `;
     if(p.hueRotateAmt) filterStr += `hue-rotate(${p.hueRotateAmt}deg) `;
@@ -20375,7 +20452,7 @@ document.getElementById('bg3DRemoveBtn').onclick = ()=>{
 /* ---------- 3D background menu: data-driven, collapsible categories (same expand/collapse pattern as the Mode panel) ---------- */
 const BG3D_CATALOG = [
   { cat:'bg3DCatParticles', kinds:['particles','particleStorm','particleWaves','particleRings','particleRain','particleVortex','particleStardust','particlePulseOrb','particleWaterfall'] },
-  { cat:'bg3DCatGalaxy', kinds:['galaxy','galaxyMerge','rainbowNebula','cosmicRings','galaxySpiral','rainbowWormhole'] },
+  { cat:'bg3DCatGalaxy', kinds:['galaxy','galaxyMerge','rainbowNebula','cosmicRings','galaxySpiral','rainbowWormhole','frequencyGalaxy'] },
   { cat:'bg3DCatTunnels', kinds:['tunnel','colorTunnel','neonSpiralTunnel','beatTunnel'] },
   { cat:'bg3DCatNeon', kinds:['synthwave','hologramPortal'] },
   { cat:'bg3DCatGeometric', kinds:['prism','helix'] },
@@ -20493,6 +20570,15 @@ function buildBg3DMenu(){
   });
 }
 buildBg3DMenu();
+/* ---------- accessibility: role/aria-haspopup for the dock's menu buttons and dropdowns —
+   one-time static pass rather than touching the ~15 scattered open/close functions, since none
+   of them need to change behavior, just get labeled correctly for assistive tech ---------- */
+document.querySelectorAll('.dock-dd').forEach(el=> el.setAttribute('role','menu'));
+document.querySelectorAll('.dock-dd-item').forEach(el=> el.setAttribute('role','menuitem'));
+['logoMenuBtn','soundMenuBtn','bgMenuBtn','bg3DMenuBtn','looksMenuBtn','moreMenuBtn','modeBtn','textStyleBtn','timingBtn'].forEach(id=>{
+  const btn = document.getElementById(id);
+  if(btn) btn.setAttribute('aria-haspopup','true');
+});
 function populatePresetBg3DSelect(){
   const sel = document.getElementById('presetBg3DSel');
   if(!sel) return;
@@ -20861,7 +20947,11 @@ document.getElementById('logoOpacitySel').addEventListener('input', e=>{ logoOpa
     if(!textBounce[textId].on){
       // snap back to the plain manual transform so nothing looks stuck mid-animation
       const el = document.getElementById(textId);
-      if(el){ el.style.transform = `scale(${parseFloat(el.dataset.txScale)||1}) rotate(${parseFloat(el.dataset.txRotation)||0}rad)`; el.style.filter='none'; }
+      if(el){
+        const centering = el.dataset.positioned ? '' : 'translateX(-50%) ';
+        el.style.transform = `${centering}scale(${parseFloat(el.dataset.txScale)||1}) rotate(${parseFloat(el.dataset.txRotation)||0}rad)`;
+        el.style.filter='none';
+      }
     }
   };
   styleSel.addEventListener('change', ()=>{ textBounce[textId].style = styleSel.value; });
