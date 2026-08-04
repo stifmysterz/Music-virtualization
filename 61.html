@@ -5146,6 +5146,8 @@ const UI_STRINGS = {
     bg3DRosePetalFallBtn:"🌹 Rose Petal Fall",
     bg3DFairyLightCanopyBtn:"🌟 Fairy Light Canopy",
     bg3DFloatingLanternsBtn:"🏮 Floating Lanterns",
+    bg3DBirthdayComboBtn:"🎉 Birthday Party (All-in-one)",
+    bg3DWeddingComboBtn:"💐 Wedding (All-in-one)",
     bg3DBounceHint:"💡 Bounce animation (also applies here) is in the Background menu",
     bg3DChapterTimeTravelBtn:"↳ Time Travel",
     bg3DChapterMalaysiaBtn:"↳ Magical Malaysia",
@@ -5364,6 +5366,8 @@ const UI_STRINGS = {
     bg3DRosePetalFallBtn:"🌹 玫瑰花瓣飘落",
     bg3DFairyLightCanopyBtn:"🌟 仙女灯串天棚",
     bg3DFloatingLanternsBtn:"🏮 孔明灯升空",
+    bg3DBirthdayComboBtn:"🎉 生日派对全景",
+    bg3DWeddingComboBtn:"💐 婚礼全景",
     bg3DBounceHint:"💡 弹跳动画（这里同样生效）设置在「背景」菜单里",
     bg3DChapterTimeTravelBtn:"↳ 穿越历史",
     bg3DChapterMalaysiaBtn:"↳ 梦幻马来西亚",
@@ -11671,7 +11675,242 @@ function buildBg3DFloatingLanterns(){
   }};
 }
 
-const BG3D_BUILDERS = { particles: buildBg3DParticles, tunnel: buildBg3DTunnel, prism: buildBg3DPrism, festival: buildBg3DFestivalBuilding, galaxy: buildBg3DGalaxy, colorTunnel: buildBg3DColorTunnel, synthwave: buildBg3DSynthwave, helix: buildBg3DHelix, fireworkSky: buildBg3DFireworkSky, aurora: buildBg3DAurora, particleStorm: buildBg3DParticleStorm, particleWaves: buildBg3DParticleWaves, particleRings: buildBg3DParticleRings, particleRain: buildBg3DParticleRain, galaxyMerge: buildBg3DGalaxyMerge, particleVortex: buildBg3DParticleVortex, particleStardust: buildBg3DParticleStardust, particlePulseOrb: buildBg3DParticlePulseOrb, particleWaterfall: buildBg3DParticleWaterfall, rainbowNebula: buildBg3DRainbowNebula, cosmicRings: buildBg3DCosmicRings, galaxySpiral: buildBg3DGalaxySpiral, rainbowWormhole: buildBg3DRainbowWormhole, fireflyForest: buildBg3DFireflyForest, cherryBlossom: buildBg3DCherryBlossom, glacierAurora: buildBg3DGlacierAurora, dandelionSeeds: buildBg3DDandelionSeeds, duneRipple: buildBg3DDuneRipple, rainforestVines: buildBg3DRainforestVines, coralReef: buildBg3DCoralReef, jellyfishSwarm: buildBg3DJellyfishSwarm, bioluminescentDeep: buildBg3DBioluminescentDeep, tideRippleGrid: buildBg3DTideRippleGrid, oceanVortex: buildBg3DOceanVortex, lightningStorm: buildBg3DLightningStorm, snowfallDrift: buildBg3DSnowfallDrift, sandstorm: buildBg3DSandstorm, foggyMoonlight: buildBg3DFoggyMoonlight, rainbowRain: buildBg3DRainbowRain, vhsCube: buildBg3DVhsCube, vaporwaveSunset: buildBg3DVaporwaveSunset, hologramCity: buildBg3DHologramCity, matrixDataRain: buildBg3DMatrixDataRain, warpSpeedStreaks: buildBg3DWarpSpeedStreaks, pixelGlitchField: buildBg3DPixelGlitchField, blackHoleAccretion: buildBg3DBlackHoleAccretion, supernovaBurst: buildBg3DSupernovaBurst, meteorShower: buildBg3DMeteorShower, cometTrail: buildBg3DCometTrail, pulsarBeacon: buildBg3DPulsarBeacon, kaleidoscope: buildBg3DKaleidoscope, fractalTree: buildBg3DFractalTree, voronoiShatter: buildBg3DVoronoiShatter, waveformRings: buildBg3DWaveformRings, mobiusRibbon: buildBg3DMobiusRibbon, liquidMetalWave: buildBg3DLiquidMetalWave, zenRipplePond: buildBg3DZenRipplePond, floatingOrbs: buildBg3DFloatingOrbs, breathingHalo: buildBg3DBreathingHalo, stardustDrift: buildBg3DStardustDrift, horizonGlow: buildBg3DHorizonGlow, heartbeatPulse: buildBg3DHeartbeatPulse, redAlertScan: buildBg3DRedAlertScan, highVoltageGrid: buildBg3DHighVoltageGrid, chaseLightTrails: buildBg3DChaseLightTrails, dangerScanSweep: buildBg3DDangerScanSweep, ambushBeacon: buildBg3DAmbushBeacon, shockwavePulse: buildBg3DShockwavePulse, impactCraterBurst: buildBg3DImpactCraterBurst, groundCrackRift: buildBg3DGroundCrackRift, glassShatterBurst: buildBg3DGlassShatterBurst, thunderStrikeFlash: buildBg3DThunderStrikeFlash, sonicBoomRing: buildBg3DSonicBoomRing, confettiExplosion: buildBg3DConfettiExplosion, giftRevealBurst: buildBg3DGiftRevealBurst, partyBalloonRise: buildBg3DPartyBalloonRise, surpriseStarburst: buildBg3DSurpriseStarburst, ribbonBloom: buildBg3DRibbonBloom, bubblePopBurst: buildBg3DBubblePopBurst, neonRiot: buildBg3DNeonRiot, chromaExplosion: buildBg3DChromaExplosion, strobeMatrix: buildBg3DStrobeMatrix, kineticSpectrum: buildBg3DKineticSpectrum, speedColorRings: buildBg3DSpeedColorRings, electroPartyFlash: buildBg3DElectroPartyFlash, stageSpotlightSweep: buildBg3DStageSpotlightSweep, laserGridShow: buildBg3DLaserGridShow, flameBurstColumn: buildBg3DFlameBurstColumn, energyCoreOverload: buildBg3DEnergyCoreOverload, edmPulseWall: buildBg3DEdmPulseWall, lightWaveSurge: buildBg3DLightWaveSurge, suspenseFlicker: buildBg3DSuspenseFlicker, popScareBurst: buildBg3DPopScareBurst, emergencySignalPulse: buildBg3DEmergencySignalPulse, climaxFlashBurst: buildBg3DClimaxFlashBurst, electricShockArc: buildBg3DElectricShockArc, surpriseFirecrackerPop: buildBg3DSurpriseFirecrackerPop, tensionCountdownRing: buildBg3DTensionCountdownRing, highEnergyFlashStage: buildBg3DHighEnergyFlashStage, criticalMassBurst: buildBg3DCriticalMassBurst, birthdayCake: buildBg3DBirthdayCake, balloonArch: buildBg3DBalloonArch, confettiCannon: buildBg3DConfettiCannon, partyStreamerSwirl: buildBg3DPartyStreamerSwirl, sprinkleShower: buildBg3DSprinkleShower, weddingRings: buildBg3DWeddingRings, doveFlight: buildBg3DDoveFlight, rosePetalFall: buildBg3DRosePetalFall, fairyLightCanopy: buildBg3DFairyLightCanopy, floatingLanterns: buildBg3DFloatingLanterns };
+/* -- birthday party combo: cake+candles, a framing balloon arch, side confetti cannons, and a soft sprinkle
+   backdrop, all placed in one shared scene/camera so they read as a single composed shot rather than
+   fighting each other — a smaller, repositioned remix of buildBg3DBirthdayCake/BalloonArch/ConfettiCannon/
+   SprinkleShower rather than literally running all four scenes at once (see CLAUDE.md 3D section). -- */
+function buildBg3DBirthdayCombo(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0a0610, 0.011);
+  const camera = new THREE.PerspectiveCamera(58, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 220);
+  camera.position.set(0,3,48);
+
+  // sprinkle backdrop, thinned out so it doesn't compete with the foreground elements
+  const SPRINKLE_COUNT=220;
+  const sPos = new Float32Array(SPRINKLE_COUNT*3), sCol = new Float32Array(SPRINKLE_COUNT*3);
+  const sSpeed = new Float32Array(SPRINKLE_COUNT), sPhase = new Float32Array(SPRINKLE_COUNT);
+  const tmpColor = new THREE.Color();
+  for(let i=0;i<SPRINKLE_COUNT;i++){
+    sPos[i*3]=(Math.random()-0.5)*80; sPos[i*3+1]=Math.random()*54-16; sPos[i*3+2]=-30-Math.random()*30;
+    sSpeed[i]=0.3+Math.random()*0.5; sPhase[i]=Math.random()*Math.PI*2;
+    tmpColor.setHSL(Math.random(),0.8,0.65);
+    sCol[i*3]=tmpColor.r; sCol[i*3+1]=tmpColor.g; sCol[i*3+2]=tmpColor.b;
+  }
+  const sGeo = new THREE.BufferGeometry();
+  sGeo.setAttribute('position', new THREE.BufferAttribute(sPos,3));
+  sGeo.setAttribute('color', new THREE.BufferAttribute(sCol,3));
+  const sMat = new THREE.PointsMaterial({ size:0.4, map:ensureBg3DDotTexture(), vertexColors:true, transparent:true, opacity:0.55, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending });
+  scene.add(new THREE.Points(sGeo, sMat));
+
+  // balloon arch, pulled wide and high so it frames the cake instead of overlapping it
+  const BALLOON_COUNT=18;
+  const balloons=[];
+  for(let i=0;i<BALLOON_COUNT;i++){
+    const t = i/(BALLOON_COUNT-1);
+    const a = Math.PI*(0.06+t*0.88), R=27;
+    const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(t,0.85,0.6), transparent:true, opacity:0.85 });
+    const balloon = new THREE.Mesh(new THREE.SphereGeometry(1.5,14,12), mat);
+    const baseX = Math.cos(a)*R, baseY = Math.sin(a)*R+2;
+    balloon.position.set(baseX, baseY, -14-Math.random()*6);
+    scene.add(balloon);
+    balloons.push({ balloon, baseX, baseY, phase:Math.random()*Math.PI*2 });
+  }
+
+  // cake, scaled down and set low so the arch has room to read above it
+  const CAKE_SCALE = 0.62;
+  const cakeMat = new THREE.MeshBasicMaterial({ color:0xffd6e8, transparent:true, opacity:0.85 });
+  const tier1 = new THREE.Mesh(new THREE.CylinderGeometry(9*CAKE_SCALE,9.6*CAKE_SCALE,4*CAKE_SCALE,32), cakeMat);
+  tier1.position.y = -16; scene.add(tier1);
+  const tier2 = new THREE.Mesh(new THREE.CylinderGeometry(6.4*CAKE_SCALE,7*CAKE_SCALE,3.6*CAKE_SCALE,32), cakeMat);
+  tier2.position.y = -13.2; scene.add(tier2);
+  const tier3 = new THREE.Mesh(new THREE.CylinderGeometry(4*CAKE_SCALE,4.6*CAKE_SCALE,3.2*CAKE_SCALE,32), cakeMat);
+  tier3.position.y = -10.8; scene.add(tier3);
+  const CANDLE_COUNT=5;
+  const candles=[];
+  for(let i=0;i<CANDLE_COUNT;i++){
+    const a = (i/CANDLE_COUNT)*Math.PI*2, r = 2.2*CAKE_SCALE;
+    const stickMat = new THREE.MeshBasicMaterial({ color:0xfff6d8, transparent:true, opacity:0.9 });
+    const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,1.6,8), stickMat);
+    stick.position.set(Math.cos(a)*r, -9.9, Math.sin(a)*r);
+    scene.add(stick);
+    const flameMat = new THREE.MeshBasicMaterial({ color:0xffb347, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false });
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.22,0.55,10), flameMat);
+    flame.position.set(Math.cos(a)*r, -8.8, Math.sin(a)*r);
+    scene.add(flame);
+    candles.push({ flame, flameMat, phase:Math.random()*Math.PI*2 });
+  }
+
+  // confetti cannons at the sides, aimed up through the frame around the arch
+  const PER_CANNON=90;
+  function makeCannon(x){
+    const pos = new Float32Array(PER_CANNON*3), col = new Float32Array(PER_CANNON*3);
+    const dirX = new Float32Array(PER_CANNON), speed = new Float32Array(PER_CANNON), born = new Float32Array(PER_CANNON);
+    for(let i=0;i<PER_CANNON;i++){
+      born[i]=999; dirX[i]=(Math.random()-0.5)*0.7-Math.sign(x)*0.35; speed[i]=0.9+Math.random()*0.8;
+      tmpColor.setHSL(Math.random(),0.9,0.6);
+      col[i*3]=tmpColor.r; col[i*3+1]=tmpColor.g; col[i*3+2]=tmpColor.b;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col,3));
+    const mat = new THREE.PointsMaterial({ size:0.45, map:ensureBg3DDotTexture(), vertexColors:true, transparent:true, opacity:0.9, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending });
+    scene.add(new THREE.Points(geo, mat));
+    return { x, geo, dirX, speed, born };
+  }
+  const cannons = [makeCannon(-32), makeCannon(32)];
+
+  let clock=0, fireTimer=0;
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
+    clock += dt;
+    const arr = sGeo.attributes.position.array;
+    for(let i=0;i<SPRINKLE_COUNT;i++){
+      arr[i*3+1] -= (0.05+sSpeed[i]*0.14+bass*0.1)*dt;
+      arr[i*3] += Math.sin(clock*0.01+sPhase[i])*0.015*dt;
+      if(arr[i*3+1] < -26) arr[i*3+1] = 26+Math.random()*6;
+    }
+    sGeo.attributes.position.needsUpdate = true;
+    sMat.opacity = 0.4+bass*0.15;
+
+    balloons.forEach(b=>{
+      b.balloon.position.y = b.baseY + Math.sin(clock*0.02+b.phase)*0.5;
+      b.balloon.position.x = b.baseX + Math.sin(clock*0.015+b.phase*1.3)*0.25;
+    });
+
+    candles.forEach(c=>{
+      const flick = 1+Math.sin(clock*0.2+c.phase)*0.18+Math.random()*0.08+bass*0.3;
+      c.flame.scale.set(1,Math.max(0.3,flick),1);
+      c.flameMat.opacity = 0.7+bass*0.3;
+    });
+
+    fireTimer -= dt;
+    const firing = fireTimer < 0;
+    if(firing) fireTimer = 40+Math.random()*50;
+    cannons.forEach(c=>{
+      const carr = c.geo.attributes.position.array;
+      for(let i=0;i<PER_CANNON;i++){
+        c.born[i] += dt;
+        if(firing && c.born[i] > 55 && Math.random()<0.45) c.born[i] = 0;
+        const age = c.born[i];
+        if(age < 55){
+          const spd = c.speed[i]*(1+bass*0.4);
+          carr[i*3]   = c.x + c.dirX[i]*age*1.3;
+          carr[i*3+1] = -24 + spd*age*1.2 - age*age*0.011;
+          carr[i*3+2] = -12;
+        }
+      }
+      c.geo.attributes.position.needsUpdate = true;
+    });
+  }};
+}
+
+/* -- wedding combo: interlocked rings as the focal point, doves crossing behind, petals drifting in front,
+   and lanterns rising in the far background — one shared scene/camera, same idea as the birthday combo. -- */
+function buildBg3DWeddingCombo(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0a0810, 0.011);
+  const camera = new THREE.PerspectiveCamera(58, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 220);
+  camera.position.set(0,0,48);
+
+  // lanterns, far background
+  const LANTERN_COUNT=14;
+  const lanterns=[];
+  for(let i=0;i<LANTERN_COUNT;i++){
+    const bodyMat = new THREE.MeshBasicMaterial({ color:0xffb84d, transparent:true, opacity:0.75, blending:THREE.AdditiveBlending, depthWrite:false });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.8,1,1.4,10), bodyMat);
+    const x=(Math.random()-0.5)*70, y=Math.random()*60-30, z=-40-Math.random()*20;
+    body.position.set(x,y,z);
+    scene.add(body);
+    lanterns.push({ body, bodyMat, speed:0.1+Math.random()*0.18, swayPhase:Math.random()*Math.PI*2 });
+  }
+
+  // doves crossing behind the rings
+  const wingGeo = new THREE.PlaneGeometry(2,0.8);
+  const DOVE_COUNT=8;
+  const doves=[];
+  for(let i=0;i<DOVE_COUNT;i++){
+    const mat = new THREE.MeshBasicMaterial({ color:0xf5f2ff, transparent:true, opacity:0.85, side:THREE.DoubleSide });
+    const group = new THREE.Group();
+    const wingL = new THREE.Mesh(wingGeo, mat); wingL.position.x=-1;
+    const wingR = new THREE.Mesh(wingGeo, mat); wingR.position.x=1;
+    group.add(wingL); group.add(wingR);
+    const y=(Math.random()-0.5)*24+6, z=-22-Math.random()*10;
+    group.position.set(-56-Math.random()*30, y, z);
+    doves.push({ group, wingL, wingR, y, speed:1.1+Math.random()*0.7, flap:Math.random()*Math.PI*2 });
+    scene.add(group);
+  }
+
+  // rings, the focal point
+  const ringMat = new THREE.MeshBasicMaterial({ color:0xffd68a, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false });
+  const ring1 = new THREE.Mesh(new THREE.TorusGeometry(4.2,0.46,20,60), ringMat);
+  ring1.position.x = -2.2; scene.add(ring1);
+  const ring2 = new THREE.Mesh(new THREE.TorusGeometry(4.2,0.46,20,60), ringMat.clone());
+  ring2.position.x = 2.2; ring2.rotation.y = Math.PI/2.4;
+  scene.add(ring2);
+  const SPARK_COUNT=160;
+  const spPos = new Float32Array(SPARK_COUNT*3);
+  const spAng = new Float32Array(SPARK_COUNT), spRad = new Float32Array(SPARK_COUNT), spTilt = new Float32Array(SPARK_COUNT);
+  for(let i=0;i<SPARK_COUNT;i++){ spAng[i]=Math.random()*Math.PI*2; spRad[i]=7+Math.random()*8; spTilt[i]=Math.random()*Math.PI; }
+  const spGeo = new THREE.BufferGeometry();
+  spGeo.setAttribute('position', new THREE.BufferAttribute(spPos,3));
+  const spMat = new THREE.PointsMaterial({ size:0.35, map:ensureBg3DDotTexture(), color:0xfff2d0, transparent:true, opacity:0.65, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending });
+  scene.add(new THREE.Points(spGeo, spMat));
+
+  // petals, foreground
+  const petalGeo = new THREE.CircleGeometry(0.55,8);
+  const PETAL_COUNT=80;
+  const petals=[];
+  for(let i=0;i<PETAL_COUNT;i++){
+    const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(0.94+Math.random()*0.05,0.7,0.6+Math.random()*0.2), transparent:true, opacity:0.8, side:THREE.DoubleSide });
+    const petal = new THREE.Mesh(petalGeo, mat);
+    const x=(Math.random()-0.5)*60, y=Math.random()*50-14, z=16+Math.random()*10;
+    petal.position.set(x,y,z);
+    petal.rotation.z = Math.random()*Math.PI*2;
+    petals.push({ petal, speed:0.15+Math.random()*0.25, swayPhase:Math.random()*Math.PI*2, spin:(Math.random()-0.5)*0.02 });
+    scene.add(petal);
+  }
+
+  let clock=0;
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
+    clock += dt;
+    lanterns.forEach(l=>{
+      l.body.position.y += (l.speed+bass*0.1)*dt;
+      l.body.position.x += Math.sin(clock*0.008+l.swayPhase)*0.03*dt;
+      l.bodyMat.opacity = 0.55+Math.sin(clock*0.03+l.swayPhase)*0.15+bass*0.15;
+      if(l.body.position.y > 32) l.body.position.y = -32-Math.random()*6;
+    });
+    doves.forEach(d=>{
+      d.flap += (0.15+bass*0.15)*dt;
+      const flap = Math.sin(d.flap);
+      d.wingL.rotation.y = flap*0.9; d.wingR.rotation.y = -flap*0.9;
+      d.group.position.x += d.speed*(0.3+bass*0.3)*dt;
+      d.group.position.y = d.y + Math.sin(d.flap*0.3)*1.3;
+      if(d.group.position.x > 56){ d.group.position.x = -76-Math.random()*20; d.y = (Math.random()-0.5)*24+6; }
+    });
+    ring1.rotation.y += (0.006+bass*0.01)*dt;
+    ring2.rotation.x += (0.006+bass*0.01)*dt;
+    const s = 1+bass*0.08;
+    ring1.scale.setScalar(s); ring2.scale.setScalar(s);
+    const spArr = spGeo.attributes.position.array;
+    for(let i=0;i<SPARK_COUNT;i++){
+      spAng[i] += 0.004*dt;
+      const r = spRad[i];
+      spArr[i*3]=Math.cos(spAng[i])*r; spArr[i*3+1]=Math.sin(spAng[i])*r*Math.cos(spTilt[i]); spArr[i*3+2]=Math.sin(spAng[i])*r*Math.sin(spTilt[i])-2;
+    }
+    spGeo.attributes.position.needsUpdate = true;
+    spMat.opacity = 0.45+bass*0.3;
+    petals.forEach(p=>{
+      p.petal.position.y -= (p.speed+bass*0.15)*dt;
+      p.petal.position.x += Math.sin(clock*0.01+p.swayPhase)*0.05*dt;
+      p.petal.rotation.z += p.spin*dt;
+      p.petal.rotation.y += 0.01*dt;
+      if(p.petal.position.y < -26) p.petal.position.y = 24+Math.random()*6;
+    });
+  }};
+}
+
+const BG3D_BUILDERS = { particles: buildBg3DParticles, tunnel: buildBg3DTunnel, prism: buildBg3DPrism, festival: buildBg3DFestivalBuilding, galaxy: buildBg3DGalaxy, colorTunnel: buildBg3DColorTunnel, synthwave: buildBg3DSynthwave, helix: buildBg3DHelix, fireworkSky: buildBg3DFireworkSky, aurora: buildBg3DAurora, particleStorm: buildBg3DParticleStorm, particleWaves: buildBg3DParticleWaves, particleRings: buildBg3DParticleRings, particleRain: buildBg3DParticleRain, galaxyMerge: buildBg3DGalaxyMerge, particleVortex: buildBg3DParticleVortex, particleStardust: buildBg3DParticleStardust, particlePulseOrb: buildBg3DParticlePulseOrb, particleWaterfall: buildBg3DParticleWaterfall, rainbowNebula: buildBg3DRainbowNebula, cosmicRings: buildBg3DCosmicRings, galaxySpiral: buildBg3DGalaxySpiral, rainbowWormhole: buildBg3DRainbowWormhole, fireflyForest: buildBg3DFireflyForest, cherryBlossom: buildBg3DCherryBlossom, glacierAurora: buildBg3DGlacierAurora, dandelionSeeds: buildBg3DDandelionSeeds, duneRipple: buildBg3DDuneRipple, rainforestVines: buildBg3DRainforestVines, coralReef: buildBg3DCoralReef, jellyfishSwarm: buildBg3DJellyfishSwarm, bioluminescentDeep: buildBg3DBioluminescentDeep, tideRippleGrid: buildBg3DTideRippleGrid, oceanVortex: buildBg3DOceanVortex, lightningStorm: buildBg3DLightningStorm, snowfallDrift: buildBg3DSnowfallDrift, sandstorm: buildBg3DSandstorm, foggyMoonlight: buildBg3DFoggyMoonlight, rainbowRain: buildBg3DRainbowRain, vhsCube: buildBg3DVhsCube, vaporwaveSunset: buildBg3DVaporwaveSunset, hologramCity: buildBg3DHologramCity, matrixDataRain: buildBg3DMatrixDataRain, warpSpeedStreaks: buildBg3DWarpSpeedStreaks, pixelGlitchField: buildBg3DPixelGlitchField, blackHoleAccretion: buildBg3DBlackHoleAccretion, supernovaBurst: buildBg3DSupernovaBurst, meteorShower: buildBg3DMeteorShower, cometTrail: buildBg3DCometTrail, pulsarBeacon: buildBg3DPulsarBeacon, kaleidoscope: buildBg3DKaleidoscope, fractalTree: buildBg3DFractalTree, voronoiShatter: buildBg3DVoronoiShatter, waveformRings: buildBg3DWaveformRings, mobiusRibbon: buildBg3DMobiusRibbon, liquidMetalWave: buildBg3DLiquidMetalWave, zenRipplePond: buildBg3DZenRipplePond, floatingOrbs: buildBg3DFloatingOrbs, breathingHalo: buildBg3DBreathingHalo, stardustDrift: buildBg3DStardustDrift, horizonGlow: buildBg3DHorizonGlow, heartbeatPulse: buildBg3DHeartbeatPulse, redAlertScan: buildBg3DRedAlertScan, highVoltageGrid: buildBg3DHighVoltageGrid, chaseLightTrails: buildBg3DChaseLightTrails, dangerScanSweep: buildBg3DDangerScanSweep, ambushBeacon: buildBg3DAmbushBeacon, shockwavePulse: buildBg3DShockwavePulse, impactCraterBurst: buildBg3DImpactCraterBurst, groundCrackRift: buildBg3DGroundCrackRift, glassShatterBurst: buildBg3DGlassShatterBurst, thunderStrikeFlash: buildBg3DThunderStrikeFlash, sonicBoomRing: buildBg3DSonicBoomRing, confettiExplosion: buildBg3DConfettiExplosion, giftRevealBurst: buildBg3DGiftRevealBurst, partyBalloonRise: buildBg3DPartyBalloonRise, surpriseStarburst: buildBg3DSurpriseStarburst, ribbonBloom: buildBg3DRibbonBloom, bubblePopBurst: buildBg3DBubblePopBurst, neonRiot: buildBg3DNeonRiot, chromaExplosion: buildBg3DChromaExplosion, strobeMatrix: buildBg3DStrobeMatrix, kineticSpectrum: buildBg3DKineticSpectrum, speedColorRings: buildBg3DSpeedColorRings, electroPartyFlash: buildBg3DElectroPartyFlash, stageSpotlightSweep: buildBg3DStageSpotlightSweep, laserGridShow: buildBg3DLaserGridShow, flameBurstColumn: buildBg3DFlameBurstColumn, energyCoreOverload: buildBg3DEnergyCoreOverload, edmPulseWall: buildBg3DEdmPulseWall, lightWaveSurge: buildBg3DLightWaveSurge, suspenseFlicker: buildBg3DSuspenseFlicker, popScareBurst: buildBg3DPopScareBurst, emergencySignalPulse: buildBg3DEmergencySignalPulse, climaxFlashBurst: buildBg3DClimaxFlashBurst, electricShockArc: buildBg3DElectricShockArc, surpriseFirecrackerPop: buildBg3DSurpriseFirecrackerPop, tensionCountdownRing: buildBg3DTensionCountdownRing, highEnergyFlashStage: buildBg3DHighEnergyFlashStage, criticalMassBurst: buildBg3DCriticalMassBurst, birthdayCake: buildBg3DBirthdayCake, balloonArch: buildBg3DBalloonArch, confettiCannon: buildBg3DConfettiCannon, partyStreamerSwirl: buildBg3DPartyStreamerSwirl, sprinkleShower: buildBg3DSprinkleShower, weddingRings: buildBg3DWeddingRings, doveFlight: buildBg3DDoveFlight, rosePetalFall: buildBg3DRosePetalFall, fairyLightCanopy: buildBg3DFairyLightCanopy, floatingLanterns: buildBg3DFloatingLanterns, birthdayCombo: buildBg3DBirthdayCombo, weddingCombo: buildBg3DWeddingCombo };
 
 function resizeBg3D(){
   const availH = Math.max(1, window.innerHeight - DOCK_SAFE_ZONE);   // keep 3D content out of the strip reserved for the dock, same idea as the 2D canvas clip
@@ -19703,8 +19942,8 @@ const BG3D_CATALOG = [
   { cat:'bg3DCatVividChaos', kinds:['neonRiot','chromaExplosion','strobeMatrix','kineticSpectrum','speedColorRings','electroPartyFlash'] },
   { cat:'bg3DCatStage', kinds:['stageSpotlightSweep','laserGridShow','flameBurstColumn','energyCoreOverload','edmPulseWall','lightWaveSurge'] },
   { cat:'bg3DCatTension', kinds:['suspenseFlicker','popScareBurst','emergencySignalPulse','climaxFlashBurst','electricShockArc','surpriseFirecrackerPop','tensionCountdownRing','highEnergyFlashStage','criticalMassBurst'] },
-  { cat:'bg3DCatBirthday', kinds:['birthdayCake','balloonArch','confettiCannon','partyStreamerSwirl','sprinkleShower'] },
-  { cat:'bg3DCatWedding', kinds:['weddingRings','doveFlight','rosePetalFall','fairyLightCanopy','floatingLanterns'] },
+  { cat:'bg3DCatBirthday', kinds:['birthdayCombo','birthdayCake','balloonArch','confettiCannon','partyStreamerSwirl','sprinkleShower'] },
+  { cat:'bg3DCatWedding', kinds:['weddingCombo','weddingRings','doveFlight','rosePetalFall','fairyLightCanopy','floatingLanterns'] },
 ];
 const BG3D_ORDER = BG3D_CATALOG.flatMap(g=>g.kinds);   // flat menu order, used by the Next button
 let expandedBg3DCats = new Set();
