@@ -694,6 +694,14 @@
     <span>⏩</span>
     <input type="range" id="bg3DSpeedSel" class="mode-bright-slider" min="20" max="300" value="100" step="5">
   </div>
+  <select id="bg3DCameraMotionSel" class="dock-dd-select" title="Camera movement layered on top of whatever the current 3D style already does">
+    <option value="off">🎥 Camera: Off</option>
+    <option value="orbit">🎥 Camera: Slow Orbit</option>
+    <option value="flythrough">🎥 Camera: Fly Through</option>
+    <option value="zoomburst">🎥 Camera: Zoom Burst</option>
+    <option value="shake">🎥 Camera: Shake Impact</option>
+    <option value="drift">🎥 Camera: Rotation Drift</option>
+  </select>
   <div class="dock-dd-slider-row" id="bg3DOpacityRow" title="How visible the 3D background is — independent of the photo/video background's own brightness slider">
     <span>◐</span>
     <input type="range" id="bg3DOpacitySel" class="mode-bright-slider" min="0" max="100" value="100" step="1">
@@ -5153,6 +5161,8 @@ const UI_STRINGS = {
     bg3DHologramPortalBtn:"🔮 Hologram Portal",
     bg3DHyperspaceRushBtn:"💫 Hyperspace Rush",
     bg3DWaveformTerrainBtn:"🏔 Waveform Terrain",
+    bg3DBeatTunnelBtn:"🥁 Beat Tunnel",
+    bg3DParticleDNAHelixBtn:"🧬 Particle DNA Helix",
     bg3DBounceHint:"💡 Bounce animation (also applies here) is in the Background menu",
     bg3DChapterTimeTravelBtn:"↳ Time Travel",
     bg3DChapterMalaysiaBtn:"↳ Magical Malaysia",
@@ -5377,6 +5387,8 @@ const UI_STRINGS = {
     bg3DHologramPortalBtn:"🔮 全息门户",
     bg3DHyperspaceRushBtn:"💫 光速冲刺",
     bg3DWaveformTerrainBtn:"🏔 线框地形波形",
+    bg3DBeatTunnelBtn:"🥁 节拍隧道",
+    bg3DParticleDNAHelixBtn:"🧬 粒子DNA螺旋",
     bg3DBounceHint:"💡 弹跳动画（这里同样生效）设置在「背景」菜单里",
     bg3DChapterTimeTravelBtn:"↳ 穿越历史",
     bg3DChapterMalaysiaBtn:"↳ 梦幻马来西亚",
@@ -5492,6 +5504,10 @@ const SOURCE_OPTION_NAMES = {
   en:{favorites:'Source: My Favourites',random:'Source: Full Random',presets:'Source: My Presets'},
   zh:{favorites:'来源：我的收藏',random:'来源：完全随机',presets:'来源：我的预设'}
 };
+const CAMERA_MOTION_NAMES = {
+  en:{off:'🎥 Camera: Off',orbit:'🎥 Camera: Slow Orbit',flythrough:'🎥 Camera: Fly Through',zoomburst:'🎥 Camera: Zoom Burst',shake:'🎥 Camera: Shake Impact',drift:'🎥 Camera: Rotation Drift'},
+  zh:{off:'🎥 镜头：关闭',orbit:'🎥 镜头：慢速环绕',flythrough:'🎥 镜头：穿越推进',zoomburst:'🎥 镜头：节拍推近',shake:'🎥 镜头：震动冲击',drift:'🎥 镜头：缓慢漂移'}
+};
 function applyShuffleOptionNames(){
   document.querySelectorAll('#micShuffleIntervalSel, #bg3DShuffleIntervalSel').forEach(sel=>{
     [...sel.options].forEach(opt=>{
@@ -5509,6 +5525,13 @@ function applyShuffleOptionNames(){
   const micSel = document.getElementById('micDeviceSel');
   if(micSel && micSel.options.length && micSel.options[0].value===''){
     micSel.options[0].textContent = currentLang==='zh' ? '默认麦克风' : 'Default microphone';
+  }
+  const camSel = document.getElementById('bg3DCameraMotionSel');
+  if(camSel){
+    [...camSel.options].forEach(opt=>{
+      const name = (CAMERA_MOTION_NAMES[currentLang] && CAMERA_MOTION_NAMES[currentLang][opt.value]) || CAMERA_MOTION_NAMES.en[opt.value];
+      if(name) opt.textContent = name;
+    });
   }
 }
 function applyBounceStyleNames(){
@@ -12153,7 +12176,109 @@ function buildBg3DWaveformTerrain(){
   }};
 }
 
-const BG3D_BUILDERS = { particles: buildBg3DParticles, tunnel: buildBg3DTunnel, prism: buildBg3DPrism, festival: buildBg3DFestivalBuilding, galaxy: buildBg3DGalaxy, colorTunnel: buildBg3DColorTunnel, synthwave: buildBg3DSynthwave, helix: buildBg3DHelix, fireworkSky: buildBg3DFireworkSky, aurora: buildBg3DAurora, particleStorm: buildBg3DParticleStorm, particleWaves: buildBg3DParticleWaves, particleRings: buildBg3DParticleRings, particleRain: buildBg3DParticleRain, galaxyMerge: buildBg3DGalaxyMerge, particleVortex: buildBg3DParticleVortex, particleStardust: buildBg3DParticleStardust, particlePulseOrb: buildBg3DParticlePulseOrb, particleWaterfall: buildBg3DParticleWaterfall, rainbowNebula: buildBg3DRainbowNebula, cosmicRings: buildBg3DCosmicRings, galaxySpiral: buildBg3DGalaxySpiral, rainbowWormhole: buildBg3DRainbowWormhole, fireflyForest: buildBg3DFireflyForest, cherryBlossom: buildBg3DCherryBlossom, glacierAurora: buildBg3DGlacierAurora, dandelionSeeds: buildBg3DDandelionSeeds, duneRipple: buildBg3DDuneRipple, rainforestVines: buildBg3DRainforestVines, coralReef: buildBg3DCoralReef, jellyfishSwarm: buildBg3DJellyfishSwarm, bioluminescentDeep: buildBg3DBioluminescentDeep, tideRippleGrid: buildBg3DTideRippleGrid, oceanVortex: buildBg3DOceanVortex, lightningStorm: buildBg3DLightningStorm, snowfallDrift: buildBg3DSnowfallDrift, sandstorm: buildBg3DSandstorm, foggyMoonlight: buildBg3DFoggyMoonlight, rainbowRain: buildBg3DRainbowRain, vhsCube: buildBg3DVhsCube, vaporwaveSunset: buildBg3DVaporwaveSunset, hologramCity: buildBg3DHologramCity, matrixDataRain: buildBg3DMatrixDataRain, warpSpeedStreaks: buildBg3DWarpSpeedStreaks, pixelGlitchField: buildBg3DPixelGlitchField, blackHoleAccretion: buildBg3DBlackHoleAccretion, supernovaBurst: buildBg3DSupernovaBurst, meteorShower: buildBg3DMeteorShower, cometTrail: buildBg3DCometTrail, pulsarBeacon: buildBg3DPulsarBeacon, kaleidoscope: buildBg3DKaleidoscope, fractalTree: buildBg3DFractalTree, voronoiShatter: buildBg3DVoronoiShatter, waveformRings: buildBg3DWaveformRings, mobiusRibbon: buildBg3DMobiusRibbon, liquidMetalWave: buildBg3DLiquidMetalWave, zenRipplePond: buildBg3DZenRipplePond, floatingOrbs: buildBg3DFloatingOrbs, breathingHalo: buildBg3DBreathingHalo, stardustDrift: buildBg3DStardustDrift, horizonGlow: buildBg3DHorizonGlow, heartbeatPulse: buildBg3DHeartbeatPulse, redAlertScan: buildBg3DRedAlertScan, highVoltageGrid: buildBg3DHighVoltageGrid, chaseLightTrails: buildBg3DChaseLightTrails, dangerScanSweep: buildBg3DDangerScanSweep, ambushBeacon: buildBg3DAmbushBeacon, shockwavePulse: buildBg3DShockwavePulse, impactCraterBurst: buildBg3DImpactCraterBurst, groundCrackRift: buildBg3DGroundCrackRift, glassShatterBurst: buildBg3DGlassShatterBurst, thunderStrikeFlash: buildBg3DThunderStrikeFlash, sonicBoomRing: buildBg3DSonicBoomRing, confettiExplosion: buildBg3DConfettiExplosion, giftRevealBurst: buildBg3DGiftRevealBurst, partyBalloonRise: buildBg3DPartyBalloonRise, surpriseStarburst: buildBg3DSurpriseStarburst, ribbonBloom: buildBg3DRibbonBloom, bubblePopBurst: buildBg3DBubblePopBurst, neonRiot: buildBg3DNeonRiot, chromaExplosion: buildBg3DChromaExplosion, strobeMatrix: buildBg3DStrobeMatrix, kineticSpectrum: buildBg3DKineticSpectrum, speedColorRings: buildBg3DSpeedColorRings, electroPartyFlash: buildBg3DElectroPartyFlash, stageSpotlightSweep: buildBg3DStageSpotlightSweep, laserGridShow: buildBg3DLaserGridShow, flameBurstColumn: buildBg3DFlameBurstColumn, energyCoreOverload: buildBg3DEnergyCoreOverload, edmPulseWall: buildBg3DEdmPulseWall, lightWaveSurge: buildBg3DLightWaveSurge, suspenseFlicker: buildBg3DSuspenseFlicker, popScareBurst: buildBg3DPopScareBurst, emergencySignalPulse: buildBg3DEmergencySignalPulse, climaxFlashBurst: buildBg3DClimaxFlashBurst, electricShockArc: buildBg3DElectricShockArc, surpriseFirecrackerPop: buildBg3DSurpriseFirecrackerPop, tensionCountdownRing: buildBg3DTensionCountdownRing, highEnergyFlashStage: buildBg3DHighEnergyFlashStage, criticalMassBurst: buildBg3DCriticalMassBurst, birthdayCake: buildBg3DBirthdayCake, balloonArch: buildBg3DBalloonArch, confettiCannon: buildBg3DConfettiCannon, partyStreamerSwirl: buildBg3DPartyStreamerSwirl, sprinkleShower: buildBg3DSprinkleShower, weddingRings: buildBg3DWeddingRings, doveFlight: buildBg3DDoveFlight, rosePetalFall: buildBg3DRosePetalFall, fairyLightCanopy: buildBg3DFairyLightCanopy, floatingLanterns: buildBg3DFloatingLanterns, birthdayCombo: buildBg3DBirthdayCombo, weddingCombo: buildBg3DWeddingCombo, neonSpiralTunnel: buildBg3DNeonSpiralTunnel, hologramPortal: buildBg3DHologramPortal, hyperspaceRush: buildBg3DHyperspaceRush, waveformTerrain: buildBg3DWaveformTerrain };
+/* -- beat tunnel: same ring-tunnel shape as buildBg3DTunnel/ColorTunnel, but rings advance one
+   fixed step exactly when a beat is detected instead of continuous bass-scaled speed — a snappier,
+   quantized feel that locks to the beat rather than just tracking loudness. Uses the shared global
+   `beat` impulse (see detectBeat()), which every effect could already reference but none did. -- */
+function buildBg3DBeatTunnel(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x03060f, 0.02);
+  const camera = new THREE.PerspectiveCamera(70, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 200);
+  camera.position.set(0,0,0);
+
+  const RING_COUNT=20, SPACING=7, R=9, totalLen=RING_COUNT*SPACING;
+  const rings=[];
+  for(let i=0;i<RING_COUNT;i++){
+    const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(i/RING_COUNT,0.9,0.6), wireframe:true, transparent:true, opacity:0.7 });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(R,0.3,8,28), mat);
+    ring.position.z = -i*SPACING;
+    scene.add(ring);
+    rings.push({ ring, mat, baseHue: i/RING_COUNT });
+  }
+
+  let hueShift=0;
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.8, 0.12);
+  return { scene, camera, composer, update(bass,mid,high,dt){
+    if(beat >= 0.999){   // fresh onset this frame (detectBeat sets beat=1 exactly, then decays *0.9/frame)
+      rings.forEach(r=>{
+        r.ring.position.z += SPACING;
+        if(r.ring.position.z > 4) r.ring.position.z -= totalLen;
+      });
+    }
+    hueShift += 0.00006*dt;
+    rings.forEach(r=>{
+      r.mat.color.setHSL((r.baseHue+hueShift)%1, 0.9, 0.5+bass*0.25);
+      r.ring.rotation.z += (0.006+mid*0.02)*dt;
+    });
+    camera.fov = 70 + bass*10;
+    camera.updateProjectionMatrix();
+  }};
+}
+
+/* -- particle DNA helix: two intertwined particle strands with connecting rungs — bass pulses the
+   radius, mid drives rotation speed, high brightens the rungs/particle size. -- */
+function buildBg3DParticleDNAHelix(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x04060c, 0.012);
+  const camera = new THREE.PerspectiveCamera(55, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 200);
+  camera.position.set(0,0,38);
+
+  const COUNT=90, RADIUS=6, HEIGHT=48, TURNS=4;
+  function makeStrand(colorHue, phaseOffset){
+    const pos = new Float32Array(COUNT*3), col = new Float32Array(COUNT*3);
+    const tmpColor = new THREE.Color().setHSL(colorHue,0.9,0.6);
+    for(let i=0;i<COUNT;i++){ col[i*3]=tmpColor.r; col[i*3+1]=tmpColor.g; col[i*3+2]=tmpColor.b; }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col,3));
+    const mat = new THREE.PointsMaterial({ size:0.55, map:ensureBg3DDotTexture(), vertexColors:true, transparent:true, opacity:0.9, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending });
+    scene.add(new THREE.Points(geo, mat));
+    return { geo, mat, phaseOffset };
+  }
+  const strandA = makeStrand(0.52, 0);
+  const strandB = makeStrand(0.88, Math.PI);
+
+  const RUNG_COUNT=18;
+  const rungs=[];
+  for(let i=0;i<RUNG_COUNT;i++){
+    const posArr = new Float32Array(2*3);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(posArr,3));
+    const mat = new THREE.LineBasicMaterial({ color:0xffffff, transparent:true, opacity:0.25, blending:THREE.AdditiveBlending, depthWrite:false });
+    scene.add(new THREE.Line(geo, mat));
+    rungs.push({ geo, mat });
+  }
+
+  let clock=0;
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
+    clock += (0.006+mid*0.02)*dt;
+    [strandA, strandB].forEach(s=>{
+      const arr = s.geo.attributes.position.array;
+      const r = RADIUS*(1+bass*0.25);
+      for(let i=0;i<COUNT;i++){
+        const t = i/COUNT;
+        const y = (t-0.5)*HEIGHT;
+        const a = t*Math.PI*2*TURNS + clock + s.phaseOffset;
+        arr[i*3]=Math.cos(a)*r; arr[i*3+1]=y; arr[i*3+2]=Math.sin(a)*r;
+      }
+      s.geo.attributes.position.needsUpdate = true;
+      s.mat.opacity = 0.75+bass*0.2;
+      s.mat.size = 0.55*(1+high*0.5);
+    });
+    const aArr = strandA.geo.attributes.position.array, bArr = strandB.geo.attributes.position.array;
+    rungs.forEach((rg,i)=>{
+      const idx = Math.floor(i/RUNG_COUNT*COUNT);
+      const arr = rg.geo.attributes.position.array;
+      arr[0]=aArr[idx*3]; arr[1]=aArr[idx*3+1]; arr[2]=aArr[idx*3+2];
+      arr[3]=bArr[idx*3]; arr[4]=bArr[idx*3+1]; arr[5]=bArr[idx*3+2];
+      rg.geo.attributes.position.needsUpdate = true;
+      rg.mat.opacity = 0.15+high*0.4;
+    });
+  }};
+}
+
+const BG3D_BUILDERS = { particles: buildBg3DParticles, tunnel: buildBg3DTunnel, prism: buildBg3DPrism, festival: buildBg3DFestivalBuilding, galaxy: buildBg3DGalaxy, colorTunnel: buildBg3DColorTunnel, synthwave: buildBg3DSynthwave, helix: buildBg3DHelix, fireworkSky: buildBg3DFireworkSky, aurora: buildBg3DAurora, particleStorm: buildBg3DParticleStorm, particleWaves: buildBg3DParticleWaves, particleRings: buildBg3DParticleRings, particleRain: buildBg3DParticleRain, galaxyMerge: buildBg3DGalaxyMerge, particleVortex: buildBg3DParticleVortex, particleStardust: buildBg3DParticleStardust, particlePulseOrb: buildBg3DParticlePulseOrb, particleWaterfall: buildBg3DParticleWaterfall, rainbowNebula: buildBg3DRainbowNebula, cosmicRings: buildBg3DCosmicRings, galaxySpiral: buildBg3DGalaxySpiral, rainbowWormhole: buildBg3DRainbowWormhole, fireflyForest: buildBg3DFireflyForest, cherryBlossom: buildBg3DCherryBlossom, glacierAurora: buildBg3DGlacierAurora, dandelionSeeds: buildBg3DDandelionSeeds, duneRipple: buildBg3DDuneRipple, rainforestVines: buildBg3DRainforestVines, coralReef: buildBg3DCoralReef, jellyfishSwarm: buildBg3DJellyfishSwarm, bioluminescentDeep: buildBg3DBioluminescentDeep, tideRippleGrid: buildBg3DTideRippleGrid, oceanVortex: buildBg3DOceanVortex, lightningStorm: buildBg3DLightningStorm, snowfallDrift: buildBg3DSnowfallDrift, sandstorm: buildBg3DSandstorm, foggyMoonlight: buildBg3DFoggyMoonlight, rainbowRain: buildBg3DRainbowRain, vhsCube: buildBg3DVhsCube, vaporwaveSunset: buildBg3DVaporwaveSunset, hologramCity: buildBg3DHologramCity, matrixDataRain: buildBg3DMatrixDataRain, warpSpeedStreaks: buildBg3DWarpSpeedStreaks, pixelGlitchField: buildBg3DPixelGlitchField, blackHoleAccretion: buildBg3DBlackHoleAccretion, supernovaBurst: buildBg3DSupernovaBurst, meteorShower: buildBg3DMeteorShower, cometTrail: buildBg3DCometTrail, pulsarBeacon: buildBg3DPulsarBeacon, kaleidoscope: buildBg3DKaleidoscope, fractalTree: buildBg3DFractalTree, voronoiShatter: buildBg3DVoronoiShatter, waveformRings: buildBg3DWaveformRings, mobiusRibbon: buildBg3DMobiusRibbon, liquidMetalWave: buildBg3DLiquidMetalWave, zenRipplePond: buildBg3DZenRipplePond, floatingOrbs: buildBg3DFloatingOrbs, breathingHalo: buildBg3DBreathingHalo, stardustDrift: buildBg3DStardustDrift, horizonGlow: buildBg3DHorizonGlow, heartbeatPulse: buildBg3DHeartbeatPulse, redAlertScan: buildBg3DRedAlertScan, highVoltageGrid: buildBg3DHighVoltageGrid, chaseLightTrails: buildBg3DChaseLightTrails, dangerScanSweep: buildBg3DDangerScanSweep, ambushBeacon: buildBg3DAmbushBeacon, shockwavePulse: buildBg3DShockwavePulse, impactCraterBurst: buildBg3DImpactCraterBurst, groundCrackRift: buildBg3DGroundCrackRift, glassShatterBurst: buildBg3DGlassShatterBurst, thunderStrikeFlash: buildBg3DThunderStrikeFlash, sonicBoomRing: buildBg3DSonicBoomRing, confettiExplosion: buildBg3DConfettiExplosion, giftRevealBurst: buildBg3DGiftRevealBurst, partyBalloonRise: buildBg3DPartyBalloonRise, surpriseStarburst: buildBg3DSurpriseStarburst, ribbonBloom: buildBg3DRibbonBloom, bubblePopBurst: buildBg3DBubblePopBurst, neonRiot: buildBg3DNeonRiot, chromaExplosion: buildBg3DChromaExplosion, strobeMatrix: buildBg3DStrobeMatrix, kineticSpectrum: buildBg3DKineticSpectrum, speedColorRings: buildBg3DSpeedColorRings, electroPartyFlash: buildBg3DElectroPartyFlash, stageSpotlightSweep: buildBg3DStageSpotlightSweep, laserGridShow: buildBg3DLaserGridShow, flameBurstColumn: buildBg3DFlameBurstColumn, energyCoreOverload: buildBg3DEnergyCoreOverload, edmPulseWall: buildBg3DEdmPulseWall, lightWaveSurge: buildBg3DLightWaveSurge, suspenseFlicker: buildBg3DSuspenseFlicker, popScareBurst: buildBg3DPopScareBurst, emergencySignalPulse: buildBg3DEmergencySignalPulse, climaxFlashBurst: buildBg3DClimaxFlashBurst, electricShockArc: buildBg3DElectricShockArc, surpriseFirecrackerPop: buildBg3DSurpriseFirecrackerPop, tensionCountdownRing: buildBg3DTensionCountdownRing, highEnergyFlashStage: buildBg3DHighEnergyFlashStage, criticalMassBurst: buildBg3DCriticalMassBurst, birthdayCake: buildBg3DBirthdayCake, balloonArch: buildBg3DBalloonArch, confettiCannon: buildBg3DConfettiCannon, partyStreamerSwirl: buildBg3DPartyStreamerSwirl, sprinkleShower: buildBg3DSprinkleShower, weddingRings: buildBg3DWeddingRings, doveFlight: buildBg3DDoveFlight, rosePetalFall: buildBg3DRosePetalFall, fairyLightCanopy: buildBg3DFairyLightCanopy, floatingLanterns: buildBg3DFloatingLanterns, birthdayCombo: buildBg3DBirthdayCombo, weddingCombo: buildBg3DWeddingCombo, neonSpiralTunnel: buildBg3DNeonSpiralTunnel, hologramPortal: buildBg3DHologramPortal, hyperspaceRush: buildBg3DHyperspaceRush, waveformTerrain: buildBg3DWaveformTerrain, beatTunnel: buildBg3DBeatTunnel, particleDNAHelix: buildBg3DParticleDNAHelix };
 
 function resizeBg3D(){
   const availH = Math.max(1, window.innerHeight - DOCK_SAFE_ZONE);   // keep 3D content out of the strip reserved for the dock, same idea as the 2D canvas clip
@@ -12177,6 +12302,35 @@ function applyBgBounceToCamera(camera, p){
   camera.zoom = p.scale;
   camera.updateProjectionMatrix();
 }
+/* ---------- camera motion system: layers a swappable camera behavior on top of whatever a
+   scene's own update()/bounce already does, instead of baking movement into each effect —
+   applied after bounce and the always-on beat zoom-punch below, and only ever adds to
+   camera.position/rotation.z (never reassigns them outright), so bounce + individual scenes'
+   own camera logic keep working unchanged when this is 'off' (the default). ---------- */
+let bg3DCameraMotion = 'off';   // 'off' | 'orbit' | 'flythrough' | 'zoomburst' | 'shake' | 'drift'
+function applyBg3DCameraMotion(camera, bass, mid, high, dt){
+  if(bg3DCameraMotion==='off') return;
+  const u = camera.userData;
+  if(u.motionClock===undefined){ u.motionClock = 0; u.motionAngle = 0; u.shakeAmt = 0; u.motionBaseZ = camera.position.z; }
+  u.motionClock += dt;
+  if(bg3DCameraMotion==='orbit'){
+    u.motionAngle += (0.0015+mid*0.003)*dt;
+    camera.position.x += Math.cos(u.motionAngle)*4;
+    camera.position.z += Math.sin(u.motionAngle)*4;
+  }else if(bg3DCameraMotion==='flythrough'){
+    camera.position.z = u.motionBaseZ + Math.sin(u.motionClock*0.0006)*8;
+  }else if(bg3DCameraMotion==='zoomburst'){
+    camera.zoom *= 1 + beat*0.5 + bass*0.15;
+  }else if(bg3DCameraMotion==='shake'){
+    if(beat) u.shakeAmt = 1;
+    u.shakeAmt *= 0.85;
+    camera.position.x += (Math.random()-0.5)*u.shakeAmt*1.6;
+    camera.position.y += (Math.random()-0.5)*u.shakeAmt*1.6;
+  }else if(bg3DCameraMotion==='drift'){
+    camera.rotation.z += Math.sin(u.motionClock*0.0003)*0.08;
+  }
+  camera.updateProjectionMatrix();
+}
 let bg3DSpeed = 1;   // global playback-speed multiplier, applies uniformly since every style scales its own animation by dt
 function renderBg3D(bass, mid, high, dt){
   if(!hasBg3D || !bg3DKind || !bg3DScenes[bg3DKind]) return;
@@ -12184,6 +12338,7 @@ function renderBg3D(bass, mid, high, dt){
   s.update(bass, mid, high, dt*bg3DSpeed);
   applyBgBounceToCamera(s.camera, computeBgBounceParams(bass, mid, high, performance.now()));
   s.camera.zoom *= 1 + beat*0.16 + bass*0.04;   // beat (sharp transient, snaps to 1 then decays) drives the punch; bass adds a little continuous life — always-on, independent of the optional Bounce toggle, so every style — current and future — visibly pulses with the music
+  applyBg3DCameraMotion(s.camera, bass, mid, high, dt*bg3DSpeed);
   s.camera.updateProjectionMatrix();
   if(s.composer) s.composer.render();
   else bg3DRenderer.render(s.scene, s.camera);
@@ -20176,7 +20331,7 @@ document.getElementById('bg3DRemoveBtn').onclick = ()=>{
 const BG3D_CATALOG = [
   { cat:'bg3DCatParticles', kinds:['particles','particleStorm','particleWaves','particleRings','particleRain','particleVortex','particleStardust','particlePulseOrb','particleWaterfall'] },
   { cat:'bg3DCatGalaxy', kinds:['galaxy','galaxyMerge','rainbowNebula','cosmicRings','galaxySpiral','rainbowWormhole'] },
-  { cat:'bg3DCatTunnels', kinds:['tunnel','colorTunnel','neonSpiralTunnel'] },
+  { cat:'bg3DCatTunnels', kinds:['tunnel','colorTunnel','neonSpiralTunnel','beatTunnel'] },
   { cat:'bg3DCatNeon', kinds:['synthwave','hologramPortal'] },
   { cat:'bg3DCatGeometric', kinds:['prism','helix'] },
   { cat:'bg3DCatArchitecture', kinds:['festival'], chapters:[['bg3DChapterTimeTravelBtn','timeTravel'],['bg3DChapterMalaysiaBtn','malaysia'],['bg3DChapterFutureCityBtn','futureCity']] },
@@ -20186,7 +20341,7 @@ const BG3D_CATALOG = [
   { cat:'bg3DCatWeather', kinds:['lightningStorm','snowfallDrift','sandstorm','foggyMoonlight','rainbowRain'] },
   { cat:'bg3DCatRetro', kinds:['vhsCube','vaporwaveSunset','hologramCity','matrixDataRain','warpSpeedStreaks','pixelGlitchField','hyperspaceRush'] },
   { cat:'bg3DCatCosmos', kinds:['blackHoleAccretion','supernovaBurst','meteorShower','cometTrail','pulsarBeacon'] },
-  { cat:'bg3DCatAbstract', kinds:['kaleidoscope','fractalTree','voronoiShatter','waveformRings','mobiusRibbon','liquidMetalWave','waveformTerrain'] },
+  { cat:'bg3DCatAbstract', kinds:['kaleidoscope','fractalTree','voronoiShatter','waveformRings','mobiusRibbon','liquidMetalWave','waveformTerrain','particleDNAHelix'] },
   { cat:'bg3DCatZen', kinds:['zenRipplePond','floatingOrbs','breathingHalo','stardustDrift','horizonGlow'] },
   { cat:'bg3DCatAdrenaline', kinds:['heartbeatPulse','redAlertScan','highVoltageGrid','chaseLightTrails','dangerScanSweep','ambushBeacon'] },
   { cat:'bg3DCatImpact', kinds:['shockwavePulse','impactCraterBurst','groundCrackRift','glassShatterBurst','thunderStrikeFlash','sonicBoomRing'] },
@@ -20844,6 +20999,9 @@ document.getElementById('bg3DSpeedSel').addEventListener('input', e=>{
 });
 document.getElementById('bg3DOpacitySel').addEventListener('input', e=>{
   bgThreeCanvas.style.opacity = String(parseFloat(e.target.value)/100);
+});
+document.getElementById('bg3DCameraMotionSel').addEventListener('change', e=>{
+  bg3DCameraMotion = e.target.value;
 });
 document.getElementById('bgBounceToggle').onclick = ()=>{
   bgBounceOn = !bgBounceOn;
