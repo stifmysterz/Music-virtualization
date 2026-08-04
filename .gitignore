@@ -1,4 +1,18 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+
+# Temporary
+*.tmp
+*.log
+
+# Backup files
+*.bak
+*.backup
+
+# Project-specific
 sub-remix-claude-code/
 .claude/settings.local.json
-Thumbs.db
-.DS_Store
