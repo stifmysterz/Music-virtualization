@@ -5119,6 +5119,8 @@ const UI_STRINGS = {
     bg3DElectroPartyFlashBtn:"📸 Electro Party Flash",
     bg3DCatStage:"🔥 High Energy Stage",
     bg3DCatTension:"🎭 Tension & Surprise",
+    bg3DCatBirthday:"🎂 Birthday Party",
+    bg3DCatWedding:"💍 Wedding",
     bg3DStageSpotlightSweepBtn:"🔦 Stage Spotlight Sweep",
     bg3DLaserGridShowBtn:"🟩 Laser Grid Show",
     bg3DFlameBurstColumnBtn:"🔥 Flame Burst Column",
@@ -5134,6 +5136,16 @@ const UI_STRINGS = {
     bg3DTensionCountdownRingBtn:"⏱ Tension Countdown Ring",
     bg3DHighEnergyFlashStageBtn:"🎇 High-Energy Flash Stage",
     bg3DCriticalMassBurstBtn:"🌟 Critical Mass Burst",
+    bg3DBirthdayCakeBtn:"🎂 Birthday Cake",
+    bg3DBalloonArchBtn:"🎈 Balloon Arch",
+    bg3DConfettiCannonBtn:"🎊 Confetti Cannon",
+    bg3DPartyStreamerSwirlBtn:"🎉 Party Streamer Swirl",
+    bg3DSprinkleShowerBtn:"✨ Sprinkle Shower",
+    bg3DWeddingRingsBtn:"💍 Wedding Rings",
+    bg3DDoveFlightBtn:"🕊 Dove Flight",
+    bg3DRosePetalFallBtn:"🌹 Rose Petal Fall",
+    bg3DFairyLightCanopyBtn:"🌟 Fairy Light Canopy",
+    bg3DFloatingLanternsBtn:"🏮 Floating Lanterns",
     bg3DBounceHint:"💡 Bounce animation (also applies here) is in the Background menu",
     bg3DChapterTimeTravelBtn:"↳ Time Travel",
     bg3DChapterMalaysiaBtn:"↳ Magical Malaysia",
@@ -5325,6 +5337,8 @@ const UI_STRINGS = {
     bg3DElectroPartyFlashBtn:"📸 电光派对闪",
     bg3DCatStage:"🔥 高能舞台",
     bg3DCatTension:"🎭 紧张与惊喜",
+    bg3DCatBirthday:"🎂 生日派对",
+    bg3DCatWedding:"💍 婚礼",
     bg3DStageSpotlightSweepBtn:"🔦 舞台聚光灯扫",
     bg3DLaserGridShowBtn:"🟩 激光矩阵秀",
     bg3DFlameBurstColumnBtn:"🔥 火焰喷发柱",
@@ -5340,6 +5354,16 @@ const UI_STRINGS = {
     bg3DTensionCountdownRingBtn:"⏱ 紧张倒计时环",
     bg3DHighEnergyFlashStageBtn:"🎇 高能闪光台",
     bg3DCriticalMassBurstBtn:"🌟 临界爆发",
+    bg3DBirthdayCakeBtn:"🎂 生日蛋糕烛光",
+    bg3DBalloonArchBtn:"🎈 气球拱门",
+    bg3DConfettiCannonBtn:"🎊 礼炮纸屑",
+    bg3DPartyStreamerSwirlBtn:"🎉 派对彩带旋转",
+    bg3DSprinkleShowerBtn:"✨ 糖霜洒落",
+    bg3DWeddingRingsBtn:"💍 婚戒交织",
+    bg3DDoveFlightBtn:"🕊 白鸽飞翔",
+    bg3DRosePetalFallBtn:"🌹 玫瑰花瓣飘落",
+    bg3DFairyLightCanopyBtn:"🌟 仙女灯串天棚",
+    bg3DFloatingLanternsBtn:"🏮 孔明灯升空",
     bg3DBounceHint:"💡 弹跳动画（这里同样生效）设置在「背景」菜单里",
     bg3DChapterTimeTravelBtn:"↳ 穿越历史",
     bg3DChapterMalaysiaBtn:"↳ 梦幻马来西亚",
@@ -11228,7 +11252,426 @@ function buildBg3DCriticalMassBurst(){
   }};
 }
 
-const BG3D_BUILDERS = { particles: buildBg3DParticles, tunnel: buildBg3DTunnel, prism: buildBg3DPrism, festival: buildBg3DFestivalBuilding, galaxy: buildBg3DGalaxy, colorTunnel: buildBg3DColorTunnel, synthwave: buildBg3DSynthwave, helix: buildBg3DHelix, fireworkSky: buildBg3DFireworkSky, aurora: buildBg3DAurora, particleStorm: buildBg3DParticleStorm, particleWaves: buildBg3DParticleWaves, particleRings: buildBg3DParticleRings, particleRain: buildBg3DParticleRain, galaxyMerge: buildBg3DGalaxyMerge, particleVortex: buildBg3DParticleVortex, particleStardust: buildBg3DParticleStardust, particlePulseOrb: buildBg3DParticlePulseOrb, particleWaterfall: buildBg3DParticleWaterfall, rainbowNebula: buildBg3DRainbowNebula, cosmicRings: buildBg3DCosmicRings, galaxySpiral: buildBg3DGalaxySpiral, rainbowWormhole: buildBg3DRainbowWormhole, fireflyForest: buildBg3DFireflyForest, cherryBlossom: buildBg3DCherryBlossom, glacierAurora: buildBg3DGlacierAurora, dandelionSeeds: buildBg3DDandelionSeeds, duneRipple: buildBg3DDuneRipple, rainforestVines: buildBg3DRainforestVines, coralReef: buildBg3DCoralReef, jellyfishSwarm: buildBg3DJellyfishSwarm, bioluminescentDeep: buildBg3DBioluminescentDeep, tideRippleGrid: buildBg3DTideRippleGrid, oceanVortex: buildBg3DOceanVortex, lightningStorm: buildBg3DLightningStorm, snowfallDrift: buildBg3DSnowfallDrift, sandstorm: buildBg3DSandstorm, foggyMoonlight: buildBg3DFoggyMoonlight, rainbowRain: buildBg3DRainbowRain, vhsCube: buildBg3DVhsCube, vaporwaveSunset: buildBg3DVaporwaveSunset, hologramCity: buildBg3DHologramCity, matrixDataRain: buildBg3DMatrixDataRain, warpSpeedStreaks: buildBg3DWarpSpeedStreaks, pixelGlitchField: buildBg3DPixelGlitchField, blackHoleAccretion: buildBg3DBlackHoleAccretion, supernovaBurst: buildBg3DSupernovaBurst, meteorShower: buildBg3DMeteorShower, cometTrail: buildBg3DCometTrail, pulsarBeacon: buildBg3DPulsarBeacon, kaleidoscope: buildBg3DKaleidoscope, fractalTree: buildBg3DFractalTree, voronoiShatter: buildBg3DVoronoiShatter, waveformRings: buildBg3DWaveformRings, mobiusRibbon: buildBg3DMobiusRibbon, liquidMetalWave: buildBg3DLiquidMetalWave, zenRipplePond: buildBg3DZenRipplePond, floatingOrbs: buildBg3DFloatingOrbs, breathingHalo: buildBg3DBreathingHalo, stardustDrift: buildBg3DStardustDrift, horizonGlow: buildBg3DHorizonGlow, heartbeatPulse: buildBg3DHeartbeatPulse, redAlertScan: buildBg3DRedAlertScan, highVoltageGrid: buildBg3DHighVoltageGrid, chaseLightTrails: buildBg3DChaseLightTrails, dangerScanSweep: buildBg3DDangerScanSweep, ambushBeacon: buildBg3DAmbushBeacon, shockwavePulse: buildBg3DShockwavePulse, impactCraterBurst: buildBg3DImpactCraterBurst, groundCrackRift: buildBg3DGroundCrackRift, glassShatterBurst: buildBg3DGlassShatterBurst, thunderStrikeFlash: buildBg3DThunderStrikeFlash, sonicBoomRing: buildBg3DSonicBoomRing, confettiExplosion: buildBg3DConfettiExplosion, giftRevealBurst: buildBg3DGiftRevealBurst, partyBalloonRise: buildBg3DPartyBalloonRise, surpriseStarburst: buildBg3DSurpriseStarburst, ribbonBloom: buildBg3DRibbonBloom, bubblePopBurst: buildBg3DBubblePopBurst, neonRiot: buildBg3DNeonRiot, chromaExplosion: buildBg3DChromaExplosion, strobeMatrix: buildBg3DStrobeMatrix, kineticSpectrum: buildBg3DKineticSpectrum, speedColorRings: buildBg3DSpeedColorRings, electroPartyFlash: buildBg3DElectroPartyFlash, stageSpotlightSweep: buildBg3DStageSpotlightSweep, laserGridShow: buildBg3DLaserGridShow, flameBurstColumn: buildBg3DFlameBurstColumn, energyCoreOverload: buildBg3DEnergyCoreOverload, edmPulseWall: buildBg3DEdmPulseWall, lightWaveSurge: buildBg3DLightWaveSurge, suspenseFlicker: buildBg3DSuspenseFlicker, popScareBurst: buildBg3DPopScareBurst, emergencySignalPulse: buildBg3DEmergencySignalPulse, climaxFlashBurst: buildBg3DClimaxFlashBurst, electricShockArc: buildBg3DElectricShockArc, surpriseFirecrackerPop: buildBg3DSurpriseFirecrackerPop, tensionCountdownRing: buildBg3DTensionCountdownRing, highEnergyFlashStage: buildBg3DHighEnergyFlashStage, criticalMassBurst: buildBg3DCriticalMassBurst };
+/* ==================== batch: CELEBRATIONS (BIRTHDAY & WEDDING) ==================== */
+
+/* -- birthday cake: a tiered cake with flickering candle flames on top -- */
+function buildBg3DBirthdayCake(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0a0610, 0.014);
+  const camera = new THREE.PerspectiveCamera(55, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 200);
+  camera.position.set(0,2,38);
+
+  const cakeMat = new THREE.MeshBasicMaterial({ color:0xffd6e8, transparent:true, opacity:0.85 });
+  const tier1 = new THREE.Mesh(new THREE.CylinderGeometry(9,9.6,4,32), cakeMat);
+  tier1.position.y = -10; scene.add(tier1);
+  const tier2 = new THREE.Mesh(new THREE.CylinderGeometry(6.4,7,3.6,32), cakeMat);
+  tier2.position.y = -6; scene.add(tier2);
+  const tier3 = new THREE.Mesh(new THREE.CylinderGeometry(4,4.6,3.2,32), cakeMat);
+  tier3.position.y = -2.6; scene.add(tier3);
+
+  const CANDLE_COUNT = 7;
+  const candles = [];
+  for(let i=0;i<CANDLE_COUNT;i++){
+    const a = (i/CANDLE_COUNT)*Math.PI*2, r = 2.2;
+    const stickMat = new THREE.MeshBasicMaterial({ color:0xfff6d8, transparent:true, opacity:0.9 });
+    const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,2.2,8), stickMat);
+    stick.position.set(Math.cos(a)*r, -0.5, Math.sin(a)*r);
+    scene.add(stick);
+    const flameMat = new THREE.MeshBasicMaterial({ color:0xffb347, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false });
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.28,0.7,10), flameMat);
+    flame.position.set(Math.cos(a)*r, 0.9, Math.sin(a)*r);
+    scene.add(flame);
+    candles.push({ flame, flameMat, phase:Math.random()*Math.PI*2 });
+  }
+
+  const DUST=90;
+  const dustPos = new Float32Array(DUST*3);
+  for(let i=0;i<DUST;i++){ dustPos[i*3]=(Math.random()-0.5)*50; dustPos[i*3+1]=Math.random()*30-6; dustPos[i*3+2]=-Math.random()*30; }
+  const dustGeo = new THREE.BufferGeometry();
+  dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos,3));
+  const dustMat = new THREE.PointsMaterial({ size:0.35, map:ensureBg3DDotTexture(), color:0xffe0a0, transparent:true, opacity:0.35, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending });
+  scene.add(new THREE.Points(dustGeo, dustMat));
+
+  let clock=0;
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.75, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
+    clock += dt;
+    candles.forEach(c=>{
+      const flick = 1+Math.sin(clock*0.2+c.phase)*0.18+Math.random()*0.08+bass*0.3;
+      c.flame.scale.set(1,Math.max(0.3,flick),1);
+      c.flameMat.opacity = 0.7+bass*0.3;
+    });
+    dustMat.opacity = 0.25+bass*0.2;
+  }};
+}
+
+/* -- balloon arch: a colorful arch of balloons gently bobbing, one pops in a sparkle burst now and then -- */
+function buildBg3DBalloonArch(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x080614, 0.012);
+  const camera = new THREE.PerspectiveCamera(60, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 200);
+  camera.position.set(0,0,42);
+
+  const COUNT = 24;
+  const balloons = [];
+  for(let i=0;i<COUNT;i++){
+    const t = i/(COUNT-1);
+    const a = Math.PI*(0.08+t*0.84), R = 20;
+    const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(t,0.85,0.6), transparent:true, opacity:0.85 });
+    const balloon = new THREE.Mesh(new THREE.SphereGeometry(1.6,16,14), mat);
+    const baseX = Math.cos(a)*R, baseY = Math.sin(a)*R-6;
+    balloon.position.set(baseX, baseY, -8-Math.random()*6);
+    scene.add(balloon);
+    balloons.push({ balloon, mat, baseX, baseY, phase:Math.random()*Math.PI*2, popTimer:20+Math.random()*40 });
+  }
+
+  const SPARK=60;
+  const sparkGeo = new THREE.BufferGeometry();
+  const sparkPos = new Float32Array(SPARK*3);
+  sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPos,3));
+  const sparkMat = new THREE.PointsMaterial({ size:0.4, map:ensureBg3DDotTexture(), color:0xffffff, transparent:true, opacity:0, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending });
+  scene.add(new THREE.Points(sparkGeo, sparkMat));
+  let sparkAge=999, sparkOrigin=[0,0,0]; const sparkDir=[];
+  for(let i=0;i<SPARK;i++){ const a=Math.random()*Math.PI*2; sparkDir.push([Math.cos(a),Math.sin(a)]); }
+
+  let clock=0;
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
+    clock += dt;
+    balloons.forEach(b=>{
+      b.balloon.position.y = b.baseY + Math.sin(clock*0.02+b.phase)*0.6;
+      b.balloon.position.x = b.baseX + Math.sin(clock*0.015+b.phase*1.3)*0.3;
+      b.popTimer -= dt*(1+bass*0.5);
+      if(b.popTimer < 0){
+        b.popTimer = 40+Math.random()*60;
+        sparkAge = 0; sparkOrigin = [b.balloon.position.x,b.balloon.position.y,b.balloon.position.z];
+        sparkMat.color.copy(b.mat.color);
+        b.mat.color.setHSL(Math.random(),0.85,0.6);
+      }
+    });
+    sparkAge += dt;
+    if(sparkAge < 20){
+      const t = sparkAge/20, r = t*5;
+      const arr = sparkGeo.attributes.position.array;
+      for(let i=0;i<SPARK;i++){ arr[i*3]=sparkOrigin[0]+sparkDir[i][0]*r; arr[i*3+1]=sparkOrigin[1]+sparkDir[i][1]*r; arr[i*3+2]=sparkOrigin[2]; }
+      sparkGeo.attributes.position.needsUpdate = true;
+      sparkMat.opacity = Math.max(0,0.9*(1-t));
+    }else{
+      sparkMat.opacity = 0;
+    }
+  }};
+}
+
+/* -- confetti cannon: two side cannons periodically fire upward sprays of colorful confetti -- */
+function buildBg3DConfettiCannon(){
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 200);
+  camera.position.set(0,0,42);
+
+  const PER_CANNON = 120;
+  function makeCannon(x){
+    const pos = new Float32Array(PER_CANNON*3), col = new Float32Array(PER_CANNON*3);
+    const dirX = new Float32Array(PER_CANNON), speed = new Float32Array(PER_CANNON), born = new Float32Array(PER_CANNON);
+    const tmpColor = new THREE.Color();
+    for(let i=0;i<PER_CANNON;i++){
+      born[i] = 999;
+      dirX[i] = (Math.random()-0.5)*0.8 - Math.sign(x)*0.4;
+      speed[i] = 0.9+Math.random()*0.8;
+      tmpColor.setHSL(Math.random(),0.9,0.6);
+      col[i*3]=tmpColor.r; col[i*3+1]=tmpColor.g; col[i*3+2]=tmpColor.b;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col,3));
+    const mat = new THREE.PointsMaterial({ size:0.5, map:ensureBg3DDotTexture(), vertexColors:true, transparent:true, opacity:0.9, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending });
+    scene.add(new THREE.Points(geo, mat));
+    return { x, geo, dirX, speed, born };
+  }
+  const cannons = [makeCannon(-26), makeCannon(26)];
+
+  let fireTimer=0;
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
+    fireTimer -= dt;
+    const firing = fireTimer < 0;
+    if(firing) fireTimer = 35+Math.random()*45;
+    cannons.forEach(c=>{
+      const arr = c.geo.attributes.position.array;
+      for(let i=0;i<PER_CANNON;i++){
+        c.born[i] += dt;
+        if(firing && c.born[i] > 55 && Math.random()<0.5) c.born[i] = 0;
+        const age = c.born[i];
+        if(age < 55){
+          const spd = c.speed[i]*(1+bass*0.4);
+          arr[i*3]   = c.x + c.dirX[i]*age*1.4;
+          arr[i*3+1] = -22 + spd*age*1.3 - age*age*0.012;
+          arr[i*3+2] = -12;
+        }
+      }
+      c.geo.attributes.position.needsUpdate = true;
+    });
+  }};
+}
+
+/* -- party streamer swirl: colorful ribbons spiral outward from the center -- */
+function buildBg3DPartyStreamerSwirl(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0a0614, 0.012);
+  const camera = new THREE.PerspectiveCamera(60, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 200);
+  camera.position.set(0,0,40);
+
+  const STREAMER_COUNT=12, SEGS=26;
+  const streamers=[];
+  for(let i=0;i<STREAMER_COUNT;i++){
+    const posArr = new Float32Array((SEGS+1)*3);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(posArr,3));
+    const mat = new THREE.LineBasicMaterial({ color: new THREE.Color().setHSL(i/STREAMER_COUNT,0.9,0.6), transparent:true, opacity:0.85 });
+    const line = new THREE.Line(geo, mat);
+    scene.add(line);
+    streamers.push({ geo, mat, phase:i/STREAMER_COUNT*Math.PI*2, hueBase:i/STREAMER_COUNT });
+  }
+
+  let clock=0;
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
+    clock += dt;
+    streamers.forEach(s=>{
+      const arr = s.geo.attributes.position.array;
+      for(let k=0;k<=SEGS;k++){
+        const t = k/SEGS, r = t*24;
+        const a = s.phase + clock*0.012 + t*3.2;
+        arr[k*3]=Math.cos(a)*r; arr[k*3+1]=Math.sin(a)*r*0.75+Math.sin(clock*0.02+s.phase)*2; arr[k*3+2]=-t*8;
+      }
+      s.geo.attributes.position.needsUpdate = true;
+      s.mat.color.setHSL((s.hueBase+clock*0.0007)%1,0.9,0.6+bass*0.15);
+    });
+  }};
+}
+
+/* -- sprinkle shower: small colorful sprinkles continuously fall and twinkle -- */
+function buildBg3DSprinkleShower(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x08060e, 0.01);
+  const camera = new THREE.PerspectiveCamera(58, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 200);
+  camera.position.set(0,0,40);
+
+  const COUNT=500;
+  const pos = new Float32Array(COUNT*3), col = new Float32Array(COUNT*3);
+  const speed = new Float32Array(COUNT), phase = new Float32Array(COUNT);
+  const tmpColor = new THREE.Color();
+  for(let i=0;i<COUNT;i++){
+    pos[i*3]=(Math.random()-0.5)*70; pos[i*3+1]=Math.random()*50-16; pos[i*3+2]=-Math.random()*40;
+    speed[i]=0.3+Math.random()*0.6; phase[i]=Math.random()*Math.PI*2;
+    tmpColor.setHSL(Math.random(),0.85,0.65);
+    col[i*3]=tmpColor.r; col[i*3+1]=tmpColor.g; col[i*3+2]=tmpColor.b;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col,3));
+  const mat = new THREE.PointsMaterial({ size:0.45, map:ensureBg3DDotTexture(), vertexColors:true, transparent:true, opacity:0.85, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending });
+  scene.add(new THREE.Points(geo, mat));
+
+  let clock=0;
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.85, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
+    clock += dt;
+    const arr = geo.attributes.position.array;
+    for(let i=0;i<COUNT;i++){
+      arr[i*3+1] -= (0.06+speed[i]*0.18+bass*0.15)*dt;
+      arr[i*3] += Math.sin(clock*0.01+phase[i])*0.02*dt;
+      if(arr[i*3+1] < -26) arr[i*3+1] = 24+Math.random()*6;
+    }
+    geo.attributes.position.needsUpdate = true;
+    mat.opacity = 0.7+bass*0.25;
+  }};
+}
+
+/* -- wedding rings: two interlocked gold rings slowly turn, ringed by a soft sparkle halo -- */
+function buildBg3DWeddingRings(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0a0810, 0.012);
+  const camera = new THREE.PerspectiveCamera(55, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 200);
+  camera.position.set(0,0,36);
+
+  const ringMat = new THREE.MeshBasicMaterial({ color:0xffd68a, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false });
+  const ring1 = new THREE.Mesh(new THREE.TorusGeometry(5,0.55,20,60), ringMat);
+  ring1.position.x = -2.6; scene.add(ring1);
+  const ring2 = new THREE.Mesh(new THREE.TorusGeometry(5,0.55,20,60), ringMat.clone());
+  ring2.position.x = 2.6; ring2.rotation.y = Math.PI/2.4;
+  scene.add(ring2);
+
+  const COUNT=220;
+  const pos = new Float32Array(COUNT*3);
+  const ang = new Float32Array(COUNT), rad = new Float32Array(COUNT), tilt = new Float32Array(COUNT);
+  for(let i=0;i<COUNT;i++){ ang[i]=Math.random()*Math.PI*2; rad[i]=8+Math.random()*10; tilt[i]=Math.random()*Math.PI; }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const mat = new THREE.PointsMaterial({ size:0.4, map:ensureBg3DDotTexture(), color:0xfff2d0, transparent:true, opacity:0.7, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending });
+  scene.add(new THREE.Points(geo, mat));
+
+  let clock=0;
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.8, 0.12);
+  return { scene, camera, composer, update(bass,mid,high,dt){
+    clock += dt;
+    ring1.rotation.y += (0.006+bass*0.01)*dt;
+    ring2.rotation.x += (0.006+bass*0.01)*dt;
+    const s = 1+bass*0.08;
+    ring1.scale.setScalar(s); ring2.scale.setScalar(s);
+    const arr = geo.attributes.position.array;
+    for(let i=0;i<COUNT;i++){
+      ang[i] += 0.004*dt;
+      const r = rad[i];
+      arr[i*3]=Math.cos(ang[i])*r; arr[i*3+1]=Math.sin(ang[i])*r*Math.cos(tilt[i]); arr[i*3+2]=Math.sin(ang[i])*r*Math.sin(tilt[i])-4;
+    }
+    geo.attributes.position.needsUpdate = true;
+    mat.opacity = 0.5+bass*0.3;
+  }};
+}
+
+/* -- dove flight: a loose flock of simple white doves glides across, wings flapping gently -- */
+function buildBg3DDoveFlight(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0c0e16, 0.01);
+  const camera = new THREE.PerspectiveCamera(60, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 200);
+  camera.position.set(0,0,40);
+
+  const wingGeo = new THREE.PlaneGeometry(2.2,0.9);
+  const DOVE_COUNT=16;
+  const doves=[];
+  for(let i=0;i<DOVE_COUNT;i++){
+    const mat = new THREE.MeshBasicMaterial({ color:0xf5f2ff, transparent:true, opacity:0.85, side:THREE.DoubleSide });
+    const group = new THREE.Group();
+    const wingL = new THREE.Mesh(wingGeo, mat); wingL.position.x = -1.1;
+    const wingR = new THREE.Mesh(wingGeo, mat); wingR.position.x = 1.1;
+    group.add(wingL); group.add(wingR);
+    const y=(Math.random()-0.5)*30, z=-Math.random()*40;
+    group.position.set(-60-Math.random()*40, y, z);
+    doves.push({ group, wingL, wingR, y, speed:1.2+Math.random()*0.8, flap:Math.random()*Math.PI*2 });
+    scene.add(group);
+  }
+
+  const { composer } = createBg3DBloom(scene, camera, 0.8, 0.6, 0.28);
+  return { scene, camera, composer, update(bass,mid,high,dt){
+    doves.forEach(d=>{
+      d.flap += (0.15+bass*0.15)*dt;
+      const flap = Math.sin(d.flap);
+      d.wingL.rotation.y = flap*0.9;
+      d.wingR.rotation.y = -flap*0.9;
+      d.group.position.x += d.speed*(0.3+bass*0.3)*dt;
+      d.group.position.y = d.y + Math.sin(d.flap*0.3)*1.5;
+      if(d.group.position.x > 60){ d.group.position.x = -80-Math.random()*20; d.y = (Math.random()-0.5)*30; }
+    });
+  }};
+}
+
+/* -- rose petal fall: soft pink petals drift and sway as they fall -- */
+function buildBg3DRosePetalFall(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0e0810, 0.01);
+  const camera = new THREE.PerspectiveCamera(58, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 200);
+  camera.position.set(0,0,40);
+
+  const petalGeo = new THREE.CircleGeometry(0.6,8);
+  const COUNT=140;
+  const petals=[];
+  for(let i=0;i<COUNT;i++){
+    const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(0.94+Math.random()*0.05,0.7,0.6+Math.random()*0.2), transparent:true, opacity:0.8, side:THREE.DoubleSide });
+    const petal = new THREE.Mesh(petalGeo, mat);
+    const x=(Math.random()-0.5)*60, y=Math.random()*50-14, z=-Math.random()*36;
+    petal.position.set(x,y,z);
+    petal.rotation.z = Math.random()*Math.PI*2;
+    petals.push({ petal, mat, speed:0.15+Math.random()*0.25, swayPhase:Math.random()*Math.PI*2, spin:(Math.random()-0.5)*0.02 });
+    scene.add(petal);
+  }
+
+  let clock=0;
+  const { composer } = createBg3DBloom(scene, camera, 0.9, 0.7, 0.25);
+  return { scene, camera, composer, update(bass,mid,high,dt){
+    clock += dt;
+    petals.forEach(p=>{
+      p.petal.position.y -= (p.speed+bass*0.15)*dt;
+      p.petal.position.x += Math.sin(clock*0.01+p.swayPhase)*0.05*dt;
+      p.petal.rotation.z += p.spin*dt;
+      p.petal.rotation.y += 0.01*dt;
+      if(p.petal.position.y < -26) p.petal.position.y = 24+Math.random()*6;
+    });
+  }};
+}
+
+/* -- fairy light canopy: a warm string-light net overhead, each bulb twinkling on its own timer -- */
+function buildBg3DFairyLightCanopy(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x080810, 0.012);
+  const camera = new THREE.PerspectiveCamera(58, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 200);
+  camera.position.set(0,-2,38);
+
+  const ROWS=6, COLS=14;
+  const lights=[];
+  const lineMat = new THREE.LineBasicMaterial({ color:0x3a2a10, transparent:true, opacity:0.35 });
+  for(let r=0;r<ROWS;r++){
+    const y = 16-r*2.2;
+    const sagPts=[];
+    for(let c=0;c<=COLS;c++){
+      const x=(c/COLS-0.5)*60;
+      const sag = Math.sin((c/COLS)*Math.PI)*2.4;
+      sagPts.push(new THREE.Vector3(x, y-sag, -14-r*1.4));
+    }
+    const lineGeo = new THREE.BufferGeometry().setFromPoints(sagPts);
+    scene.add(new THREE.Line(lineGeo, lineMat));
+    sagPts.forEach((p,c)=>{
+      if(c%2!==0) return;
+      const mat = new THREE.MeshBasicMaterial({ color:0xffdca0, transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false });
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.28,8,8), mat);
+      bulb.position.copy(p);
+      scene.add(bulb);
+      lights.push({ bulb, mat, phase:Math.random()*Math.PI*2, speed:0.02+Math.random()*0.03 });
+    });
+  }
+
+  let clock=0;
+  const { composer } = createBg3DBloom(scene, camera, 1.1, 0.8, 0.2);
+  return { scene, camera, composer, update(bass,mid,high,dt){
+    clock += dt;
+    lights.forEach(l=>{
+      const tw = 0.55+Math.sin(clock*l.speed+l.phase)*0.35+Math.random()*0.05;
+      l.mat.opacity = Math.max(0.15, tw+bass*0.25);
+    });
+  }};
+}
+
+/* -- floating lanterns: warm glowing lanterns drift slowly upward like sky lanterns -- */
+function buildBg3DFloatingLanterns(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x060810, 0.01);
+  const camera = new THREE.PerspectiveCamera(58, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 200);
+  camera.position.set(0,0,40);
+
+  const COUNT=26;
+  const lanterns=[];
+  for(let i=0;i<COUNT;i++){
+    const bodyMat = new THREE.MeshBasicMaterial({ color:0xffb84d, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, depthWrite:false });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.9,1.1,1.6,10), bodyMat);
+    const x=(Math.random()-0.5)*60, y=Math.random()*60-30, z=-Math.random()*40;
+    body.position.set(x,y,z);
+    scene.add(body);
+    lanterns.push({ body, bodyMat, speed:0.1+Math.random()*0.2, swayPhase:Math.random()*Math.PI*2 });
+  }
+
+  let clock=0;
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.85, 0.15);
+  return { scene, camera, composer, update(bass,mid,high,dt){
+    clock += dt;
+    lanterns.forEach(l=>{
+      l.body.position.y += (l.speed+bass*0.1)*dt;
+      l.body.position.x += Math.sin(clock*0.008+l.swayPhase)*0.03*dt;
+      l.bodyMat.opacity = 0.7+Math.sin(clock*0.03+l.swayPhase)*0.15+bass*0.15;
+      if(l.body.position.y > 32) l.body.position.y = -32-Math.random()*6;
+    });
+  }};
+}
+
+const BG3D_BUILDERS = { particles: buildBg3DParticles, tunnel: buildBg3DTunnel, prism: buildBg3DPrism, festival: buildBg3DFestivalBuilding, galaxy: buildBg3DGalaxy, colorTunnel: buildBg3DColorTunnel, synthwave: buildBg3DSynthwave, helix: buildBg3DHelix, fireworkSky: buildBg3DFireworkSky, aurora: buildBg3DAurora, particleStorm: buildBg3DParticleStorm, particleWaves: buildBg3DParticleWaves, particleRings: buildBg3DParticleRings, particleRain: buildBg3DParticleRain, galaxyMerge: buildBg3DGalaxyMerge, particleVortex: buildBg3DParticleVortex, particleStardust: buildBg3DParticleStardust, particlePulseOrb: buildBg3DParticlePulseOrb, particleWaterfall: buildBg3DParticleWaterfall, rainbowNebula: buildBg3DRainbowNebula, cosmicRings: buildBg3DCosmicRings, galaxySpiral: buildBg3DGalaxySpiral, rainbowWormhole: buildBg3DRainbowWormhole, fireflyForest: buildBg3DFireflyForest, cherryBlossom: buildBg3DCherryBlossom, glacierAurora: buildBg3DGlacierAurora, dandelionSeeds: buildBg3DDandelionSeeds, duneRipple: buildBg3DDuneRipple, rainforestVines: buildBg3DRainforestVines, coralReef: buildBg3DCoralReef, jellyfishSwarm: buildBg3DJellyfishSwarm, bioluminescentDeep: buildBg3DBioluminescentDeep, tideRippleGrid: buildBg3DTideRippleGrid, oceanVortex: buildBg3DOceanVortex, lightningStorm: buildBg3DLightningStorm, snowfallDrift: buildBg3DSnowfallDrift, sandstorm: buildBg3DSandstorm, foggyMoonlight: buildBg3DFoggyMoonlight, rainbowRain: buildBg3DRainbowRain, vhsCube: buildBg3DVhsCube, vaporwaveSunset: buildBg3DVaporwaveSunset, hologramCity: buildBg3DHologramCity, matrixDataRain: buildBg3DMatrixDataRain, warpSpeedStreaks: buildBg3DWarpSpeedStreaks, pixelGlitchField: buildBg3DPixelGlitchField, blackHoleAccretion: buildBg3DBlackHoleAccretion, supernovaBurst: buildBg3DSupernovaBurst, meteorShower: buildBg3DMeteorShower, cometTrail: buildBg3DCometTrail, pulsarBeacon: buildBg3DPulsarBeacon, kaleidoscope: buildBg3DKaleidoscope, fractalTree: buildBg3DFractalTree, voronoiShatter: buildBg3DVoronoiShatter, waveformRings: buildBg3DWaveformRings, mobiusRibbon: buildBg3DMobiusRibbon, liquidMetalWave: buildBg3DLiquidMetalWave, zenRipplePond: buildBg3DZenRipplePond, floatingOrbs: buildBg3DFloatingOrbs, breathingHalo: buildBg3DBreathingHalo, stardustDrift: buildBg3DStardustDrift, horizonGlow: buildBg3DHorizonGlow, heartbeatPulse: buildBg3DHeartbeatPulse, redAlertScan: buildBg3DRedAlertScan, highVoltageGrid: buildBg3DHighVoltageGrid, chaseLightTrails: buildBg3DChaseLightTrails, dangerScanSweep: buildBg3DDangerScanSweep, ambushBeacon: buildBg3DAmbushBeacon, shockwavePulse: buildBg3DShockwavePulse, impactCraterBurst: buildBg3DImpactCraterBurst, groundCrackRift: buildBg3DGroundCrackRift, glassShatterBurst: buildBg3DGlassShatterBurst, thunderStrikeFlash: buildBg3DThunderStrikeFlash, sonicBoomRing: buildBg3DSonicBoomRing, confettiExplosion: buildBg3DConfettiExplosion, giftRevealBurst: buildBg3DGiftRevealBurst, partyBalloonRise: buildBg3DPartyBalloonRise, surpriseStarburst: buildBg3DSurpriseStarburst, ribbonBloom: buildBg3DRibbonBloom, bubblePopBurst: buildBg3DBubblePopBurst, neonRiot: buildBg3DNeonRiot, chromaExplosion: buildBg3DChromaExplosion, strobeMatrix: buildBg3DStrobeMatrix, kineticSpectrum: buildBg3DKineticSpectrum, speedColorRings: buildBg3DSpeedColorRings, electroPartyFlash: buildBg3DElectroPartyFlash, stageSpotlightSweep: buildBg3DStageSpotlightSweep, laserGridShow: buildBg3DLaserGridShow, flameBurstColumn: buildBg3DFlameBurstColumn, energyCoreOverload: buildBg3DEnergyCoreOverload, edmPulseWall: buildBg3DEdmPulseWall, lightWaveSurge: buildBg3DLightWaveSurge, suspenseFlicker: buildBg3DSuspenseFlicker, popScareBurst: buildBg3DPopScareBurst, emergencySignalPulse: buildBg3DEmergencySignalPulse, climaxFlashBurst: buildBg3DClimaxFlashBurst, electricShockArc: buildBg3DElectricShockArc, surpriseFirecrackerPop: buildBg3DSurpriseFirecrackerPop, tensionCountdownRing: buildBg3DTensionCountdownRing, highEnergyFlashStage: buildBg3DHighEnergyFlashStage, criticalMassBurst: buildBg3DCriticalMassBurst, birthdayCake: buildBg3DBirthdayCake, balloonArch: buildBg3DBalloonArch, confettiCannon: buildBg3DConfettiCannon, partyStreamerSwirl: buildBg3DPartyStreamerSwirl, sprinkleShower: buildBg3DSprinkleShower, weddingRings: buildBg3DWeddingRings, doveFlight: buildBg3DDoveFlight, rosePetalFall: buildBg3DRosePetalFall, fairyLightCanopy: buildBg3DFairyLightCanopy, floatingLanterns: buildBg3DFloatingLanterns };
 
 function resizeBg3D(){
   const availH = Math.max(1, window.innerHeight - DOCK_SAFE_ZONE);   // keep 3D content out of the strip reserved for the dock, same idea as the 2D canvas clip
@@ -19260,6 +19703,8 @@ const BG3D_CATALOG = [
   { cat:'bg3DCatVividChaos', kinds:['neonRiot','chromaExplosion','strobeMatrix','kineticSpectrum','speedColorRings','electroPartyFlash'] },
   { cat:'bg3DCatStage', kinds:['stageSpotlightSweep','laserGridShow','flameBurstColumn','energyCoreOverload','edmPulseWall','lightWaveSurge'] },
   { cat:'bg3DCatTension', kinds:['suspenseFlicker','popScareBurst','emergencySignalPulse','climaxFlashBurst','electricShockArc','surpriseFirecrackerPop','tensionCountdownRing','highEnergyFlashStage','criticalMassBurst'] },
+  { cat:'bg3DCatBirthday', kinds:['birthdayCake','balloonArch','confettiCannon','partyStreamerSwirl','sprinkleShower'] },
+  { cat:'bg3DCatWedding', kinds:['weddingRings','doveFlight','rosePetalFall','fairyLightCanopy','floatingLanterns'] },
 ];
 const BG3D_ORDER = BG3D_CATALOG.flatMap(g=>g.kinds);   // flat menu order, used by the Next button
 let expandedBg3DCats = new Set();
