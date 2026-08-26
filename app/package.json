@@ -1,5 +1,6 @@
 {
   "name": "sub-remix",
+  "productName": "SUB REMIX",
   "version": "1.0.0",
   "description": "SUB REMIX — Music Visualizer",
   "main": "main.js",
@@ -9,8 +10,8 @@
     "dist": "electron-builder --win"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "stifmysterz",
+  "license": "UNLICENSED",
   "type": "commonjs",
   "devDependencies": {
     "@playwright/test": "^1.62.1",

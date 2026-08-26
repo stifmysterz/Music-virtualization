@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { test, expect, _electron: electron } = require('@playwright/test');
+const { newUserDataDir, cleanupUserDataDir } = require('./helpers/tmp-user-data');
 
 const APP_DIR = path.join(__dirname, '..');
 const ROOT_DIR = path.join(APP_DIR, '..');
@@ -59,31 +60,36 @@ test('每种字体的每个字重都有对应的本地文件', () => {
 });
 
 test('10 种字体在应用中全部实际加载成功', async () => {
-  const app = await electron.launch({ args: ['.'], cwd: APP_DIR });
-  const win = await app.firstWindow();
+  const dir = newUserDataDir('fonts');
+  const app = await electron.launch({ args: ['.', `--user-data-dir=${dir}`], cwd: APP_DIR });
+  try {
+    const win = await app.firstWindow();
 
-  const missing = await win.evaluate(async (families) => {
-    await document.fonts.ready;
-    const bad = [];
-    for (const { name, weights } of families) {
-      for (const w of weights) {
-        // These fonts are only ever applied via the runtime font picker, never by
-        // default on-page CSS, so nothing at load time triggers the browser to
-        // actually fetch them — document.fonts.ready resolves without touching
-        // them. document.fonts.check() alone never forces a fetch either, so we
-        // must force-load each combination (exactly what happens when a user
-        // picks it) before checking whether it's actually available.
-        try {
-          await document.fonts.load(`${w} 16px "${name}"`);
-        } catch (e) {
-          // fall through; check() below will report it as missing
+    const missing = await win.evaluate(async (families) => {
+      await document.fonts.ready;
+      const bad = [];
+      for (const { name, weights } of families) {
+        for (const w of weights) {
+          // These fonts are only ever applied via the runtime font picker, never by
+          // default on-page CSS, so nothing at load time triggers the browser to
+          // actually fetch them — document.fonts.ready resolves without touching
+          // them. document.fonts.check() alone never forces a fetch either, so we
+          // must force-load each combination (exactly what happens when a user
+          // picks it) before checking whether it's actually available.
+          try {
+            await document.fonts.load(`${w} 16px "${name}"`);
+          } catch (e) {
+            // fall through; check() below will report it as missing
+          }
+          if (!document.fonts.check(`${w} 16px "${name}"`)) bad.push(`${name} ${w}`);
         }
-        if (!document.fonts.check(`${w} 16px "${name}"`)) bad.push(`${name} ${w}`);
       }
-    }
-    return bad;
-  }, FAMILIES);
+      return bad;
+    }, FAMILIES);
 
-  await app.close();
-  expect(missing).toEqual([]);
+    await app.close();
+    expect(missing).toEqual([]);
+  } finally {
+    cleanupUserDataDir(dir);
+  }
 });
