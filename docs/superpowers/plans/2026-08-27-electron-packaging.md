@@ -681,7 +681,19 @@ git commit -m "Probe recording API availability in the Electron renderer"
 
 ### Task 5: 录制落盘回退通道
 
-**判定结果：**（由 Task 4 Step 3 填入；若判定为「跳过」，在此写明并直接进入 Task 6）
+**判定结果：** `showSaveFilePicker` 为 `"function"`，在 Electron 44.0.0 渲染进程中真实可用（重复运行两次结果一致）。**Task 5 跳过**，直接进入 Task 6。现有代码在 Electron 中会走 `window.showSaveFilePicker` 磁盘流式写入，内存平坦，无需改动。
+
+`app/tests/recording-api.spec.js` 打印的原始 JSON：
+
+```json
+{
+  "showSaveFilePicker": "function",
+  "MediaRecorder": "function",
+  "captureStream": "function",
+  "vp9Opus": true,
+  "webm": true
+}
+```
 
 仅当 Task 4 判定 `showSaveFilePicker` 不可用时执行本任务。通过 preload 暴露一个最小的落盘通道，用 Electron 原生保存对话框 + Node 流式写入，恢复「边录边写、内存不增长」的现有行为。
 
