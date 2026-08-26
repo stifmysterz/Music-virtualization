@@ -609,12 +609,12 @@ git commit -m "Bundle fonts locally so the packaged app renders correctly offlin
 
 ```js
 const path = require('path');
-const { test, _electron: electron } = require('@playwright/test');
+const { test, expect, _electron: electron } = require('@playwright/test');
 
 const APP_DIR = path.join(__dirname, '..');
 
-// 这个测试不做断言——它的作用是把 Electron 渲染进程的真实能力打印出来，
-// 作为 Task 5 是否需要执行的判定依据。
+// showSaveFilePicker 的有无是本任务要查明的事实，因此不对它断言，只打印。
+// 但 captureStream 和 WebM 编码是录制功能的硬前提——它们必须成立，所以断言。
 test('探测录制相关 API 在 Electron 渲染进程中的可用性', async () => {
   const app = await electron.launch({ args: ['.'], cwd: APP_DIR });
   const win = await app.firstWindow();
@@ -636,6 +636,16 @@ test('探测录制相关 API 在 Electron 渲染进程中的可用性', async ()
   console.log('============================\n');
 
   await app.close();
+
+  // 录制功能的硬前提：这两条不成立的话，问题比 spec 5.2 严重得多
+  expect(caps.captureStream, 'canvas.captureStream 不可用，录制无法工作').toBe('function');
+  expect(caps.MediaRecorder, 'MediaRecorder 不可用，录制无法工作').toBe('function');
+  expect(
+    caps.vp9Opus || caps.webm,
+    'Electron 不支持任何 WebM 编码，录制无法出片'
+  ).toBe(true);
+
+  // showSaveFilePicker 刻意不断言——它的取值就是本任务要查明的事实
 });
 ```
 
@@ -652,7 +662,7 @@ cd app && npx playwright test tests/recording-api.spec.js
 - `showSaveFilePicker` 为 `"function"` → **Task 5 跳过**。现有代码在 Electron 中会走磁盘流式写入，内存平坦，无需改动。
 - `showSaveFilePicker` 为 `"undefined"` → **Task 5 必须执行**。
 
-另外核对：`captureStream` 必须是 `"function"`，`vp9Opus` 或 `webm` 至少一个为 `true`。若这两条不满足，说明录制在 Electron 中根本不能工作——这是比 5.2 更严重的问题，停下来如实报告，不要继续往下做。
+`captureStream` 与 WebM 编码的硬前提已由测试断言守住——若测试直接失败，说明录制在 Electron 中根本不能工作，这是比 spec 5.2 更严重的问题，停下来如实报告，不要继续往下做。
 
 - [ ] **Step 4: 提交**
 
@@ -760,10 +770,25 @@ contextBridge.exposeInMainWorld('desktopRecorder', {
 
 - [ ] **Step 4: 在 main.js 中接上 IPC**
 
-在 `app/main.js` 顶部的 require 中加入 `dialog`、`ipcMain` 和 `fs`：
+在 `app/main.js` 顶部的 require 中**追加** `dialog`、`ipcMain`，并新增 `fs`。
+
+注意：这里是**往现有解构里加名字，不是整行替换**。Task 2 若走了情况 B，该行已经含有 `protocol, net`，整行替换会把它们丢掉，导致启动即报 `protocol is not defined`。
+
+- 若 Task 2 走了情况 A（未改 main.js），改成：
 
 ```js
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+```
+
+- 若 Task 2 走了情况 B（自定义协议），改成：
+
+```js
+const { app, BrowserWindow, protocol, net, dialog, ipcMain } = require('electron');
+```
+
+两种情况都在文件顶部新增一行：
+
+```js
 const fs = require('fs');
 ```
 
@@ -828,7 +853,9 @@ cd app && npx playwright test tests/recording-write.spec.js
 
 - [ ] **Step 6: 在 61.html 中接入桌面通道**
 
-修改 `61.html`。把第 19918 行：
+**关于行号：** Task 3 把 `61.html` 第 14-16 行换成了 1 行，因此下面提到的所有行号都会**向前偏移 2 行**。行号仅供大致定位，**以引用的代码原文作为唯一锚点**——按原文精确匹配，不要按行号盲改。
+
+修改 `61.html`。把第 19918 行（实际约 19916 行）：
 
 ```js
 let fileWritable = null, usingFileSystemWrite = false;
@@ -1035,7 +1062,10 @@ cd app && npm install --save-dev electron-builder@latest
   }
 ```
 
-注意 `files` 只包含 `app/` 内的文件；`61.html` 和 `fonts/` 在仓库中位于 `app/` 之外，所以通过 `extraResources` 打进去。
+两点说明：
+
+- `files` 只包含 `app/` 内的文件；`61.html` 和 `fonts/` 在仓库中位于 `app/` 之外，所以通过 `extraResources` 打进去。若 Task 5 被跳过导致 `preload.js` 不存在，electron-builder 会忽略该条目，`files` 无需改动。
+- `extraResources` 把 `61.html` 复制进**安装包**，这不违反全局约束「61.html 是唯一事实来源」——该约束禁止的是版本库中出现第二份源文件，而 `dist/` 是构建产物且已被 gitignore。
 
 - [ ] **Step 4: 让 main.js 同时适配开发与打包两种路径**
 
@@ -1077,11 +1107,12 @@ const { test, expect } = require('@playwright/test');
 
 const DIST = path.join(__dirname, '..', '..', 'dist');
 
-// 这个测试只在跑过 `npm run dist` 之后才有意义；
-// 它守住的是「安装包确实生成了且不是个空壳」。
-test('Windows 安装包已生成且体积合理', () => {
-  expect(fs.existsSync(DIST), 'dist/ 不存在，先跑 npm run dist').toBe(true);
+// 这两个测试是构建后校验，只在跑过 `npm run dist` 之后才有意义。
+// 未构建时条件跳过——被明确报告为「跳过」，不会让全量测试误红，
+// 也不会伪装成通过。
+test.skip(() => !fs.existsSync(DIST), '尚未构建，先跑 npm run dist');
 
+test('Windows 安装包已生成且体积合理', () => {
   const installers = fs.readdirSync(DIST).filter(f => f.endsWith('.exe'));
   expect(installers.length).toBeGreaterThan(0);
 
