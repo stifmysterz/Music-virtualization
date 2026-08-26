@@ -1,0 +1,34 @@
+diff --git a/node_modules/app-builder-lib/out/util/electronGet.js b/node_modules/app-builder-lib/out/util/electronGet.js
+index a941f9d..263a20c 100644
+--- a/node_modules/app-builder-lib/out/util/electronGet.js
++++ b/node_modules/app-builder-lib/out/util/electronGet.js
+@@ -184,7 +184,28 @@ async function extractArchive(file, dir) {
+             throw new Error(`Extraction of ${path.basename(file)} produced no files`);
+         }
+         await fs.rm(dir, { recursive: true, force: true });
+-        await fs.rename(tmpDir, dir);
++        // On Windows, a freshly-extracted directory (e.g. win-unpacked) can be briefly held
++        // open by Windows Defender / antivirus real-time scanning right after extraction,
++        // causing the rename below to fail with EPERM even though nothing in our own process
++        // holds a handle on it. This is a transient lock, not a real conflict — a manual retry
++        // of the identical rename a few seconds later succeeds without any other change. Retry
++        // a bounded number of times with a short backoff before giving up. If a future Node/
++        // electron-builder version stops seeing this on CI/dev machines, this retry can be
++        // removed (or app-builder-lib upstream may fix it: see nodejs fs.rename EPERM reports
++        // on Windows around AV scanning of new files).
++        for (let attempt = 1; ; attempt++) {
++            try {
++                await fs.rename(tmpDir, dir);
++                break;
++            }
++            catch (err) {
++                if (err && err.code === "EPERM" && attempt < 5) {
++                    await new Promise(r => setTimeout(r, 200 * attempt));
++                    continue;
++                }
++                throw err;
++            }
++        }
+     }
+     finally {
+         await release().catch(err => builder_util_1.log.warn({ err }, "failed to release lockfile"));
