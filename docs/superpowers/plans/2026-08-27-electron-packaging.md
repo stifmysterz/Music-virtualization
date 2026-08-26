@@ -125,6 +125,12 @@ test('渲染循环真的在跑（画布尺寸被 resize() 设置过）', async (
 
   // resize() 会把 canvas 的 width/height 设成实际像素尺寸；
   // 若脚本崩在前面，canvas 会停留在默认的 300x150
+  //
+  // firstWindow() 在 61.html 的内联脚本（2MB，含内联 THREE.js）执行完之前就 resolve，
+  // 所以必须像上一条用例对 title 那样先 poll 等 resize() 跑完，否则会稳定读到默认值 300。
+  // 这不是放宽断言——下面的阈值和原来一样，resize() 真没跑时 poll 会超时失败。
+  await expect.poll(() => win.evaluate(() => document.getElementById('cv').width)).toBeGreaterThan(300);
+
   const size = await win.evaluate(() => {
     const c = document.getElementById('cv');
     return { w: c.width, h: c.height };
