@@ -16,3 +16,7 @@ Thumbs.db
 # Project-specific
 sub-remix-claude-code/
 .claude/settings.local.json
+
+# Node / Electron
+node_modules/
+dist/
