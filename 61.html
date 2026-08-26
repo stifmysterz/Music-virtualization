@@ -5833,7 +5833,7 @@ function detectBeat(now){
       if(now - bpmNextBeatAt > interval*4) bpmNextBeatAt = now + interval; // catch up if the tab was backgrounded a while
     }
   }else{
-    if(e > avg*1.32 && e > 40) beat = 1;
+    if(e > avg*1.18 && e > 22) beat = 1;
   }
   beat *= 0.9;
   return e/255;
@@ -8876,12 +8876,20 @@ function buildBg3DFractalTree(){
   const tree = new THREE.LineSegments(geo, mat);
   scene.add(tree);
 
-  let clock=0;
+  const branchCount = branches.length;
+  let clock=0, hueClock=0;
   return { scene, camera, update(bass,mid,high,dt){
     clock += dt;
-    tree.rotation.y += 0.001*dt;
-    tree.scale.setScalar(1+Math.sin(clock*0.01)*0.02+bass*0.06);
-    mat.opacity = 0.65+bass*0.3;
+    hueClock += (0.1+high*0.8)*dt;
+    tree.position.y = bass*2.4;
+    tree.scale.setScalar(1+Math.sin(clock*0.8)*0.03+bass*0.6);
+    mat.opacity = 0.5+bass*0.5;
+    for(let i=0;i<branchCount;i++){
+      tmpColor.setHSL((hueClock+i/branchCount)%1, 1, 0.45+bass*0.25);
+      col[i*6]=tmpColor.r; col[i*6+1]=tmpColor.g; col[i*6+2]=tmpColor.b;
+      col[i*6+3]=tmpColor.r; col[i*6+4]=tmpColor.g; col[i*6+5]=tmpColor.b;
+    }
+    geo.attributes.color.needsUpdate = true;
   }};
 }
 
@@ -12502,7 +12510,7 @@ function renderBg3D(bass, mid, high, dt){
     s.scene.fog.density = s.scene.userData.baseFogDensity * dirM.fogMul;
   }
   applyBgBounceToCamera(s.camera, computeBgBounceParams(bass, mid, high, performance.now()));
-  s.camera.zoom *= 1 + beat*0.16 + bass*0.04 + dirDropPunch*0.6;   // beat (sharp transient, snaps to 1 then decays) drives the punch; bass adds a little continuous life — always-on, independent of the optional Bounce toggle, so every style — current and future — visibly pulses with the music
+  s.camera.zoom *= 1 + beat*0.16 + bass*0.15 + dirDropPunch*0.6;   // beat (sharp transient, snaps to 1 then decays) drives the punch; bass alone must also be strong enough to visibly pulse tracks whose beat never crosses detectBeat()'s onset threshold — always-on, independent of the optional Bounce toggle, so every style — current and future — visibly pulses with the music
   applyBg3DCameraMotion(s.camera, bass, mid, high, dt*bg3DSpeed);
   s.camera.updateProjectionMatrix();
   if(s.composer) s.composer.render();
@@ -12789,9 +12797,14 @@ function draw(now){
 
   const bg3dDebugEl = document.getElementById('bg3dDebug');
   if(bg3dDebugEl){
+    let zoomLine = '';
+    if(bg3DKind && bg3DScenes[bg3DKind]){
+      const cam = bg3DScenes[bg3DKind].camera;
+      zoomLine = '\nzoom='+cam.zoom.toFixed(4)+'  camMotion='+bg3DCameraMotion+'  composer='+!!bg3DScenes[bg3DKind].composer;
+    }
     bg3dDebugEl.textContent =
       'bass='+lastBass.toFixed(3)+'  mid='+lastMid.toFixed(3)+'  high='+lastHigh.toFixed(3)+'  beat='+beat.toFixed(3)+
-      '\nhasBg3D='+hasBg3D+'  bg3DKind='+bg3DKind+'  scenesOK='+!!(bg3DKind && bg3DScenes[bg3DKind]);
+      '\nhasBg3D='+hasBg3D+'  bg3DKind='+bg3DKind+'  scenesOK='+!!(bg3DKind && bg3DScenes[bg3DKind]) + zoomLine;
   }
 
   // background — cleared when a photo/video background is set, so it shows through clean;
