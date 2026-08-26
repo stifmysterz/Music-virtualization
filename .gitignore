@@ -20,3 +20,4 @@ sub-remix-claude-code/
 # Node / Electron
 node_modules/
 dist/
+test-results/
