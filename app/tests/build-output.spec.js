@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { test, expect } = require('@playwright/test');
+const { test, expect, _electron: electron } = require('@playwright/test');
 
 const DIST = path.join(__dirname, '..', '..', 'dist');
 
@@ -23,4 +23,19 @@ test('打包资源中包含 61.html 与字体', () => {
   const unpacked = path.join(DIST, 'win-unpacked', 'resources', 'app');
   expect(fs.existsSync(path.join(unpacked, '61.html'))).toBe(true);
   expect(fs.existsSync(path.join(unpacked, 'fonts'))).toBe(true);
+});
+
+test('打包后的可执行文件能启动并加载正确内容', async () => {
+  const app = await electron.launch({
+    executablePath: path.join(DIST, 'win-unpacked', 'SUB REMIX.exe'),
+  });
+  const win = await app.firstWindow();
+
+  // firstWindow() 在 61.html 的内联脚本执行完之前就 resolve，
+  // 所以像 smoke.spec.js 一样对 title 和 canvas 宽度做 poll，
+  // 而不是直接读取（会稳定读到默认值）。
+  await expect.poll(() => win.title()).toBe('SUB REMIX — Music Visualizer');
+  await expect.poll(() => win.evaluate(() => document.getElementById('cv').width)).toBeGreaterThan(300);
+
+  await app.close();
 });
