@@ -35,6 +35,10 @@ async function main() {
     if (!r.ok) throw new Error(`下载 ${u} 失败: ${r.status}`);
     const buf = Buffer.from(await r.arrayBuffer());
     if (buf.length < 2000) throw new Error(`${name} 只有 ${buf.length} 字节，不像有效字体`);
+    // 大小达标不代表内容对——错误页/验证码页也可能超过 2000 字节。
+    // WOFF2 文件头固定是 ASCII "wOF2" (0x77 0x4F 0x46 0x32)，校验签名排除这种情况。
+    const sig = buf.subarray(0, 4).toString('ascii');
+    if (sig !== 'wOF2') throw new Error(`${name} 文件头是 "${sig}"，不是合法的 WOFF2 签名 (wOF2)，下到的可能不是字体文件`);
     fs.writeFileSync(dest, buf);
     css = css.split(u).join(name);   // 远程 URL 改写为同目录下的相对文件名
     console.log(`  ${name}  ${(buf.length / 1024).toFixed(1)} KB`);
