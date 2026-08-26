@@ -1,9 +1,11 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
-// 61.html 位于仓库根目录，即 app/ 的上一级。
+// 开发时 61.html 在仓库根目录；打包后由 extraResources 放进 resources/app/
 // 这里刻意不复制该文件——它是唯一事实来源。
-const HTML_PATH = path.join(__dirname, '..', '61.html');
+const HTML_PATH = app.isPackaged
+  ? path.join(process.resourcesPath, 'app', '61.html')
+  : path.join(__dirname, '..', '61.html');
 
 function createWindow() {
   const win = new BrowserWindow({
