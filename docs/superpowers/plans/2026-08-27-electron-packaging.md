@@ -1003,12 +1003,11 @@ git commit -m "Stream recordings to disk in the desktop build to keep memory fla
 > ⚠️ **以上 Task 5 的 Step 1-9 到此结束，均未执行——仅作跳过前的记录保留。Task 4 的实测判定 `showSaveFilePicker` 可用，因此本任务全程跳过。**
 ---
 
-### Task 6: 应用图标与 Windows 安装包
+### Task 6: Windows 安装包（图标暂缓）
 
-用 electron-builder 生成 NSIS 安装包。图标、构建配置、产物校验折叠进本任务。
+用 electron-builder 生成 NSIS 安装包。构建配置与产物校验折叠进本任务。
 
 **Files:**
-- Create: `app/build/icon.ico`
 - Modify: `app/package.json`（加入 `build` 配置与 `dist` 脚本）
 - Create: `app/tests/build-output.spec.js`
 
@@ -1016,23 +1015,15 @@ git commit -m "Stream recordings to disk in the desktop build to keep memory fla
 - Consumes: 前序任务产出的完整可运行应用
 - Produces: `dist/` 下的 Windows 安装包
 
-- [ ] **Step 1: 准备图标**
+- [x] **Step 1: 准备图标 —— 用户决定暂缓，本步骤不执行**
 
-需要一个 256×256 的 `.ico` 文件放在 `app/build/icon.ico`。
+原计划要求用户提供一张 512×512 PNG 转成 `app/build/icon.ico`，并明确禁止自行生成占位图标（图标是用户可见的产品面孔，应由用户决定）。
 
-electron-builder 要求 `.ico` 至少 256×256，否则构建报错。若手头没有现成图标，先向用户索取一张 512×512 的 PNG，再转换；**不要**自己生成一个占位图标就往下走——图标是用户可见的产品面孔，应当由用户决定。
+**2026-08-27 用户明确选择「先跳过图标，先把安装包做出来」**，理由是先跑通打包流程、确认能装能用。因此本任务**不配置自定义图标**，构建产物使用 Electron 默认图标。
 
-拿到 PNG 后转换（`png-to-ico` 会自动生成多尺寸）：
+这不影响其余任何步骤：图标是纯资源，日后补上只需放入 `.ico`、在 `build.win` 中加一行 `"icon"`、重跑 `npm run dist`，无需重做其他工作。
 
-```bash
-cd app && npx png-to-ico <用户提供的图片路径> > build/icon.ico
-```
-
-确认产物大于 10KB：
-
-```bash
-ls -la app/build/icon.ico
-```
+**仍然不得自行生成占位图标。** 默认图标与占位图标的区别在于：默认图标一眼可辨认「尚未设置」，占位图标会伪装成已完成的设计决定。
 
 - [ ] **Step 2: 安装 electron-builder**
 
@@ -1059,12 +1050,10 @@ cd app && npm install --save-dev electron-builder@latest
     "appId": "com.subremix.visualizer",
     "productName": "SUB REMIX",
     "directories": {
-      "output": "../dist",
-      "buildResources": "build"
+      "output": "../dist"
     },
     "files": [
       "main.js",
-      "preload.js",
       "package.json"
     ],
     "extraResources": [
@@ -1072,8 +1061,7 @@ cd app && npm install --save-dev electron-builder@latest
       { "from": "../fonts", "to": "app/fonts" }
     ],
     "win": {
-      "target": "nsis",
-      "icon": "build/icon.ico"
+      "target": "nsis"
     },
     "nsis": {
       "oneClick": false,
@@ -1083,10 +1071,11 @@ cd app && npm install --save-dev electron-builder@latest
   }
 ```
 
-两点说明：
+三点说明：
 
-- `files` 只包含 `app/` 内的文件；`61.html` 和 `fonts/` 在仓库中位于 `app/` 之外，所以通过 `extraResources` 打进去。若 Task 5 被跳过导致 `preload.js` 不存在，electron-builder 会忽略该条目，`files` 无需改动。
+- `files` 只包含 `app/` 内的文件；`61.html` 和 `fonts/` 在仓库中位于 `app/` 之外，所以通过 `extraResources` 打进去。**Task 5 已跳过，`preload.js` 不存在，因此已从 `files` 中移除**——列出不存在的文件没有意义。
 - `extraResources` 把 `61.html` 复制进**安装包**，这不违反全局约束「61.html 是唯一事实来源」——该约束禁止的是版本库中出现第二份源文件，而 `dist/` 是构建产物且已被 gitignore。
+- **无 `win.icon` 与 `directories.buildResources`**：Step 1 已说明图标由用户决定暂缓，构建使用 Electron 默认图标。`build/` 目录不存在，故 `buildResources` 一并移除，避免指向不存在的路径。
 
 - [ ] **Step 4: 让 main.js 同时适配开发与打包两种路径**
 
