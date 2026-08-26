@@ -679,9 +679,13 @@ git commit -m "Probe recording API availability in the Electron renderer"
 
 ---
 
-### Task 5: 录制落盘回退通道
+### Task 5: 录制落盘回退通道 —— 已跳过（不执行）
 
-**判定结果：** `showSaveFilePicker` 为 `"function"`，在 Electron 44.0.0 渲染进程中真实可用（重复运行两次结果一致）。**Task 5 跳过**，直接进入 Task 6。现有代码在 Electron 中会走 `window.showSaveFilePicker` 磁盘流式写入，内存平坦，无需改动。
+> **本任务仅当 Task 4 判定 `showSaveFilePicker` 不可用时才需要执行。Task 4 的实测判定为「可用」，因此本任务整体跳过，不产生任何代码改动，直接进入 Task 6。** 下方 Steps 1-9 是跳过前保留下来的原始设计记录，不是待办事项——见 Steps 前后的分隔提示。
+
+**判定结果：** `showSaveFilePicker` 为 `"function"` —— typeof 检测确认该函数在 Electron 44.0.0 渲染进程中存在（重复运行两次，结果一致）。**Task 5 跳过**，直接进入 Task 6。现有代码在 Electron 中预期会走 `window.showSaveFilePicker` 磁盘流式写入分支，内存预期平坦，无需改动。
+
+补充确认（会话外，不属于本任务提交的自动化测试产物）：coordinator 在独立会话中直接调用了 `window.showSaveFilePicker()`（无用户手势触发），观察到弹出了真实的原生保存对话框并阻塞等待，而不是抛错或空操作返回——这证实该函数不是一个仅在 `typeof` 上报 `"function"` 的桩实现，是可调用的真实实现。
 
 `app/tests/recording-api.spec.js` 打印的原始 JSON：
 
@@ -695,7 +699,7 @@ git commit -m "Probe recording API availability in the Electron renderer"
 }
 ```
 
-仅当 Task 4 判定 `showSaveFilePicker` 不可用时执行本任务。通过 preload 暴露一个最小的落盘通道，用 Electron 原生保存对话框 + Node 流式写入，恢复「边录边写、内存不增长」的现有行为。
+原始任务描述（历史记录，跳过后未执行）：通过 preload 暴露一个最小的落盘通道，用 Electron 原生保存对话框 + Node 流式写入，恢复「边录边写、内存不增长」的现有行为。
 
 **Files:**
 - Create: `app/preload.js`
@@ -710,7 +714,12 @@ git commit -m "Probe recording API availability in the Electron renderer"
   - `write(bytes: Uint8Array) => Promise<void>` —— 追加写入
   - `end() => Promise<void>` —— 关闭写入流
 
-- [ ] **Step 1: 写失败的落盘测试**
+---
+> ⚠️ **以下 Step 1-9 未执行，仅作记录保留（Task 4 判定 `showSaveFilePicker` 可用，本任务被跳过）。**
+> 所有复选框已标记为 `[x]` 并附「已跳过」标注，防止被按复选框驱动的执行流程误认成待办项。
+---
+
+- [x] **Step 1: 写失败的落盘测试**（已跳过，未执行——仅作记录保留）
 
 创建 `app/tests/recording-write.spec.js`：
 
@@ -761,16 +770,14 @@ test('用户取消保存对话框时 begin 返回 ok:false', async () => {
 });
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
-
+- [x] **Step 2: 跑测试确认失败**（已跳过，未执行——仅作记录保留）
 ```bash
 cd app && npx playwright test tests/recording-write.spec.js
 ```
 
 预期：FAIL，`window.desktopRecorder` 未定义。
 
-- [ ] **Step 3: 写 preload.js**
-
+- [x] **Step 3: 写 preload.js**（已跳过，未执行——仅作记录保留）
 创建 `app/preload.js`：
 
 ```js
@@ -786,8 +793,7 @@ contextBridge.exposeInMainWorld('desktopRecorder', {
 });
 ```
 
-- [ ] **Step 4: 在 main.js 中接上 IPC**
-
+- [x] **Step 4: 在 main.js 中接上 IPC**（已跳过，未执行——仅作记录保留）
 在 `app/main.js` 顶部的 require 中**追加** `dialog`、`ipcMain`，并新增 `fs`。
 
 注意：这里是**往现有解构里加名字，不是整行替换**。Task 2 若走了情况 B，该行已经含有 `protocol, net`，整行替换会把它们丢掉，导致启动即报 `protocol is not defined`。
@@ -861,16 +867,14 @@ ipcMain.handle('rec:end', async () => {
 });
 ```
 
-- [ ] **Step 5: 跑测试确认通过**
-
+- [x] **Step 5: 跑测试确认通过**（已跳过，未执行——仅作记录保留）
 ```bash
 cd app && npx playwright test tests/recording-write.spec.js
 ```
 
 预期：2 个测试 PASS。
 
-- [ ] **Step 6: 在 61.html 中接入桌面通道**
-
+- [x] **Step 6: 在 61.html 中接入桌面通道**（已跳过，未执行——仅作记录保留）
 **关于行号：** Task 3 把 `61.html` 第 14-16 行换成了 1 行，因此下面提到的所有行号都会**向前偏移 2 行**。行号仅供大致定位，**以引用的代码原文作为唯一锚点**——按原文精确匹配，不要按行号盲改。
 
 修改 `61.html`。把第 19918 行（实际约 19916 行）：
@@ -979,25 +983,24 @@ let fileWritable = null, usingFileSystemWrite = false, usingDesktopWrite = false
     }else{
 ```
 
-- [ ] **Step 7: 跑全部测试**
-
+- [x] **Step 7: 跑全部测试**（已跳过，未执行——仅作记录保留）
 ```bash
 cd app && npx playwright test
 ```
 
 预期：全部测试 PASS。
 
-- [ ] **Step 8: 确认浏览器路径没被破坏**
-
+- [x] **Step 8: 确认浏览器路径没被破坏**（已跳过，未执行——仅作记录保留）
 在浏览器中直接打开 `61.html`，录一段 10 秒的视频。浏览器有 `showSaveFilePicker`，应当照常弹出保存对话框并正常出片——`window.desktopRecorder` 在浏览器中不存在，新分支不会被走到。
 
-- [ ] **Step 9: 提交**
-
+- [x] **Step 9: 提交**（已跳过，未执行——仅作记录保留）
 ```bash
 git add app/preload.js app/main.js app/tests/recording-write.spec.js 61.html
 git commit -m "Stream recordings to disk in the desktop build to keep memory flat"
 ```
 
+---
+> ⚠️ **以上 Task 5 的 Step 1-9 到此结束，均未执行——仅作跳过前的记录保留。Task 4 的实测判定 `showSaveFilePicker` 可用，因此本任务全程跳过。**
 ---
 
 ### Task 6: 应用图标与 Windows 安装包
