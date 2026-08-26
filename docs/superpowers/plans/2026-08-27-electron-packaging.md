@@ -42,7 +42,7 @@
   - `app/main.js` 导出的行为：启动后创建唯一一个 `BrowserWindow`，加载 `<repo>/61.html`
   - 测试辅助约定：后续任务的测试统一用 `electron.launch({ args: ['.'], cwd: <app 目录> })` 启动被测应用
 
-- [ ] **Step 1: 初始化 app 目录与依赖**
+- [x] **Step 1: 初始化 app 目录与依赖**
 
 在仓库根目录执行：
 
@@ -68,7 +68,7 @@ npm install --save-dev electron@latest @playwright/test@latest
 }
 ```
 
-- [ ] **Step 2: 把构建产物加入 .gitignore**
+- [x] **Step 2: 把构建产物加入 .gitignore**
 
 在 `.gitignore` 末尾追加：
 
@@ -78,7 +78,7 @@ node_modules/
 dist/
 ```
 
-- [ ] **Step 3: 写 Playwright 配置**
+- [x] **Step 3: 写 Playwright 配置**
 
 创建 `app/playwright.config.js`：
 
@@ -96,7 +96,7 @@ module.exports = defineConfig({
 });
 ```
 
-- [ ] **Step 4: 写失败的冒烟测试**
+- [x] **Step 4: 写失败的冒烟测试**
 
 创建 `app/tests/smoke.spec.js`：
 
@@ -155,7 +155,7 @@ test('页面加载过程中没有 JS 异常', async () => {
 });
 ```
 
-- [ ] **Step 5: 跑测试确认失败**
+- [x] **Step 5: 跑测试确认失败**
 
 ```bash
 cd app && npx playwright test
@@ -163,7 +163,7 @@ cd app && npx playwright test
 
 预期：全部失败，因为 `main.js` 还不存在，Electron 无法启动。
 
-- [ ] **Step 6: 写 main.js**
+- [x] **Step 6: 写 main.js**
 
 创建 `app/main.js`：
 
@@ -201,7 +201,7 @@ app.on('window-all-closed', () => {
 });
 ```
 
-- [ ] **Step 7: 跑测试确认通过**
+- [x] **Step 7: 跑测试确认通过**
 
 ```bash
 cd app && npx playwright test
@@ -211,7 +211,7 @@ cd app && npx playwright test
 
 若「没有 JS 异常」这条失败，把实际的报错信息读出来再定位——这通常意味着 `61.html` 里有代码依赖了 `file://` 下不可用的东西，属于真实发现，需要如实记录后再修，不要靠放宽断言让它变绿。
 
-- [ ] **Step 8: 手工看一眼**
+- [ ] **Step 8: 手工看一眼**（已推迟给人类——由 Task 6 Step 9 与 Task 7 覆盖同一次目视确认，未单独执行）
 
 ```bash
 cd app && npm start
@@ -219,7 +219,7 @@ cd app && npm start
 
 确认窗口打开、可视化在动、底部控制条可以点开。看完关掉。
 
-- [ ] **Step 9: 提交**
+- [x] **Step 9: 提交**
 
 ```bash
 git add .gitignore app/package.json app/package-lock.json app/main.js app/playwright.config.js app/tests/smoke.spec.js
@@ -240,7 +240,7 @@ git commit -m "Add Electron shell that loads 61.html, with Playwright smoke test
 - Consumes: Task 1 的 `app/main.js`、Playwright 启动约定
 - Produces: 确认后续任务可以安全依赖 `localStorage`（预设/设置功能可用）
 
-- [ ] **Step 1: 写失败的持久化测试**
+- [x] **Step 1: 写失败的持久化测试**
 
 创建 `app/tests/persistence.spec.js`：
 
@@ -292,13 +292,13 @@ test('应用自身的语言设置能跨重启存活', async () => {
 
 注意：第二个测试假设 `61.html` 里 `applyLanguage` 是全局函数且支持 `'zh'`。跑之前先确认——若语言代码不是 `'zh'`，去 `61.html` 的 `UI_STRINGS` 定义处查实际使用的键名，用真实值替换，不要改成断言别的东西。
 
-- [ ] **Step 2: 跑测试**
+- [x] **Step 2: 跑测试**
 
 ```bash
 cd app && npx playwright test tests/persistence.spec.js
 ```
 
-- [ ] **Step 3: 判定结果并处理**
+- [x] **Step 3: 判定结果并处理**（情况 A——测试通过，`main.js` 未改动）
 
 **情况 A —— 测试通过：** `file://` 下持久化正常，`main.js` 不需要任何改动。测试本身作为回归守卫保留。直接跳到 Step 4。
 
@@ -343,7 +343,7 @@ function registerProtocol() {
 
 改完重跑 Step 2 的命令，确认两个测试都变绿。
 
-- [ ] **Step 4: 确认没有破坏 Task 1 的测试**
+- [x] **Step 4: 确认没有破坏 Task 1 的测试**
 
 ```bash
 cd app && npx playwright test
@@ -351,7 +351,7 @@ cd app && npx playwright test
 
 预期：全部 5 个测试 PASS。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/tests/persistence.spec.js app/main.js
@@ -391,7 +391,7 @@ git commit -m "Verify localStorage survives app restart, with regression tests"
 - Consumes: Task 1 的 Electron 启动约定
 - Produces: 根目录 `fonts/fonts.css`，被 `61.html` 以相对路径 `fonts/fonts.css` 引用
 
-- [ ] **Step 1: 写失败的字体测试**
+- [x] **Step 1: 写失败的字体测试**
 
 创建 `app/tests/fonts.spec.js`：
 
@@ -476,7 +476,7 @@ test('10 种字体在应用中全部实际加载成功', async () => {
 });
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 ```bash
 cd app && npx playwright test tests/fonts.spec.js
@@ -484,7 +484,7 @@ cd app && npx playwright test tests/fonts.spec.js
 
 预期：三个测试全部 FAIL（`61.html` 仍含 googleapis、`fonts/` 目录不存在、字体未本地加载）。
 
-- [ ] **Step 3: 写下载脚本**
+- [x] **Step 3: 写下载脚本**
 
 创建 `app/scripts/fetch-fonts.js`：
 
@@ -538,7 +538,7 @@ async function main() {
 main().catch(e => { console.error(e.message); process.exit(1); });
 ```
 
-- [ ] **Step 4: 运行下载脚本**
+- [x] **Step 4: 运行下载脚本**
 
 ```bash
 cd app && node scripts/fetch-fonts.js
@@ -550,7 +550,7 @@ cd app && node scripts/fetch-fonts.js
 
 若脚本报错「CSS 里没找到 latin 子集」，说明 Google 改了输出格式，打开 `CSS_URL` 看一眼实际返回的 CSS 再调整过滤条件。
 
-- [ ] **Step 5: 修改 61.html**
+- [x] **Step 5: 修改 61.html**
 
 把 `61.html` 第 14-16 行这三行：
 
@@ -568,7 +568,7 @@ cd app && node scripts/fetch-fonts.js
 
 相对路径在浏览器直接打开和 Electron 中都能正确解析到仓库根目录下的 `fonts/`。
 
-- [ ] **Step 6: 跑测试确认通过**
+- [x] **Step 6: 跑测试确认通过**
 
 ```bash
 cd app && npx playwright test tests/fonts.spec.js
@@ -576,11 +576,11 @@ cd app && npx playwright test tests/fonts.spec.js
 
 预期：3 个测试 PASS。
 
-- [ ] **Step 7: 确认浏览器路径没被破坏**
+- [ ] **Step 7: 确认浏览器路径没被破坏**（已推迟给人类——需要在浏览器中目视核对字体，未被代理执行；控制端补做的打包版离线网络取证见下方「进度」记录，可作为间接佐证，但不能替代本步骤）
 
 在浏览器中直接打开 `61.html`，打开文字面板，把字体切到 Orbitron、Bebas Neue、Michroma 各看一次，确认样式正确、不是回退字体。这一步验证 Global Constraints 里「浏览器路径必须不变」这条。
 
-- [ ] **Step 8: 跑全部测试**
+- [x] **Step 8: 跑全部测试**
 
 ```bash
 cd app && npx playwright test
@@ -588,7 +588,7 @@ cd app && npx playwright test
 
 预期：全部 8 个测试 PASS。
 
-- [ ] **Step 9: 提交**
+- [x] **Step 9: 提交**
 
 ```bash
 git add 61.html fonts/ app/scripts/fetch-fonts.js app/tests/fonts.spec.js
@@ -609,7 +609,7 @@ git commit -m "Bundle fonts locally so the packaged app renders correctly offlin
 - Consumes: Task 1 的 Electron 启动约定
 - Produces: 判定结论 —— Task 5 执行或跳过的依据
 
-- [ ] **Step 1: 写探测测试**
+- [x] **Step 1: 写探测测试**
 
 创建 `app/tests/recording-api.spec.js`：
 
@@ -655,13 +655,13 @@ test('探测录制相关 API 在 Electron 渲染进程中的可用性', async ()
 });
 ```
 
-- [ ] **Step 2: 运行探测**
+- [x] **Step 2: 运行探测**
 
 ```bash
 cd app && npx playwright test tests/recording-api.spec.js
 ```
 
-- [ ] **Step 3: 记录判定结果**
+- [x] **Step 3: 记录判定结果**
 
 把上一步打印出的 JSON 原样贴进本计划文件 Task 5 开头的「判定结果」处，并按下面的规则得出结论：
 
@@ -670,7 +670,7 @@ cd app && npx playwright test tests/recording-api.spec.js
 
 `captureStream` 与 WebM 编码的硬前提已由测试断言守住——若测试直接失败，说明录制在 Electron 中根本不能工作，这是比 spec 5.2 更严重的问题，停下来如实报告，不要继续往下做。
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add app/tests/recording-api.spec.js docs/superpowers/plans/2026-08-27-electron-packaging.md
@@ -1015,7 +1015,7 @@ git commit -m "Stream recordings to disk in the desktop build to keep memory fla
 - Consumes: 前序任务产出的完整可运行应用
 - Produces: `dist/` 下的 Windows 安装包
 
-- [x] **Step 1: 准备图标 —— 用户决定暂缓，本步骤不执行**
+- [ ] **Step 1: 准备图标**（已推迟给人类——用户明确决定「先跳过图标，先把安装包做出来」，本步骤不执行；构建产物使用 Electron 默认图标。日后补图标只需放入 `.ico`、在 `build.win` 中加一行、重跑 `npm run dist`）
 
 原计划要求用户提供一张 512×512 PNG 转成 `app/build/icon.ico`，并明确禁止自行生成占位图标（图标是用户可见的产品面孔，应由用户决定）。
 
@@ -1025,13 +1025,13 @@ git commit -m "Stream recordings to disk in the desktop build to keep memory fla
 
 **仍然不得自行生成占位图标。** 默认图标与占位图标的区别在于：默认图标一眼可辨认「尚未设置」，占位图标会伪装成已完成的设计决定。
 
-- [ ] **Step 2: 安装 electron-builder**
+- [x] **Step 2: 安装 electron-builder**
 
 ```bash
 cd app && npm install --save-dev electron-builder@latest
 ```
 
-- [ ] **Step 3: 配置构建**
+- [x] **Step 3: 配置构建**
 
 编辑 `app/package.json`，在 `scripts` 中加入 `dist`：
 
@@ -1077,7 +1077,7 @@ cd app && npm install --save-dev electron-builder@latest
 - `extraResources` 把 `61.html` 复制进**安装包**，这不违反全局约束「61.html 是唯一事实来源」——该约束禁止的是版本库中出现第二份源文件，而 `dist/` 是构建产物且已被 gitignore。
 - **无 `win.icon` 与 `directories.buildResources`**：Step 1 已说明图标由用户决定暂缓，构建使用 Electron 默认图标。`build/` 目录不存在，故 `buildResources` 一并移除，避免指向不存在的路径。
 
-- [ ] **Step 4: 让 main.js 同时适配开发与打包两种路径**
+- [x] **Step 4: 让 main.js 同时适配开发与打包两种路径**
 
 打包后 `61.html` 位于 `process.resourcesPath/app/61.html`，开发时位于 `__dirname/../61.html`。修改 `app/main.js` 中 `HTML_PATH` 的定义：
 
@@ -1098,7 +1098,7 @@ const ROOT_DIR = app.isPackaged
 
 两个常量都**留在模块顶层**，不要移进函数——`app.isPackaged` 在主进程模块加载时即可读取，而情况 B 的 `registerProtocol()` 在模块层就需要用到 `ROOT_DIR`。
 
-- [ ] **Step 5: 确认开发模式仍然正常**
+- [x] **Step 5: 确认开发模式仍然正常**
 
 ```bash
 cd app && npx playwright test
@@ -1106,7 +1106,7 @@ cd app && npx playwright test
 
 预期：全部测试 PASS（这一步验证 Step 4 的路径改动没有破坏开发模式）。
 
-- [ ] **Step 6: 写构建产物校验测试**
+- [x] **Step 6: 写构建产物校验测试**
 
 创建 `app/tests/build-output.spec.js`：
 
@@ -1139,7 +1139,7 @@ test('打包资源中包含 61.html 与字体', () => {
 });
 ```
 
-- [ ] **Step 7: 构建**
+- [x] **Step 7: 构建**
 
 ```bash
 cd app && npm run dist
@@ -1147,7 +1147,7 @@ cd app && npm run dist
 
 首次运行会下载 Electron 的 Windows 二进制与 NSIS 工具，需要一些时间。
 
-- [ ] **Step 8: 校验产物**
+- [x] **Step 8: 校验产物**
 
 ```bash
 cd app && npx playwright test tests/build-output.spec.js
@@ -1155,11 +1155,11 @@ cd app && npx playwright test tests/build-output.spec.js
 
 预期：2 个测试 PASS。
 
-- [ ] **Step 9: 实际安装并启动一次**
+- [ ] **Step 9: 实际安装并启动一次**（已推迟给人类——需要真实运行 GUI 安装程序，未被代理执行。控制端曾用 Playwright 直接启动 `dist/win-unpacked/SUB REMIX.exe` 验证过打包路径可运行，但这不等同于走一遍安装向导）
 
 运行 `dist/` 下生成的 `.exe` 安装程序，装到默认路径，从桌面快捷方式启动。确认：窗口打开、图标正确、可视化在动。
 
-- [ ] **Step 10: 提交**
+- [x] **Step 10: 提交**（`app/build/icon.ico` 不存在——Step 1 已推迟；实际提交为 `app/package.json app/package-lock.json app/main.js app/tests/build-output.spec.js`，commit message 相应改为 "Produce a Windows NSIS installer with bundled assets"，另有一轮修复提交 `da87e8f` 为打包版可执行文件加回归测试）
 
 ```bash
 git add app/package.json app/package-lock.json app/main.js app/build/icon.ico app/tests/build-output.spec.js
