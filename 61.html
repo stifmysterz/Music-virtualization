@@ -245,10 +245,10 @@
     inset:auto;top:0;left:50%;transform:translateX(-50%);
   }
   #cvBack{z-index:1}
-  #cvFx{z-index:2;mix-blend-mode:screen}
+  #cvFx{z-index:2}
   #cv{z-index:3}
   #cvFx,#cvBack{pointer-events:none}
-  body.no-fx-blend #cvFx{mix-blend-mode:normal}   /* 「特效透背景」开关关掉时切回旧观感 */
+  body.fx-blend-screen #cvFx{mix-blend-mode:screen}   /* 「特效透背景」开关打开时才用 screen，见 fxBlendOn */
   body.debug-outline #cv, body.debug-outline #cvFx, body.debug-outline #cvBack, body.debug-outline #bgThree{
     outline:2px dashed rgba(125,243,255,.65);
     outline-offset:-2px;
@@ -637,7 +637,6 @@
   <button id="playBtn" class="primary" aria-label="Play or pause">Play</button>
   <div class="sep"></div>
   <button id="modeBtn" class="grp-mode" title="Choose visual mode (M cycles)">Mode</button>
-  <button id="modeDeleteBtn" class="grp-mode" style="display:none;padding-left:8px;padding-right:8px" title="Remove the currently-focused mode">✕</button>
   <button id="textStyleBtn" class="grp-text" title="Song title, Text A/B, colour, font and size">📝 Text</button>
   <div class="sep"></div>
   <button id="logoMenuBtn" class="grp-logo" title="Logo image, visibility, layer, and bounce">🖼 Logo</button>
@@ -766,7 +765,8 @@
 <div id="modeMenu" class="dock-dd">
   <div id="modeMenuList"></div>
   <!-- modeMenuList 由 buildModeMenu() 按 MODE_CATEGORIES 生成，结构照搬 bg3DMenuList -->
-  <button id="modeRandomQuickBtn" class="dock-dd-item" style="margin-top:8px;border-top:1px solid var(--line);padding-top:12px" title="Random mode combo">🎲 Random</button>
+  <button id="modeDeleteBtn" class="dock-dd-item" style="display:none;margin-top:8px;border-top:1px solid var(--line);padding-top:12px;border-color:rgba(255,80,80,.4);color:#ff8080" title="Remove the currently-focused effect">✕ Remove current effect</button>
+  <button id="modeRandomQuickBtn" class="dock-dd-item" title="Random mode combo">🎲 Random</button>
   <button id="modeMoreBtn" class="dock-dd-item" title="Search, thumbnails, brightness, favourites, front/back layering">⚙ All mode settings…</button>
 </div>
 
@@ -4713,13 +4713,18 @@ const fxCtx = cvFx.getContext('2d');     // 所有特效画在这里（screen �
 const backCtx = cvBack.getContext('2d'); // Behind-FX 文字 / back 层 logo
 
 /* 「特效透背景」开关 —— 控制 #cvFx 的 mix-blend-mode：
-     开（默认）= screen，任何特效都透得出背景，包括 glitchBars 那种满屏实心竖条
-     关         = normal，回到旧观感（不透明特效仍会盖住背景）
-   深色特效在 screen 下会变淡，所以留了这个退路。存 localStorage 跟着用户走。 */
-let fxBlendOn = true;
-try{ fxBlendOn = localStorage.getItem('subremix_fxblend') !== '0'; }catch(e){}
+     关（默认）= normal，特效永远完全可见、永远压在背景之上
+     开         = screen，加色通透感，深色背景上很好看
+
+   默认为什么是关：screen 数学上不可能让画面变暗（screen(255,x)=255），所以浅色背景上
+   特效会被整个洗掉 —— 实测白底上 radial 和 glitchBars 的可见度都是 0。而扫描全部 241 个
+   特效后发现，真正会盖死背景的只有 glitchBars 家族那 21 个（满屏 99.8% 不透明），
+   其余 220 个最高也就 45%。为那 21 个牺牲另外 220 个不划算，所以改成直接让 glitchBars
+   半透明画（见 GLITCH_BAR_ALPHA），screen 退居为可选项。 */
+let fxBlendOn = false;
+try{ fxBlendOn = localStorage.getItem('subremix_fxblend') === '1'; }catch(e){}
 function applyFxBlend(){
-  document.body.classList.toggle('no-fx-blend', !fxBlendOn);
+  document.body.classList.toggle('fx-blend-screen', fxBlendOn);
   const b = document.getElementById('fxBlendToggle');
   if(b){ b.textContent = STATEFUL_LABELS.fxBlendToggle(); b.classList.toggle('active', fxBlendOn); }
 }
@@ -14154,6 +14159,21 @@ function ensureGlitchBars(){
 }
 let glitchLastBeatT = 0, glitchRedistributeT = 0, glitchScanY = 0, glitchScanHist = [], glitchTearOffsets = {};
 
+/* glitchBars 家族画的是满屏高的实心竖条 —— 扫描全部 241 个特效时，这 21 个每个都是
+   99.8% 全屏不透明，是唯一会把用户背景盖得一点不剩的一类。
+   统一在每个家族函数收尾时把整层 alpha 削一次，背景就透得出来，而特效在任何亮度的
+   背景上都还是清清楚楚（这一点 screen 混合做不到 —— 白底上它会把特效整个洗没）。
+   为什么是「收尾削一次」而不是逐个 fill 调 globalAlpha：RGB 变体用 'lighter' 叠三个
+   半透明通道，alpha 会累加到 1，逐个调没用。而每个 mode 都画在自己的离屏图层上
+   （见 getLayerCtx），所以 destination-out 只会影响本特效自己的像素。 */
+const GLITCH_BAR_ALPHA = 0.78;
+function fadeGlitchLayer(){
+  const prev = g2.globalCompositeOperation;
+  g2.globalCompositeOperation = 'destination-out';
+  g2.fillStyle = `rgba(0,0,0,${1-GLITCH_BAR_ALPHA})`;
+  g2.fillRect(0, 0, W, H);
+  g2.globalCompositeOperation = prev;
+}
 function drawGlitchBarsFamily(variant, bass, now, dt){
   const bars = ensureGlitchBars();
   const beat = bass > 0.55 && now - glitchLastBeatT > 140;
@@ -14173,6 +14193,7 @@ function drawGlitchBarsFamily(variant, bass, now, dt){
     g2.fillRect(b.x0+fxOffX, fxOffY, w, H);
     g2.restore();
   });
+  fadeGlitchLayer();
 }
 
 function drawGlitchBarsRgbFamily(variant, bass, now, dt){
@@ -14203,6 +14224,7 @@ function drawGlitchBarsRgbFamily(variant, bass, now, dt){
     g2.restore();
   });
   g2.globalCompositeOperation = 'source-over';
+  fadeGlitchLayer();
 }
 
 function drawGlitchBarsScanFamily(variant, bass, now, dt){
@@ -14243,6 +14265,7 @@ function drawGlitchBarsScanFamily(variant, bass, now, dt){
     });
     g2.restore();
   }
+  fadeGlitchLayer();
 }
 
 function drawGlitchBarsRainbowFamily(variant, bass, mid, high, now, dt){
@@ -14264,6 +14287,7 @@ function drawGlitchBarsRainbowFamily(variant, bass, mid, high, now, dt){
     }
     g2.fillRect(x0, fxOffY, w, H);
   });
+  fadeGlitchLayer();
 }
 
 

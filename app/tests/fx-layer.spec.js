@@ -29,8 +29,12 @@ async function withApp(label, fn) {
  * 另外多特效叠加时，每多一层就往 #cv 上刷一次 rgba(0,0,0,0.35) 黑纱做前后层次提示，
  * 而 #cv 在背景之上 —— 那层黑纱连带把背景一起压黑了（开 5 个特效背景只剩 18% 亮度）。
  *
- * 修法：特效搬到独立的 #cvFx（mix-blend-mode:screen，所以背景永远透得出来），
- * 层次提示改用 destination-out 淡化已合成内容（透明区保持透明，不再刷黑）。
+ * 修法：特效搬到独立的 #cvFx，层次提示改用 destination-out 淡化已合成内容
+ * （透明区保持透明，不再刷黑）。
+ *
+ * 注意：#cvFx 一开始用的是 mix-blend-mode:screen，后来改回普通叠加了 —— screen 在浅色
+ * 背景上会把特效整个洗没（白底可见度实测为 0）。「让背景透出来」现在靠的是把真正会盖死
+ * 背景的 glitchBars 家族画成半透明。原委和证据见 fx-visibility.spec.js。
  */
 
 // draw() 只有在 analyser 为真时才会跑特效，且要从 analyser 取频谱/波形。
@@ -66,7 +70,7 @@ function waitFrames(n) {
   });
 }
 
-test('特效层 cvFx 独立存在，用 screen 混合，且不吃鼠标事件', async () => {
+test('特效层 cvFx 独立存在，几何与 cv 一致，且不吃鼠标事件', async () => {
   await withApp('fxlayer-1', async (win) => {
     const info = await win.evaluate(() => {
       const g = id => {
@@ -80,9 +84,9 @@ test('特效层 cvFx 独立存在，用 screen 混合，且不吃鼠标事件', 
 
     expect(info.fx).not.toBeNull();
     expect(info.back).not.toBeNull();
-    // 特效层用 screen 混合 —— 这才是背景能透出来的原因（canvas 内部的合成模式做不到，它不改 alpha）
-    expect(info.fx.blend).toBe('screen');
-    // 另外两层保持普通混合，logo / 文字 / 选中框不受影响
+    // 三层默认都用普通叠加 —— 特效必须永远压在背景之上、永远看得见。
+    // screen 现在是 Background 菜单里的可选开关（默认关），见 fx-visibility.spec.js
+    expect(info.fx.blend).toBe('normal');
     expect(info.cv.blend).toBe('normal');
     expect(info.back.blend).toBe('normal');
     // 只有最上层的 cv 接收指针事件，否则拖拽特效/logo 会被挡住

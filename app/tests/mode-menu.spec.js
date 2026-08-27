@@ -185,3 +185,36 @@ test('drop-up 底部的入口能打开原来的大面板', async () => {
     expect(res.menuOpen).toBe(false);   // 开大面板时 drop-up 该收起
   });
 });
+
+test('✕ 删除按钮也收进 drop-up，dock 上不再有它', async () => {
+  await withApp('modemenu-7', async (win) => {
+    const res = await win.evaluate(() => {
+      const del = document.getElementById('modeDeleteBtn');
+      const inDock = !!del.closest('.dock');
+      const inMenu = !!del.closest('#modeMenu');
+
+      document.getElementById('modeBtn').click();
+      document.querySelector('#modeMenuList [data-mode-key="starfield"]').click();
+      const before = [...activeModes];
+
+      document.getElementById('modeBtn').click();
+      const visibleWithMode = getComputedStyle(del).display;
+      del.click();
+      const after = [...activeModes];
+      const visibleWithNone = getComputedStyle(del).display;
+
+      return { inDock, inMenu, before, after, visibleWithMode, visibleWithNone,
+               dockButtons: [...document.querySelectorAll('.dock button')].map(b => b.id) };
+    });
+
+    expect(res.inDock).toBe(false);
+    expect(res.inMenu).toBe(true);
+    expect(res.dockButtons).not.toContain('modeDeleteBtn');
+    // 功能不变：删掉当前聚焦的那个
+    expect(res.before.length).toBe(1);
+    expect(res.after.length).toBe(0);
+    // 有特效时才显示，一个都没有时自己藏起来
+    expect(res.visibleWithMode).not.toBe('none');
+    expect(res.visibleWithNone).toBe('none');
+  });
+});
