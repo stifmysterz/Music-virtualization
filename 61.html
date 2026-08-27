@@ -159,6 +159,19 @@
   }
   .dock-dd-slider-row span{font-size:12px;color:var(--ink-dim);flex:0 0 auto}
   .dock-dd-slider-row .mode-bright-slider{flex:1}
+  /* 「正在调整背景」的常驻提示条 —— 这个模式会吃掉所有画布手势，必须一眼看得见、随手退得出 */
+  #bgAdjustBanner{
+    display:none;position:fixed;left:50%;top:24px;transform:translateX(-50%);z-index:13;
+    align-items:center;gap:10px;
+    appearance:none;border:1px solid var(--magenta);border-radius:10px;
+    background:rgba(255,94,168,.16);color:var(--magenta);
+    font:600 13px/1 inherit;letter-spacing:.06em;
+    padding:9px 18px;cursor:pointer;white-space:nowrap;
+  }
+  #bgAdjustBanner:hover{background:rgba(255,94,168,.28)}
+  body.bg-adjusting #bgAdjustBanner{display:flex}
+  body.bg-adjusting #gestureHud{top:76px}   /* 让开提示条 */
+
   /* 旋转/手势时的瞬时读数，1 秒后自己淡掉 */
   #gestureHud{
     position:fixed;left:50%;top:24px;transform:translateX(-50%);z-index:12;
@@ -572,6 +585,9 @@
 <canvas id="cvBack"></canvas>
 <canvas id="cvFx"></canvas>
 <canvas id="cv"></canvas>
+<!-- 🎯 Position BG 开着时整个画布不吃事件，所有手势都归背景。原来屏幕上没有任何提示，
+     菜单一关就完全看不出自己还在这个模式里 —— 于是「双击选不中特效、一直在动背景」。 -->
+<button id="bgAdjustBanner" title="Click or press Esc to finish"></button>
 <div id="gestureHud"></div>
 <!-- 3D 背景的诊断读数。默认隐藏 —— 这是开发用的，不该出现在成品和投影上。
      Tools → 🐞 3D Debug 可以调出来（状态存 localStorage）。 -->
@@ -5720,6 +5736,8 @@ const T2 = {
       bounceOn:'Bounce: On',bounceOff:'Bounce: Off',
       fxBlendLabelOn:'✳ FX over BG: On',fxBlendLabelOff:'✳ FX over BG: Off',mic:'Mic',micOn:'Mic On',
       outlineLabel:'Canvas Outline',debug3dLabel:'3D Debug',onWord:'On',offWord:'Off',
+      bgAdjustBanner:'🎯 Adjusting background — click here or press Esc to finish',
+      bgAdjustOnLabel:'🎯 Adjusting…',bgAdjustOffLabel:'🎯 Position BG',
       screenBlendOn:'✳ Remove Black BG: On',screenBlendOff:'✳ Remove Black BG: Off',
       shuffleOff:'🔀 Auto-Shuffle: Off',shuffleOn:'🔀 Auto-Shuffle: On',
       blackout:'⬛ Blackout (B)',blackoutRestore:'⬛ Restore (B)',
@@ -5753,6 +5771,8 @@ const T2 = {
       screenBlendOn:'✳ 去黑底：开',screenBlendOff:'✳ 去黑底：关',
       fxBlendLabelOn:'✳ 特效透背景：开',fxBlendLabelOff:'✳ 特效透背景：关',
       outlineLabel:'画布边框',debug3dLabel:'3D 调试',onWord:'开',offWord:'关',
+      bgAdjustBanner:'🎯 正在调整背景 — 点这里或按 Esc 结束',
+      bgAdjustOnLabel:'🎯 调整中…',bgAdjustOffLabel:'🎯 调整背景位置',
       shuffleOff:'🔀 自动轮换：关',shuffleOn:'🔀 自动轮换：开',
       blackout:'⬛ 黑屏 (B)',blackoutRestore:'⬛ 恢复 (B)',
       free:'▭ 自由比例',portrait:'📱 竖屏',square:'⬛ 方形',landscape:'🖥 横屏',
@@ -21392,6 +21412,9 @@ function makeTransformable(el){
   el.addEventListener('pointercancel', endPointer);
 
   el.addEventListener('dblclick', ()=>{
+    // 背景不在这里重置。调整背景时误双击一下就把辛苦调好的缩放/角度清掉太伤，
+    // 而且背景已经有明确的 ↺ Reset Position 按钮了。文字层保持原有行为。
+    if(el.id==='bgImage' || el.id==='bgVideo') return;
     pushUndo(); elScale=1; elRotation=0; applyTransform(); notify();
     if(el.id==='titleDisplay' || el.id==='textADisplay' || el.id==='textBDisplay') openTextStylePanel();
   });
@@ -21556,16 +21579,26 @@ document.querySelectorAll('.mode-panel, .dock-dd').forEach(el=>{
 
 /* ---------- toggle: let pointer gestures reach the background instead of the canvas ---------- */
 let bgAdjustOn = false;
-document.getElementById('bgAdjustBtn').onclick = ()=>{
-  bgAdjustOn = !bgAdjustOn;
+/* 进出「调整背景」模式的唯一入口。这个模式会把 cv 的 pointerEvents 关掉，
+   于是选特效、拖特效、双击开 Mode 面板、滚轮缩放旋转全部失效，手势统统归背景。
+   所以它必须在屏幕上留下常驻提示，并且随手退得出（Esc / 点提示条 / 再按一次按钮）。 */
+function setBgAdjust(on){
+  bgAdjustOn = !!on;
   cv.style.pointerEvents = bgAdjustOn ? 'none' : 'auto';
+  document.body.classList.toggle('bg-adjusting', bgAdjustOn);
+  const banner = document.getElementById('bgAdjustBanner');
+  if(banner) banner.textContent = t2('bgAdjustBanner');
   const btn = document.getElementById('bgAdjustBtn');
-  btn.classList.toggle('active', bgAdjustOn);
-  btn.textContent = bgAdjustOn ? '🎯 Adjusting…' : '🎯 Position BG';
+  if(btn){
+    btn.classList.toggle('active', bgAdjustOn);
+    btn.textContent = bgAdjustOn ? t2('bgAdjustOnLabel') : t2('bgAdjustOffLabel');
+  }
   const panel = document.getElementById('bgPosPanel');
   if(panel) panel.style.display = bgAdjustOn ? 'block' : 'none';
   if(bgAdjustOn) syncBgPosControls();
-};
+}
+document.getElementById('bgAdjustBtn').onclick = ()=> setBgAdjust(!bgAdjustOn);
+document.getElementById('bgAdjustBanner').onclick = ()=> setBgAdjust(false);
 document.getElementById('fxBlendToggle').onclick = ()=>{
   fxBlendOn = !fxBlendOn;
   try{ localStorage.setItem('subremix_fxblend', fxBlendOn ? '1' : '0'); }catch(e){}
@@ -21777,7 +21810,9 @@ addEventListener('keydown', e=>{
   if(e.key.toLowerCase()==='b') toggleBlackout();
   if(e.key==='Delete') deleteLastInteracted();
   if(e.key==='Escape'){
-    if(modePanel.classList.contains('show')) closeModePanel();
+    // 这个模式吃掉了所有画布手势，人被卡住时第一反应就是按 Esc —— 所以排在最前面
+    if(bgAdjustOn) setBgAdjust(false);
+    else if(modePanel.classList.contains('show')) closeModePanel();
     else if(textStylePanel.classList.contains('show')) closeTextStylePanel();
     else if(presetPanel.classList.contains('show')) closePresetPanel();
     else if(timingPanel.classList.contains('show')) closeTimingPanel();
