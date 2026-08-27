@@ -236,7 +236,7 @@
   #cv{z-index:3}
   #cvFx,#cvBack{pointer-events:none}
   body.no-fx-blend #cvFx{mix-blend-mode:normal}   /* 「特效透背景」开关关掉时切回旧观感 */
-  body.debug-outline #cv, body.debug-outline #bgThree{
+  body.debug-outline #cv, body.debug-outline #cvFx, body.debug-outline #cvBack, body.debug-outline #bgThree{
     outline:2px dashed rgba(125,243,255,.65);
     outline-offset:-2px;
   }
@@ -573,7 +573,9 @@
 <canvas id="cvFx"></canvas>
 <canvas id="cv"></canvas>
 <div id="gestureHud"></div>
-<div id="bg3dDebug" style="position:fixed;top:8px;left:8px;z-index:99999;background:rgba(0,0,0,.75);color:#0f0;font:12px/1.5 monospace;padding:6px 10px;border-radius:6px;pointer-events:none;white-space:pre"></div>
+<!-- 3D 背景的诊断读数。默认隐藏 —— 这是开发用的，不该出现在成品和投影上。
+     Tools → 🐞 3D Debug 可以调出来（状态存 localStorage）。 -->
+<div id="bg3dDebug" style="position:fixed;top:8px;left:8px;z-index:99999;background:rgba(0,0,0,.75);color:#0f0;font:12px/1.5 monospace;padding:6px 10px;border-radius:6px;pointer-events:none;white-space:pre;display:none"></div>
 
 <header>
   <div class="brand"><b>●</b>&nbsp;SUB&nbsp;REMIX</div>
@@ -829,7 +831,8 @@
   <button id="fullscreenBtn" class="dock-dd-item" title="Toggle fullscreen">⛶ Full</button>
   <div class="tools-section-header" style="color:#0d2b6b;font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin:8px 4px 0">Other</div>
   <button id="helpBtn" class="dock-dd-item" title="Shortcuts and gestures">❓ Help</button>
-  <button id="debugOutlineBtn" class="dock-dd-item active" title="Show a border around the visualizer canvas(es) — handy for checking the layout">▭ Canvas Outline: On</button>
+  <button id="debugOutlineBtn" class="dock-dd-item" title="Show a border around the visualizer canvases — handy for checking the layout">▭ Canvas Outline: Off</button>
+  <button id="bg3dDebugBtn" class="dock-dd-item" title="Show live 3D-background diagnostics in the corner">🐞 3D Debug: Off</button>
 </div>
 <div style="display:none">
   <button id="blackoutBtn" title="Instant black — press B, click again (or B) to restore">⬛ Blackout (B)</button>
@@ -5716,6 +5719,7 @@ const T2 = {
       midiHelpText:'<b>1.</b> Works in Chrome or Edge only — other browsers don\'t support MIDI.<br><br><b>2.</b> Connect your MIDI device to this computer with a USB cable first. Once connected, "No MIDI device detected yet" above will change to show your device\'s name.<br><br><b>3.</b> The two sections are different: "Buttons / pads" trigger once per press. "Knobs / faders" are continuous — wherever you turn it to is what gets set, not a one-off trigger.<br><br><b>4.</b> To bind one: tap Learn (it changes to "Press a pad…" or "Move a knob…") — then press or turn the physical control you want to use. It\'s remembered instantly.<br><br><b>5.</b> Mappings save automatically and are still there next time you open this page.<br><br><b>6.</b> If a specific button won\'t learn no matter what, it may be sending a different signal type than expected (some controls send Note signals, others send CC signals).<br><br><b>7.</b> To start over, use "Clear all mappings" above.<br><br><b>8.</b> Tap the "?" next to any row to see exactly what that action or parameter does.',
       bounceOn:'Bounce: On',bounceOff:'Bounce: Off',
       fxBlendLabelOn:'✳ FX over BG: On',fxBlendLabelOff:'✳ FX over BG: Off',mic:'Mic',micOn:'Mic On',
+      outlineLabel:'Canvas Outline',debug3dLabel:'3D Debug',onWord:'On',offWord:'Off',
       screenBlendOn:'✳ Remove Black BG: On',screenBlendOff:'✳ Remove Black BG: Off',
       shuffleOff:'🔀 Auto-Shuffle: Off',shuffleOn:'🔀 Auto-Shuffle: On',
       blackout:'⬛ Blackout (B)',blackoutRestore:'⬛ Restore (B)',
@@ -5748,6 +5752,7 @@ const T2 = {
       bounceOn:'跳动：开',bounceOff:'跳动：关',mic:'麦克风',micOn:'麦克风已开启',
       screenBlendOn:'✳ 去黑底：开',screenBlendOff:'✳ 去黑底：关',
       fxBlendLabelOn:'✳ 特效透背景：开',fxBlendLabelOff:'✳ 特效透背景：关',
+      outlineLabel:'画布边框',debug3dLabel:'3D 调试',onWord:'开',offWord:'关',
       shuffleOff:'🔀 自动轮换：关',shuffleOn:'🔀 自动轮换：开',
       blackout:'⬛ 黑屏 (B)',blackoutRestore:'⬛ 恢复 (B)',
       free:'▭ 自由比例',portrait:'📱 竖屏',square:'⬛ 方形',landscape:'🖥 横屏',
@@ -5787,6 +5792,8 @@ const STATEFUL_LABELS = {
   logoBounceToggle: ()=> (typeof logoBounceOn==='undefined' || logoBounceOn) ? t2('bounceOn') : t2('bounceOff'),
   logoScreenBlendBtn: ()=> (typeof logoScreenBlend!=='undefined' && logoScreenBlend) ? t2('screenBlendOn') : t2('screenBlendOff'),
   fxBlendToggle: ()=> (typeof fxBlendOn==='undefined' || fxBlendOn) ? t2('fxBlendLabelOn') : t2('fxBlendLabelOff'),
+  debugOutlineBtn: ()=> '▭ ' + t2('outlineLabel') + ': ' + t2((typeof debugOutlineOn!=='undefined' && debugOutlineOn) ? 'onWord' : 'offWord'),
+  bg3dDebugBtn: ()=> '🐞 ' + t2('debug3dLabel') + ': ' + t2((typeof bg3dDebugOn!=='undefined' && bg3dDebugOn) ? 'onWord' : 'offWord'),
   micBtn: ()=> (typeof micActive!=='undefined' && micActive) ? ('🎤 '+t2('micOn')) : ('🎤 '+t2('mic')),
   micShuffleToggle: ()=> (typeof micShuffleOn!=='undefined' && micShuffleOn) ? t2('shuffleOn') : t2('shuffleOff'),
   blackoutBtn: ()=> (typeof blackoutOn!=='undefined' && blackoutOn) ? t2('blackoutRestore') : t2('blackout'),
@@ -12948,7 +12955,7 @@ function draw(now){
 
   renderBg3D(analyser?lastBass:0, analyser?lastMid:0, analyser?lastHigh:0, dt);
 
-  const bg3dDebugEl = document.getElementById('bg3dDebug');
+  const bg3dDebugEl = bg3dDebugOn ? document.getElementById('bg3dDebug') : null;   // 关掉时连字符串拼接都省了
   if(bg3dDebugEl){
     let zoomLine = '';
     if(bg3DKind && bg3DScenes[bg3DKind]){
@@ -20248,13 +20255,37 @@ document.getElementById('helpBtn').onclick = ()=>{
   document.querySelectorAll('.dock-dd.show').forEach(m=>m.classList.remove('show'));
   openHelpPanel();
 };
-document.body.classList.add('debug-outline');   // outline visible by default — toggle off below if not wanted
+/* 两个调试开关。都默认关 —— 它们是开发用的，不该出现在成品和投影上。
+   状态存 localStorage，文字走 STATEFUL_LABELS，所以切语言时会跟着变
+   （旧写法只在点击时才写文字，初始状态下中文界面也显示英文 On）。 */
+let debugOutlineOn = false, bg3dDebugOn = false;
+try{ debugOutlineOn = localStorage.getItem('subremix_debugoutline') === '1'; }catch(e){}
+try{ bg3dDebugOn = localStorage.getItem('subremix_debug3d') === '1'; }catch(e){}
+function applyDebugToggles(){
+  document.body.classList.toggle('debug-outline', debugOutlineOn);
+  const hud = document.getElementById('bg3dDebug');
+  if(hud){
+    hud.style.display = bg3dDebugOn ? 'block' : 'none';
+    if(!bg3dDebugOn) hud.textContent = '';   // 关掉后别留着最后一帧的字
+  }
+  [['debugOutlineBtn', debugOutlineOn], ['bg3dDebugBtn', bg3dDebugOn]].forEach(([id, on])=>{
+    const btn = document.getElementById(id);
+    if(!btn) return;
+    btn.textContent = STATEFUL_LABELS[id]();
+    btn.classList.toggle('active', on);
+  });
+}
 document.getElementById('debugOutlineBtn').onclick = ()=>{
-  const on = document.body.classList.toggle('debug-outline');
-  const btn = document.getElementById('debugOutlineBtn');
-  btn.textContent = '▭ Canvas Outline: ' + (on ? (currentLang==='zh'?'开':'On') : (currentLang==='zh'?'关':'Off'));
-  btn.classList.toggle('active', on);
+  debugOutlineOn = !debugOutlineOn;
+  try{ localStorage.setItem('subremix_debugoutline', debugOutlineOn ? '1' : '0'); }catch(e){}
+  applyDebugToggles();
 };
+document.getElementById('bg3dDebugBtn').onclick = ()=>{
+  bg3dDebugOn = !bg3dDebugOn;
+  try{ localStorage.setItem('subremix_debug3d', bg3dDebugOn ? '1' : '0'); }catch(e){}
+  applyDebugToggles();
+};
+applyDebugToggles();
 document.getElementById('helpDoneBtn').onclick = closeHelpPanel;
 helpPanel.querySelector('.mode-backdrop').onclick = closeHelpPanel;
 
