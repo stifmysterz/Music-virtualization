@@ -6296,7 +6296,15 @@ function drawLogosForLayer(bass, layer){
     const s = logos[i];
     if(!s.img || !s.visible || s.layer!==layer) continue;
     loadSlotToFlatVars(i);
+    /* 「✳ 去黑底」靠 canvas 的 screen 合成，把 logo 的纯黑底和「同一张画布上、已经画好的
+       内容」混掉（screen(Cb,0)=Cb，黑色不贡献任何东西）。特效现在画在 #cvFx 上，如果这种
+       logo 还留在每帧清空的 #cv 上，screen 就是对着一张全透明画布做 —— 什么都不会发生，
+       黑底原样保留成一块黑方块盖住画面。所以把它挪到特效那一层，就在特效之后画。
+       没开去黑底的 logo 照旧留在 #cv 上，不受特效层 screen 混合的影响。 */
+    const prevCtx = g2;
+    if(layer==='front' && s.screenBlend) g2 = fxCtx;
     drawLogo(bass);
+    g2 = prevCtx;
     saveFlatVarsToSlot(i);   // persist mutated fields (spinAngle, orbitAngle, screenR) back into the slot
   }
   loadSlotToFlatVars(selectedLogoIdx);   // leave flat vars representing the selected logo, for menu/drag code
