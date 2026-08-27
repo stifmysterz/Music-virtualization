@@ -8,7 +8,8 @@
     "start": "electron .",
     "test": "playwright test",
     "dist": "electron-builder --win",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "icon": "node scripts/build-icon.js"
   },
   "keywords": [],
   "author": "stifmysterz",
@@ -24,7 +25,8 @@
     "appId": "com.subremix.visualizer",
     "productName": "SUB REMIX",
     "directories": {
-      "output": "../dist"
+      "output": "../dist",
+      "buildResources": "build"
     },
     "files": [
       "main.js",
@@ -41,12 +43,16 @@
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true
+      "createDesktopShortcut": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
     }
   }
 }
