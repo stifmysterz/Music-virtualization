@@ -736,6 +736,9 @@
     <option value="orbitdrift">Orbit Drift</option>
     <option value="contrastsnap">Contrast Snap</option>
     <option value="grain">Grain Pulse</option>
+    <option value="basspunch">Bass Punch</option>
+    <option value="bassshake">Bass Shake</option>
+    <option value="basszoom">Bass Zoom</option>
   </select>
   <div class="dock-dd-slider-row" title="Animation amount">
     <span>〜</span>
@@ -5642,9 +5645,11 @@ const BOUNCE_STYLE_NAMES = {
 /* background-only animation styles — slower/ambient, distinct from the punchy logo/text bounce set above */
 const BG_BOUNCE_STYLE_NAMES = {
   en:{drift:'Drift',breathe:'Breathe',sway:'Sway',blurpulse:'Blur Pulse',vignette:'Vignette Pulse',
-      saturate:'Saturate Pulse',slowspin:'Slow Spin',orbitdrift:'Orbit Drift',contrastsnap:'Contrast Snap',grain:'Grain Pulse'},
+      saturate:'Saturate Pulse',slowspin:'Slow Spin',orbitdrift:'Orbit Drift',contrastsnap:'Contrast Snap',grain:'Grain Pulse',
+      basspunch:'Bass Punch',bassshake:'Bass Shake',basszoom:'Bass Zoom'},
   zh:{drift:'漂移',breathe:'呼吸缩放',sway:'摇摆',blurpulse:'虚焦脉冲',vignette:'暗角脉冲',
-      saturate:'饱和脉冲',slowspin:'慢速旋转',orbitdrift:'环绕漂移',contrastsnap:'反差闪光',grain:'颗粒脉冲'}
+      saturate:'饱和脉冲',slowspin:'慢速旋转',orbitdrift:'环绕漂移',contrastsnap:'反差闪光',grain:'颗粒脉冲',
+      basspunch:'低音重击',bassshake:'低音震动',basszoom:'低音猛推'}
 };
 
 const INTERVAL_OPTION_NAMES = {
@@ -6198,6 +6203,14 @@ function computeBgBounceParams(bass, mid, high, now){
     case 'orbitdrift':    bgBounceOrbitAngle += 0.0009*amt; offX = Math.cos(bgBounceOrbitAngle)*60*amt; offY = Math.sin(bgBounceOrbitAngle)*36*amt; break;
     case 'contrastsnap':  contrast = 1 + (bass>0.55 ? amt*0.8 : 0); scale = 1 + (bass>0.55 ? amt*0.04 : 0); break;
     case 'grain':         contrast = 1 + bass*amt*0.3; brightness = 1 + Math.sin(now/300)*0.03*amt; scale = 1 + Math.sin(now/300)*0.006*amt; break;
+
+    /* 以下三种吃的是 beat —— detectBeat() 检出的鼓点瞬态，命中即 1、之后每帧 ×0.9 衰减。
+       上面 10 种没有一种用到它，只用持续能量 bass（breathe 更是只有 bass*0.04），
+       所以背景只会慢慢呼吸，不会跟着鼓点砸。衰减由 beat 自己完成，这里不需要额外的包络。 */
+    case 'basspunch':     scale = 1 + beat*0.16*amt + bass*0.06*amt; brightness = 1 + beat*0.30*amt; break;
+    case 'bassshake':     offX = (Math.random()*2-1)*beat*amt*26; offY = (Math.random()*2-1)*beat*amt*26;
+                          scale = 1 + beat*0.05*amt; break;
+    case 'basszoom':      scale = 1 + beat*0.34*amt; blur = beat*amt*3; break;
   }
   return {offX,offY,scale,rotation,skew,blur,brightness,contrast,saturate};
 }
