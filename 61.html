@@ -159,6 +159,16 @@
   }
   .dock-dd-slider-row span{font-size:12px;color:var(--ink-dim);flex:0 0 auto}
   .dock-dd-slider-row .mode-bright-slider{flex:1}
+  /* 旋转/手势时的瞬时读数，1 秒后自己淡掉 */
+  #gestureHud{
+    position:fixed;left:50%;top:24px;transform:translateX(-50%);z-index:12;
+    padding:7px 16px;border-radius:10px;pointer-events:none;
+    background:rgba(8,10,20,.82);border:1px solid var(--cyan);color:var(--cyan);
+    font:600 15px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;
+    font-variant-numeric:tabular-nums;
+    opacity:0;transition:opacity .25s;
+  }
+  #gestureHud.show{opacity:1}
   .dock-dd-val{font-size:11px;color:var(--ink-dim);flex:0 0 46px;text-align:right;font-variant-numeric:tabular-nums}
   .dock input[type=text]{
     appearance:none;border:1px solid var(--line);background:transparent;color:#fff;
@@ -562,6 +572,7 @@
 <canvas id="cvBack"></canvas>
 <canvas id="cvFx"></canvas>
 <canvas id="cv"></canvas>
+<div id="gestureHud"></div>
 <div id="bg3dDebug" style="position:fixed;top:8px;left:8px;z-index:99999;background:rgba(0,0,0,.75);color:#0f0;font:12px/1.5 monospace;padding:6px 10px;border-radius:6px;pointer-events:none;white-space:pre"></div>
 
 <header>
@@ -21208,6 +21219,34 @@ document.getElementById('logoOpacitySel').addEventListener('input', e=>{ logoOpa
 /* small, incidental angle drift during a "pure pinch" is normal human hand tremor —
    without this, tiny unintended rotation fights the scale gesture. Below the threshold
    we damp quadratically (smooth, no hard snap); above it, intentional rotation passes through as-is. */
+/* 滚轮旋转：一格 = 一个固定角度，不看 deltaY 的数值。
+   deltaY 在不同设备上差几十倍 —— 普通滚轮一格 100，很多触摸板一次只有 3，
+   还有 deltaMode=1 的行模式。原来直接乘 deltaY*0.0022，于是同一个动作在不同
+   设备上分别转 12.6° 和 0.38°，既转不满一圈也对不准角度。
+   现在固定每格 5°（按住 Alt 精调 1°），并把结果对齐到步长的整数倍 ——
+   72 格正好一整圈，从捏转留下的零头角度接着转也会先落回干净的刻度上。 */
+const ROT_STEP = 5 * Math.PI/180;
+const ROT_STEP_FINE = 1 * Math.PI/180;
+function steppedRotation(e, current){
+  const dir = Math.sign(e.deltaY);
+  if(!dir) return current;
+  const step = e.altKey ? ROT_STEP_FINE : ROT_STEP;
+  return Math.round(current/step)*step + dir*step;
+}
+function formatDeg(rad){
+  return Math.round((((rad*180/Math.PI) % 360) + 540) % 360 - 180) + '°';
+}
+/* 转的时候把当前角度显示出来 —— 原来完全看不到自己转到了哪，只能靠眼睛估 */
+let gestureHudTimer = null;
+function showGestureHud(text){
+  const el = document.getElementById('gestureHud');
+  if(!el) return;
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(gestureHudTimer);
+  gestureHudTimer = setTimeout(()=>el.classList.remove('show'), 1000);
+}
+
 function dampSmallRotation(delta){
   const absD = Math.abs(delta);
   const threshold = 0.08; // ~4.5°
@@ -21319,7 +21358,7 @@ function makeTransformable(el){
     if(!elWheelUndoTimer) pushUndo();
     clearTimeout(elWheelUndoTimer);
     elWheelUndoTimer = setTimeout(()=>{ elWheelUndoTimer = null; }, 500);
-    if(e.shiftKey){ elRotation += e.deltaY*0.0022; }
+    if(e.shiftKey){ elRotation = steppedRotation(e, elRotation); showGestureHud(formatDeg(elRotation)); }
     else{ elScale = Math.max(0.3, Math.min(4, elScale*(1-e.deltaY*0.0016))); }
     applyTransform();
     notify();
@@ -21668,8 +21707,8 @@ document.getElementById('bgBounceAmtSel').addEventListener('input', e=>{ bgBounc
     const target = onLogo ? null : focusedPos();
     if(!onLogo && !target) return;   // nothing to zoom/rotate (no active mode)
     if(e.shiftKey){
-      const delta = e.deltaY*0.0022;
-      if(onLogo){ logoRotation += delta; } else { target.rotation += delta; }
+      if(onLogo){ logoRotation = steppedRotation(e, logoRotation); showGestureHud(formatDeg(logoRotation)); }
+      else{ target.rotation = steppedRotation(e, target.rotation); showGestureHud(formatDeg(target.rotation)); }
     }else{
       const factor = 1 - e.deltaY*0.0016;
       if(onLogo){ logoScale = Math.max(0.3, Math.min(3, logoScale*factor)); }
