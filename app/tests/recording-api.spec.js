@@ -1,6 +1,7 @@
 const path = require('path');
 const { test, expect, _electron: electron } = require('@playwright/test');
 const { newUserDataDir, cleanupUserDataDir } = require('./helpers/tmp-user-data');
+const { closeApp } = require('./helpers/close-app');
 
 const APP_DIR = path.join(__dirname, '..');
 
@@ -28,7 +29,7 @@ test('探测录制相关 API 在 Electron 渲染进程中的可用性', async ()
     console.log(JSON.stringify(caps, null, 2));
     console.log('============================\n');
 
-    await app.close();
+    await closeApp(app, win);
 
     // 录制功能的硬前提：这两条不成立的话，问题比 spec 5.2 严重得多
     expect(caps.captureStream, 'canvas.captureStream 不可用，录制无法工作').toBe('function');

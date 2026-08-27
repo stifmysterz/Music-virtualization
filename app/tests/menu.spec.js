@@ -1,6 +1,7 @@
 const path = require('path');
 const { test, expect, _electron: electron } = require('@playwright/test');
 const { newUserDataDir, cleanupUserDataDir } = require('./helpers/tmp-user-data');
+const { closeApp } = require('./helpers/close-app');
 
 const APP_DIR = path.join(__dirname, '..');
 
@@ -12,10 +13,10 @@ test('应用菜单已被移除（防止默认快捷键在录制中意外触发�
   const dir = newUserDataDir('menu');
   const app = await electron.launch({ args: ['.', `--user-data-dir=${dir}`], cwd: APP_DIR });
   try {
-    await app.firstWindow();
+    const win = await app.firstWindow();
     const menu = await app.evaluate(({ Menu }) => Menu.getApplicationMenu());
     expect(menu).toBeNull();
-    await app.close();
+    await closeApp(app, win);
   } finally {
     cleanupUserDataDir(dir);
   }

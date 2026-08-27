@@ -1,6 +1,7 @@
 const path = require('path');
 const { test, expect, _electron: electron } = require('@playwright/test');
 const { newUserDataDir, cleanupUserDataDir } = require('./helpers/tmp-user-data');
+const { closeApp } = require('./helpers/close-app');
 
 const APP_DIR = path.join(__dirname, '..');
 
@@ -16,7 +17,7 @@ test('应用启动后打开窗口，标题正确，画布存在', async () => {
     await expect(win.locator('#cv')).toHaveCount(1);
     await expect(win.locator('#bgThree')).toHaveCount(1);
 
-    await app.close();
+    await closeApp(app, win);
   } finally {
     cleanupUserDataDir(dir);
   }
@@ -43,7 +44,7 @@ test('渲染循环真的在跑（画布尺寸被 resize() 设置过）', async (
     expect(size.w).toBeGreaterThan(300);
     expect(size.h).toBeGreaterThan(150);
 
-    await app.close();
+    await closeApp(app, win);
   } finally {
     cleanupUserDataDir(dir);
   }
@@ -61,7 +62,7 @@ test('页面加载过程中没有 JS 异常', async () => {
     await win.waitForTimeout(3000);
 
     expect(errors).toEqual([]);
-    await app.close();
+    await closeApp(app, win);
   } finally {
     cleanupUserDataDir(dir);
   }

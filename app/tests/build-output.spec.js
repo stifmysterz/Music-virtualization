@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { test, expect, _electron: electron } = require('@playwright/test');
 const { newUserDataDir, cleanupUserDataDir } = require('./helpers/tmp-user-data');
+const { closeApp } = require('./helpers/close-app');
 const pkg = require('../package.json');
 
 const DIST = path.join(__dirname, '..', '..', 'dist');
@@ -50,7 +51,7 @@ test('打包后的可执行文件能启动并加载正确内容', async () => {
     await expect.poll(() => win.title()).toBe('SUB REMIX — Music Visualizer');
     await expect.poll(() => win.evaluate(() => document.getElementById('cv').width)).toBeGreaterThan(300);
 
-    await app.close();
+    await closeApp(app, win);
   } finally {
     cleanupUserDataDir(dir);
   }

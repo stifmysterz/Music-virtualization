@@ -1,6 +1,7 @@
 const path = require('path');
 const { test, expect, _electron: electron } = require('@playwright/test');
 const { newUserDataDir, cleanupUserDataDir } = require('./helpers/tmp-user-data');
+const { closeApp } = require('./helpers/close-app');
 
 const APP_DIR = path.join(__dirname, '..');
 
@@ -20,14 +21,14 @@ test('localStorage 写入的值能跨应用重启存活', async () => {
     // 确认当前会话内确实写进去了（file:// 下 localStorage 可能整个不可用）
     const immediate = await win1.evaluate(k => localStorage.getItem(k), KEY);
     expect(immediate).toBe(VALUE);
-    await app1.close();
+    await closeApp(app1, win1);
 
     // 第二次启动：读回（同一个 dir）
     const app2 = await electron.launch({ args: ['.', `--user-data-dir=${dir}`], cwd: APP_DIR });
     const win2 = await app2.firstWindow();
     const readBack = await win2.evaluate(k => localStorage.getItem(k), KEY);
     await win2.evaluate(k => localStorage.removeItem(k), KEY);   // 清理探针
-    await app2.close();
+    await closeApp(app2, win2);
 
     expect(readBack).toBe(VALUE);
   } finally {
@@ -46,14 +47,14 @@ test('应用自身的语言设置能跨重启存活', async () => {
     // applyLanguage 在脚本跑完前不存在——等它出现再调用（同 smoke.spec.js 的 poll 惯例）。
     await expect.poll(() => win1.evaluate(() => typeof applyLanguage)).toBe('function');
     await win1.evaluate(() => applyLanguage('zh'));
-    await app1.close();
+    await closeApp(app1, win1);
 
     const app2 = await electron.launch({ args: ['.', `--user-data-dir=${dir}`], cwd: APP_DIR });
     const win2 = await app2.firstWindow();
     const lang = await win2.evaluate(() => localStorage.getItem('subremix_lang'));
     await expect.poll(() => win2.evaluate(() => typeof applyLanguage)).toBe('function');
     await win2.evaluate(() => applyLanguage('en'));   // 还原，避免影响后续测试
-    await app2.close();
+    await closeApp(app2, win2);
 
     expect(lang).toBe('zh');
   } finally {

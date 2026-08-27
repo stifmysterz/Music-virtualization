@@ -44,6 +44,9 @@ if (!gotSingleInstanceLock) {
     // 关闭守卫：录制中途关窗口会丢失整段录制。关闭前问一次渲染进程是否在录制，
     // 录制中则弹确认框；查询失败（页面还没跑完、脚本异常等任何原因）一律放行关闭，
     // 绝不能把用户困在一个关不掉的窗口里。
+    // 只用来判断「渲染进程是不是还活着」。真正等用户回答的那一步不设时限 ——
+    // 人可能正在想名字，到点强关等于替他做了「不保存」的决定。
+    const EXIT_PROMPT_TIMEOUT_MS = 5000;
     let closeConfirmed = false;
     win.on('close', (event) => {
       if (closeConfirmed) return;
@@ -52,11 +55,7 @@ if (!gotSingleInstanceLock) {
       win.webContents
         .executeJavaScript('(typeof isRecording !== "undefined" && isRecording) || false')
         .then((recording) => {
-          if (!recording) {
-            closeConfirmed = true;
-            win.close();
-            return;
-          }
+          if (!recording) return askExitSave();
           const choice = dialog.showMessageBoxSync(win, {
             type: 'warning',
             buttons: ['Cancel', 'Close Anyway'],
@@ -66,6 +65,7 @@ if (!gotSingleInstanceLock) {
             message: 'A recording is currently in progress. Closing now will discard it.',
             detail: 'Close anyway?',
           });
+          // 录制中选择继续关闭时不再追问保存 —— 已经确认过一次要丢东西了，别再拦第二道
           if (choice === 1) {
             closeConfirmed = true;
             win.close();
@@ -76,6 +76,28 @@ if (!gotSingleInstanceLock) {
           closeConfirmed = true;
           win.close();
         });
+
+      // 问渲染进程要不要把当前这套存成 Look。命名交互在页面里（那边有样式、i18n
+      // 和 savePreset()），这里只等一个 'save' / 'discard' / 'cancel'。
+      // 超时或异常一律放行关闭 —— 同上，绝不能把用户困在关不掉的窗口里。
+      function askExitSave() {
+        const letItClose = () => { closeConfirmed = true; win.close(); };
+        // 第一步：确认渲染进程还活着、而且有这个函数。这一步才需要超时兜底。
+        const alive = win.webContents.executeJavaScript('typeof confirmExitSave === "function"');
+        const pingTimeout = new Promise((resolve) =>
+          setTimeout(() => resolve(false), EXIT_PROMPT_TIMEOUT_MS)
+        );
+        return Promise.race([alive, pingTimeout])
+          .then((available) => {
+            if (!available) { letItClose(); return; }
+            // 第二步：页面确认活着，就安心等用户回答，不设时限。
+            return win.webContents.executeJavaScript('confirmExitSave()').then((result) => {
+              if (result === 'cancel') return;   // 用户点了取消，窗口留着
+              letItClose();
+            });
+          })
+          .catch(letItClose);
+      }
     });
 
     if (!fs.existsSync(HTML_PATH)) {

@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { test, expect, _electron: electron } = require('@playwright/test');
 const { newUserDataDir, cleanupUserDataDir } = require('./helpers/tmp-user-data');
+const { closeApp } = require('./helpers/close-app');
 
 const APP_DIR = path.join(__dirname, '..');
 const ROOT_DIR = path.join(APP_DIR, '..');
@@ -87,7 +88,7 @@ test('10 种字体在应用中全部实际加载成功', async () => {
       return bad;
     }, FAMILIES);
 
-    await app.close();
+    await closeApp(app, win);
     expect(missing).toEqual([]);
   } finally {
     cleanupUserDataDir(dir);

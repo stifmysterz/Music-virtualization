@@ -1,6 +1,7 @@
 const path = require('path');
 const { test, expect, _electron: electron } = require('@playwright/test');
 const { newUserDataDir, cleanupUserDataDir } = require('./helpers/tmp-user-data');
+const { closeApp } = require('./helpers/close-app');
 
 const APP_DIR = path.join(__dirname, '..');
 
@@ -22,14 +23,14 @@ const APP_DIR = path.join(__dirname, '..');
 
 async function withApp(label, fn) {
   const dir = newUserDataDir(label);
-  let app = null;
+  let app = null, win = null;
   try {
     app = await electron.launch({ args: ['.', `--user-data-dir=${dir}`], cwd: APP_DIR });
-    const win = await app.firstWindow();
+    win = await app.firstWindow();
     await expect.poll(() => win.evaluate(() => document.getElementById('cv').width)).toBeGreaterThan(300);
     await fn(win);
   } finally {
-    if (app) { try { await app.close(); } catch (e) {} }
+    await closeApp(app, win);
     try { cleanupUserDataDir(dir); } catch (e) {}
   }
 }
