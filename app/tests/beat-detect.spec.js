@@ -173,3 +173,35 @@ test('logo 和背景的默认值改成跟着每一粒鼓点跳', async () => {
     expect(res.bgStyle).toBe('basspunch');
   });
 });
+
+test('切换到麦克风时也会清掉检测器状态（不继承上一段音乐的能量历史）', async () => {
+  await withApp('beat-7', async (win) => {
+    const res = await win.evaluate(async () => {
+      ensureCtx();
+      // 用 AudioContext 自己造一条真的音频 MediaStream，省得去要真麦克风权限
+      const dest = ctx.createMediaStreamDestination();
+      const realGUM = navigator.mediaDevices.getUserMedia;
+      navigator.mediaDevices.getUserMedia = async () => dest.stream;
+      try {
+        // 先污染：塞进一段「上一首歌」的能量历史和不应期时间戳
+        energyHist = new Array(43).fill(200);
+        beat = 0.9;
+        const before = { hist: energyHist.slice(0, 3), beat };
+
+        await startMic();
+
+        const after = { hist: energyHist.slice(0, 3), beat, micActive };
+        stopMic();
+        return { before, after };
+      } finally {
+        navigator.mediaDevices.getUserMedia = realGUM;
+      }
+    });
+
+    expect(res.before.hist).toEqual([200, 200, 200]);
+    expect(res.after.micActive).toBe(true);
+    // 新音源不该继承上一段的能量历史 —— 否则头 ~0.7 秒的阈值是拿错料算出来的
+    expect(res.after.hist).toEqual([0, 0, 0]);
+    expect(res.after.beat).toBe(0);
+  });
+});

@@ -4576,6 +4576,7 @@ function checkSuddenChangeShuffle(now){
 async function startMic(){
   ensureCtx(); await ctx.resume();
   stopAll();
+  resetBeatDetector();   // 换音源：别让麦克风继承上一段音乐的能量历史和不应期时间戳
   const deviceSel = document.getElementById('micDeviceSel');
   const deviceId = deviceSel ? deviceSel.value : '';
   const constraints = { audio: {
@@ -4881,6 +4882,21 @@ function getLayerCtx(key){
     layerCanvases[key] = entry;
   }
   return entry;
+}
+
+/* 用过的图层画布必须回收，否则只增不减。实测：每张 3.08MB（1352×597），自动轮换
+   60 次累积 164 张约 505MB，241 个特效全过一遍是 742MB；录制时画布切到 3840×2160，
+   每张 33.2MB，同样的轮换直接上 GB 级。自动轮换原本藏在 Looks 菜单里少有人用，
+   挪到 Mode 菜单之后撞上的概率大增。
+   丢掉非活跃层是安全的：layerCanvases 只有两个消费者 —— getLayerCtx 自己，
+   以及 hitTestMode（只遍历 activeModes 里的层）。转场快照拿的是 #cvFx，不是这些层。 */
+let layerKeySignature = '';
+function pruneLayerCanvases(){
+  const sig = activeModes.join(',');
+  if(sig === layerKeySignature) return;   // 活跃集合没变就不用扫，别每帧都做无用功
+  layerKeySignature = sig;
+  const keep = new Set(activeModes.map(String));
+  Object.keys(layerCanvases).forEach(k=>{ if(!keep.has(k)) delete layerCanvases[k]; });
 }
 
 /* which active mode is actually drawn at this canvas pixel — checks the frontmost
@@ -13109,6 +13125,7 @@ function draw(now){
   updateTextBounceDom(lastBass);
   updateBgBounceDom(lastBass, lastMid, lastHigh, now);
 
+  pruneLayerCanvases();   // 把已经不在用的离屏图层丢掉，见上面的说明
   activeModes.forEach((idx, i)=>{
     const m = MODES[Math.floor(idx)];
     const pos = getModePos(idx);
@@ -20053,7 +20070,7 @@ checkAutoRestore();
      'discard' 不存，可以关了
      'cancel'  别关
    命名交互留在渲染进程，是因为样式、i18n 和 savePreset() 都在这一侧；主进程只做决策。 */
-let exitSaveResolve = null;
+let exitSaveResolve = null, exitSavePending = null;
 function defaultExitSaveName(){
   const d = new Date();
   const p = n => String(n).padStart(2,'0');
@@ -20076,7 +20093,6 @@ function confirmExitSave(){
   exitSavePending = new Promise(res=>{ exitSaveResolve = res; });
   return exitSavePending;
 }
-let exitSavePending = null;
 document.getElementById('exitSaveYesBtn').onclick = ()=>{
   const nameIn = document.getElementById('exitSaveNameIn');
   // 名字留空（或只有空格）就退回默认名，别存出一个没名字的 Look
@@ -22040,6 +22056,14 @@ document.getElementById('bgBounceAmtSel').addEventListener('input', e=>{ bgBounc
   }, {passive:false});
 })();
 addEventListener('keydown', e=>{
+  /* 退出询问是模态的：它开着的时候，所有画面/播放类快捷键都必须失效。
+     光靠下面那道「焦点在输入框就跳过」的守卫不够 —— 用户点一下画布，焦点就离开
+     输入框了，之后 b 会黑屏、m 会换特效、空格会播放（实测过）。Esc 在这里也要
+     单独接住：名字输入框自己的 Esc 只在焦点在它身上时才收得到。 */
+  if(exitSaveResolve){
+    if(e.key==='Escape'){ e.preventDefault(); closeExitSavePrompt('cancel'); }
+    return;
+  }
   const tag = document.activeElement?.tagName;
   if(tag==='INPUT' || tag==='TEXTAREA' || tag==='SELECT') return;
   if(e.key===' '){ e.preventDefault(); togglePlay(); }

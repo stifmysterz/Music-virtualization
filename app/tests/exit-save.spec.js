@@ -162,3 +162,47 @@ test('主进程的关闭守卫会走这个流程，且渲染进程失灵时仍�
   expect(mainSrc).toMatch(/catch\s*\(/);
   expect(mainSrc).toContain('EXIT_PROMPT_TIMEOUT_MS');
 });
+
+test('退出浮层是模态的：只认 Esc，其余快捷键一律吞掉', async () => {
+  await withApp('exitsave-6', async (win) => {
+    const res = await win.evaluate(async () => {
+      document.getElementById('intro')?.classList.add('hidden');
+      activeModes = [MODES.indexOf('radial'), MODES.indexOf('bars')];
+      focusModeIdx = activeModes[0];
+      refreshModePanelActive();
+      setLastInteracted('mode');
+      const before = { modes: activeModes.length, firstMode: activeModes[0] };
+
+      const p = confirmExitSave();
+      // 焦点移出名字输入框 —— 用户点一下画布就是这个状态。
+      // 注意不能用 document.body.focus()：body 默认不可聚焦，焦点其实还留在输入框里，
+      // 于是全局那道「焦点在输入框就跳过」的守卫会让这条测试假通过。
+      document.getElementById('exitSaveNameIn').blur();
+
+      const key = k => dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+      // 这三个都是同步生效的，最适合当探针（实测未修时：b 会黑屏、m 会把特效从 2 个换成 1 个）
+      key('b');        // 黑屏
+      key('m');        // 切换特效
+      key('Delete');   // 删掉当前选中的
+      const during = { modes: activeModes.length, firstMode: activeModes[0],
+                       blackout: typeof blackoutOn !== 'undefined' ? blackoutOn : null,
+                       stillOpen: getComputedStyle(document.getElementById('exitSavePrompt')).display !== 'none' };
+
+      key('Escape');   // 这个必须认 —— 取消退出
+      // Esc 没被处理时 promise 永远不 resolve，用超时兜住，让测试干净地失败而不是挂 60 秒
+      const answer = await Promise.race([p, new Promise(r => setTimeout(() => r('TIMED_OUT'), 1500))]);
+      if (answer === 'TIMED_OUT') closeExitSavePrompt('cancel');   // 收拾干净，别影响后面的关闭流程
+      return { before, during, answer,
+               closed: getComputedStyle(document.getElementById('exitSavePrompt')).display === 'none' };
+    });
+
+    // 浮层开着时，这些快捷键都不该生效
+    expect(res.during.modes).toBe(res.before.modes);
+    expect(res.during.firstMode).toBe(res.before.firstMode);
+    expect(res.during.blackout).toBeFalsy();
+    expect(res.during.stillOpen).toBe(true);
+    // 但 Esc 要能取消
+    expect(res.answer).toBe('cancel');
+    expect(res.closed).toBe(true);
+  });
+});
