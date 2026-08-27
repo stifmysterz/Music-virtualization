@@ -81,6 +81,29 @@
   .dock button:hover, .dock label.btn:hover{border-color:var(--cyan);color:var(--cyan)}
   .dock button:focus-visible, .dock label.btn:focus-within{outline:2px solid var(--cyan);outline-offset:2px}
   .dock button.primary{background:var(--cyan);color:#031014;border-color:var(--cyan);font-weight:600;min-width:84px}
+  /* dock 是 overflow-x:auto 且藏了滚动条，窗口一窄这十几个按钮就会横向滚动，
+     Play 在最左边、最先被滚出视野，而且没有任何滚动提示 —— 用户因此「根本找不到按钮」。
+     钉住它：它本来就是不透明的 cyan 底，滚过去的按钮不会透出来。 */
+  #playBtn{position:sticky;left:0;z-index:2}
+  #playBtn::after{
+    content:'';position:absolute;left:100%;top:0;bottom:0;width:18px;
+    background:linear-gradient(to right, rgba(8,10,20,.72), rgba(8,10,20,0));
+    pointer-events:none;
+  }
+  body.dock-light #playBtn::after{background:linear-gradient(to right, rgba(255,255,255,.9), rgba(255,255,255,0))}
+
+  /* 全屏时 applyDockVisibility() 会把整个 dock 藏掉，就只剩空格键能播放/暂停了。
+     留一个浮动按钮，鼠标不动 2.5 秒自动淡出，不挡投影画面。 */
+  #fsPlayBtn{
+    display:none;position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:10;
+    align-items:center;gap:8px;
+    appearance:none;border:1px solid var(--cyan);background:var(--cyan);color:#031014;
+    font:inherit;font-size:13px;font-weight:600;letter-spacing:.06em;
+    padding:11px 20px;border-radius:11px;cursor:pointer;white-space:nowrap;
+    opacity:1;transition:opacity .35s;
+  }
+  body.is-fullscreen #fsPlayBtn{display:flex}
+  body.is-fullscreen.fs-idle #fsPlayBtn{opacity:0;pointer-events:none}
   .dock button.primary:hover{background:#a5f7ff}
   .dock button.active{border-color:var(--magenta);color:var(--magenta)}
   /* group colour-coding — subtle tint so related dock controls are easy to scan at a glance */
@@ -613,6 +636,7 @@
   <button id="liveTapBtn" class="dock-dd-item" title="Tap along with the beat 4+ times">👆 Tap</button>
   <button id="liveMidiBtn" class="dock-dd-item" title="Map MIDI controller pads/buttons to actions">🎛 MIDI</button>
 </div>
+<button id="fsPlayBtn" aria-label="Play or pause">▶ Play</button>
 <div id="dockBrand">SUB REMIX Visualizer - A Saturn Technology Product -</div>
 
 <div id="logoMenu" class="dock-dd">
@@ -4410,18 +4434,35 @@ async function playSynth(){
   playing = true; updatePlayBtn(); syncBgVideo();
 }
 
+/* playing 原本只在我们主动调 play()/pause() 时更新，一旦播放是从别处结束的
+   —— play() 被浏览器拒绝、文件播完、解码出错、系统媒体键 —— 这个标志就和真实状态
+   脱节：按钮还写着「暂停」，再按一下反而变成 play()，看起来就是「按了没反应」。
+   直接听 media 元素自己的事件，让标志永远跟着真实状态走。 */
+function wireMediaElement(el){
+  if(!el || el.dataset.playSynced) return el;
+  el.dataset.playSynced = '1';
+  const sync = on => { playing = on; updatePlayBtn(); syncBgVideo(); };
+  el.addEventListener('play',   ()=> sync(true));
+  el.addEventListener('playing',()=> sync(true));
+  el.addEventListener('pause',  ()=> sync(false));
+  el.addEventListener('ended',  ()=> sync(false));
+  el.addEventListener('error',  ()=> sync(false));
+  return el;
+}
+
 let mediaNode = null;
 function playFile(file){
   stopAll();
   if(!mediaEl){
     mediaEl = new Audio();
     mediaEl.loop = true;
+    wireMediaElement(mediaEl);
     mediaNode = ctx.createMediaElementSource(mediaEl);
   }
   mediaEl.src = URL.createObjectURL(file);
   try{ mediaNode.disconnect(); }catch(e){}
   mediaNode.connect(analyserFeed);
-  mediaEl.play();
+  mediaEl.play().catch(err=>{ console.error('playback failed:', err); playing = false; updatePlayBtn(); });
   playing = true; updatePlayBtn(); syncBgVideo();
   showProgressBar();
   lastScheduleIdx = -1;   // re-evaluate the schedule fresh against this file's own timeline
@@ -4584,7 +4625,12 @@ function syncIntervalControls(){
 document.getElementById('micShuffleIntervalSel').addEventListener('change', syncIntervalControls);
 document.getElementById('micShuffleCustomSel').addEventListener('change', syncIntervalControls);
 
-function updatePlayBtn(){ document.getElementById('playBtn').textContent = STATEFUL_LABELS.playBtn(); }
+function updatePlayBtn(){
+  const b = document.getElementById('playBtn');
+  if(b) b.textContent = STATEFUL_LABELS.playBtn();
+  const fs = document.getElementById('fsPlayBtn');   // 全屏时唯一的播放控制，状态必须跟着一起走
+  if(fs) fs.textContent = STATEFUL_LABELS.fsPlayBtn();
+}
 
 async function togglePlay(){
   ensureCtx(); await ctx.resume();
@@ -4594,7 +4640,7 @@ async function togglePlay(){
     if(micActive) stopMic();
     playing = false;
   }else{
-    if(mediaEl && mediaEl.src){ mediaEl.play(); }
+    if(mediaEl && mediaEl.src){ mediaEl.play().catch(err=>{ console.error('playback failed:', err); playing = false; updatePlayBtn(); }); }
     else{ startSynth(); }
     playing = true;
   }
@@ -5701,7 +5747,9 @@ function t2(key){ return (T2[currentLang] && T2[currentLang][key]) || T2.en[key]
 /* buttons whose text reflects a live on/off/cycling state — recomputed from
    current state + language, instead of relying on whatever a handler last wrote */
 const STATEFUL_LABELS = {
-  playBtn: ()=> typeof playing!=='undefined' && playing ? t2('pause') : t2('play'),
+  // 加上 ▶/⏸ 图标 —— 纯文字的 "Play" 夹在十几个按钮中间很难一眼认出是播放控制
+  playBtn: ()=> (typeof playing!=='undefined' && playing) ? ('⏸ '+t2('pause')) : ('▶ '+t2('play')),
+  fsPlayBtn: ()=> (typeof playing!=='undefined' && playing) ? ('⏸ '+t2('pause')) : ('▶ '+t2('play')),
   logoToggleBtn: ()=> (typeof logoVisible==='undefined' || logoVisible) ? ('👁 '+t2('show')) : ('🚫 '+t2('hidden')),
   logoLayerBtn: ()=> (typeof logoLayer==='undefined' || logoLayer==='front') ? ('⤒ '+t2('front')) : ('⤓ '+t2('back')),
   logoBounceToggle: ()=> (typeof logoBounceOn==='undefined' || logoBounceOn) ? t2('bounceOn') : t2('bounceOff'),
@@ -19901,6 +19949,10 @@ function applyDockVisibility(){
   const isFs = !!document.fullscreenElement;
   const dockEl = document.querySelector('.dock');
   if(dockEl) dockEl.style.display = isFs ? 'none' : '';
+  // dock 一藏，播放/暂停就只剩空格键了 —— 这个 class 让 #fsPlayBtn 顶上来（见 CSS）
+  document.body.classList.toggle('is-fullscreen', isFs);
+  if(isFs) nudgeFsPlayBtn();          // 刚进全屏时先亮一下，让人知道它在
+  else document.body.classList.remove('fs-idle');
   if(isFs){
     const liveBarEl = document.getElementById('liveBar');
     if(liveBarEl) liveBarEl.style.display = 'none';
@@ -19909,6 +19961,21 @@ function applyDockVisibility(){
     applyLiveBarVisibility();   // restore whatever the user's actual Live Bar preference was, not just "show"
   }
 }
+/* 全屏里的浮动播放键：有输入就亮起，静止 2.5 秒淡出，免得挡住投影画面 */
+let fsIdleTimer = null;
+function nudgeFsPlayBtn(){
+  document.body.classList.remove('fs-idle');
+  clearTimeout(fsIdleTimer);
+  fsIdleTimer = setTimeout(()=>{
+    if(document.fullscreenElement) document.body.classList.add('fs-idle');
+  }, 2500);
+}
+['mousemove','pointerdown','keydown','wheel'].forEach(ev=>{
+  addEventListener(ev, ()=>{ if(document.fullscreenElement) nudgeFsPlayBtn(); }, {passive:true});
+});
+document.getElementById('fsPlayBtn').onclick = ()=>{ nudgeFsPlayBtn(); togglePlay(); };
+updatePlayBtn();   // 让它一开始就带上正确的图标和文字
+
 document.addEventListener('fullscreenchange', applyBrandVisibility);
 document.addEventListener('fullscreenchange', applyDockVisibility);   // must run before resize()/updateDockSafeZone so the dock's restored/hidden display is settled before its rect gets measured
 document.addEventListener('fullscreenchange', resize);   // recomputes DOCK_SAFE_ZONE (via updateDockSafeZone) AND resizes #cv itself with the fresh value — don't rely on a same-tick window 'resize' event to do this
