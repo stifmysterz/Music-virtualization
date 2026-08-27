@@ -391,8 +391,8 @@
   #modePanelList .mode-cat-header{cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px}
   #modePanelList .mode-cat-header:hover{opacity:1}
   #bg3DMenuList{display:flex;flex-direction:column;gap:5px}
-  #bg3DMenuList .mode-cat-header{cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;margin:4px 0 0}
-  #bg3DMenuList .mode-cat-header:hover{opacity:1}
+  #bg3DMenuList .mode-cat-header, #modeMenuList .mode-cat-header{cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;margin:4px 0 0}
+  #bg3DMenuList .mode-cat-header:hover, #modeMenuList .mode-cat-header:hover{opacity:1}
   .bg3d-item-row{display:flex;align-items:stretch;gap:5px}
   .bg3d-item-row .dock-dd-item{flex:1;min-width:0;font-size:16px}
   .mode-cat-arrow{display:inline-block;flex:0 0 auto;font-size:9px;opacity:.85}
@@ -647,7 +647,6 @@
   <div class="sep"></div>
   <button id="looksMenuBtn" class="grp-looks" title="Save/load looks, or randomise">💾 Looks</button>
   <button id="timingBtn" class="grp-timing" title="BPM and scheduled mode changes">⏱ Timing</button>
-  <button id="liveBarToggleBtn" class="grp-live" title="Show/hide the live-performance quick bar">⚡ Live Bar</button>
   <button id="moreMenuBtn" class="grp-tools" title="Fullscreen, recording, sound, and tools">⚙ Tools</button>
 </div>
 <div id="liveBar" style="display:none">
@@ -764,6 +763,13 @@
   </div>
 </div>
 
+<div id="modeMenu" class="dock-dd">
+  <div id="modeMenuList"></div>
+  <!-- modeMenuList 由 buildModeMenu() 按 MODE_CATEGORIES 生成，结构照搬 bg3DMenuList -->
+  <button id="modeRandomQuickBtn" class="dock-dd-item" style="margin-top:8px;border-top:1px solid var(--line);padding-top:12px" title="Random mode combo">🎲 Random</button>
+  <button id="modeMoreBtn" class="dock-dd-item" title="Search, thumbnails, brightness, favourites, front/back layering">⚙ All mode settings…</button>
+</div>
+
 <div id="bg3DMenu" class="dock-dd">
   <div id="bg3DMenuList"></div>
   <!-- bg3DMenuList is populated by buildBg3DMenu() — see BG3D_CATALOG in the script -->
@@ -846,6 +852,7 @@
   <button id="recordBtn" class="dock-dd-item" title="Record screen + audio — pick a save location for long recordings">⏺ Record</button>
   <button id="fullscreenBtn" class="dock-dd-item" title="Toggle fullscreen">⛶ Full</button>
   <div class="tools-section-header" style="color:#0d2b6b;font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin:8px 4px 0">Other</div>
+  <button id="liveBarToggleBtn" class="dock-dd-item" title="Show/hide the live-performance quick bar">⚡ Live Bar</button>
   <button id="helpBtn" class="dock-dd-item" title="Shortcuts and gestures">❓ Help</button>
   <button id="debugOutlineBtn" class="dock-dd-item" title="Show a border around the visualizer canvases — handy for checking the layout">▭ Canvas Outline: Off</button>
   <button id="bg3dDebugBtn" class="dock-dd-item" title="Show live 3D-background diagnostics in the corner">🐞 3D Debug: Off</button>
@@ -5847,6 +5854,7 @@ function applyLanguage(lang){
   applyBounceStyleNames();
   applyShuffleOptionNames();
   buildBg3DMenu();   // rebuilds category headers + item labels, including the id-less Favourites-section duplicates the generic per-id sweep below can't reach
+  if(typeof buildModeMenu==='function') buildModeMenu();   // 同理：分类名和 mode 名都是按语言现算的
   populatePresetBg3DSelect();
   const liveBlackoutBtnEl = document.getElementById('liveBlackoutBtn');
   if(liveBlackoutBtnEl) liveBlackoutBtnEl.textContent = (typeof blackoutOn!=='undefined' && blackoutOn) ? t2('liveBlackoutRestore') : t2('liveBlackoutBtn');
@@ -19326,6 +19334,7 @@ function refreshModePanelActive(){
   });
   updatePerfWarning();
   refreshStatefulLabels();   // keeps the dock's "Mode" button showing the current mode name in sync
+  if(typeof markActiveModeInMenu==='function') markActiveModeInMenu();   // drop-up 里的选中标记走同一个汇合点
 }
 
 /* ---------- performance heads-up when a lot of modes are stacked at once ---------- */
@@ -19600,9 +19609,8 @@ function scrollToFocusedMode(){
   if(row) row.scrollIntoView({block:'center', behavior:'smooth'});
 }
 function closeModePanel(){ modePanel.classList.remove('show'); }
-document.getElementById('modeBtn').onclick = ()=>{
-  modePanel.classList.contains('show') ? closeModePanel() : openModePanel();
-};
+/* Mode 按钮现在由 setupDockDropdown('modeBtn','modeMenu') 接管，点它出 drop-up；
+   大面板改从 drop-up 底部的「⚙ All mode settings…」进。 */
 document.getElementById('modeDeleteBtn').onclick = ()=>{
   if(focusModeIdx==null || !activeModes.includes(focusModeIdx)) return;
   pushUndo();
@@ -20269,6 +20277,84 @@ function setupDockDropdown(btnId, menuId){
   };
   menu.addEventListener('click', e=> e.stopPropagation());
 }
+/* ---------- Mode drop-up ----------
+   dock 上的 Mode 按钮本来就显示当前 mode 名（STATEFUL_LABELS.modeBtn），但点它直接弹出
+   右侧那个大面板 —— 想快速换一个特效，要开面板、找、点、再关掉。这里补一个 drop-up：
+   按 MODE_CATEGORIES 的 23 个分类折叠，点一项就切过去。200+ 个 mode 一次铺开没法用，
+   所以默认全部收起 —— 这套结构和已经装着 120+ 项的 #bg3DMenu 完全一致。 */
+const expandedModeCats = new Set();
+function makeModeCatHeader(catName){
+  const header = document.createElement('div');
+  header.className = 'mode-cat-header';
+  header.dataset.modeCat = catName;
+  const expanded = expandedModeCats.has(catName);
+  header.classList.toggle('expanded', expanded);
+  const arrow = document.createElement('span');
+  arrow.className = 'mode-cat-arrow';
+  arrow.textContent = expanded ? '▾' : '▸';
+  header.appendChild(arrow);
+  const label = document.createElement('span');
+  label.textContent = getCategoryName(catName);
+  header.appendChild(label);
+  header.onclick = ()=> toggleModeCategory(catName, header);
+  return header;
+}
+function toggleModeCategory(catName, headerEl){
+  if(expandedModeCats.has(catName)) expandedModeCats.delete(catName); else expandedModeCats.add(catName);
+  const expanded = expandedModeCats.has(catName);
+  headerEl.classList.toggle('expanded', expanded);
+  const arrow = headerEl.querySelector('.mode-cat-arrow');
+  if(arrow) arrow.textContent = expanded ? '▾' : '▸';
+  document.querySelectorAll('#modeMenuList [data-mode-cat="'+CSS.escape(catName)+'"]').forEach(el=>{
+    if(!el.classList.contains('mode-cat-header')) el.style.display = expanded ? '' : 'none';
+  });
+}
+/* 点一项 = 只用这一个特效，和 3D 背景菜单的行为一致。想把多个叠起来仍然去大面板。 */
+function selectSingleMode(key){
+  const idx = MODES.indexOf(key);
+  if(idx === -1) return;
+  if(activeModes.length===1 && activeModes[0]===idx) return;   // 已经就是它，别白记一步撤销
+  pushUndo();
+  startTransition();          // 和面板里换特效一样走淡入淡出
+  activeModes = [idx];
+  focusModeIdx = idx;
+  setLastInteracted('mode');
+  refreshModePanelActive();   // 内部会调 refreshStatefulLabels()，dock 按钮文字跟着更新
+  markActiveModeInMenu();
+}
+function markActiveModeInMenu(){
+  document.querySelectorAll('#modeMenuList [data-mode-key]').forEach(el=>{
+    el.classList.toggle('active', activeModes.includes(MODES.indexOf(el.dataset.modeKey)));
+  });
+}
+function buildModeMenu(){
+  const list = document.getElementById('modeMenuList');
+  if(!list) return;
+  list.innerHTML = '';
+  MODE_CATEGORIES.forEach(group=>{
+    list.appendChild(makeModeCatHeader(group.name));
+    group.keys.forEach(key=>{
+      if(MODES.indexOf(key) === -1) return;   // 目录里写了但 MODES 里没有的，跳过而不是生成一个点不动的项
+      const btn = document.createElement('button');
+      btn.className = 'dock-dd-item';
+      btn.dataset.modeCat = group.name;
+      btn.dataset.modeKey = key;
+      btn.textContent = getModeLabel(key);
+      btn.style.display = expandedModeCats.has(group.name) ? '' : 'none';
+      btn.onclick = ()=> selectSingleMode(key);
+      list.appendChild(btn);
+    });
+  });
+  markActiveModeInMenu();
+}
+buildModeMenu();
+setupDockDropdown('modeBtn', 'modeMenu');
+document.getElementById('modeRandomQuickBtn').onclick = ()=>{ randomCombo(); markActiveModeInMenu(); };
+document.getElementById('modeMoreBtn').onclick = ()=>{
+  document.querySelectorAll('.dock-dd.show').forEach(m=>m.classList.remove('show'));
+  openModePanel();
+};
+
 setupDockDropdown('logoMenuBtn', 'logoMenu');
 setupDockDropdown('soundMenuBtn', 'soundMenu');
 setupDockDropdown('bgMenuBtn', 'bgMenu');
