@@ -159,6 +159,7 @@
   }
   .dock-dd-slider-row span{font-size:12px;color:var(--ink-dim);flex:0 0 auto}
   .dock-dd-slider-row .mode-bright-slider{flex:1}
+  .dock-dd-val{font-size:11px;color:var(--ink-dim);flex:0 0 46px;text-align:right;font-variant-numeric:tabular-nums}
   .dock input[type=text]{
     appearance:none;border:1px solid var(--line);background:transparent;color:#fff;
     font:inherit;font-size:12px;letter-spacing:.04em;
@@ -690,6 +691,21 @@
 <div id="bgMenu" class="dock-dd">
   <label class="dock-dd-item" title="Add a background photo or video">🌄 Upload Background<input type="file" id="bgIn" accept="image/*,video/*"></label>
   <button id="bgAdjustBtn" class="dock-dd-item" title="Drag/pinch/rotate the background itself">🎯 Position BG</button>
+  <div id="bgPosPanel" style="display:none">
+    <div class="dock-dd-slider-row" title="Horizontal position"><span>↔</span>
+      <input type="range" id="bgPosXSel" class="mode-bright-slider" min="-2000" max="2000" value="0" step="1">
+      <span class="dock-dd-val" id="bgPosXVal">0px</span></div>
+    <div class="dock-dd-slider-row" title="Vertical position"><span>↕</span>
+      <input type="range" id="bgPosYSel" class="mode-bright-slider" min="-2000" max="2000" value="0" step="1">
+      <span class="dock-dd-val" id="bgPosYVal">0px</span></div>
+    <div class="dock-dd-slider-row" title="Scale"><span>⤢</span>
+      <input type="range" id="bgScaleSel" class="mode-bright-slider" min="30" max="400" value="100" step="1">
+      <span class="dock-dd-val" id="bgScaleVal">100%</span></div>
+    <div class="dock-dd-slider-row" title="Rotation"><span>⟳</span>
+      <input type="range" id="bgRotateSel" class="mode-bright-slider" min="-180" max="180" value="0" step="1">
+      <span class="dock-dd-val" id="bgRotateVal">0°</span></div>
+    <button id="bgPosResetBtn" class="dock-dd-item" title="Back to the default centred position, 100%, 0°">↺ Reset Position</button>
+  </div>
   <button id="bgToggleBtn" class="dock-dd-item active" title="Show/hide the photo/video background" style="display:none">👁 Show</button>
   <button id="bgRemoveBtn" class="dock-dd-item" title="Remove the photo/video background" style="display:none;border-color:rgba(255,80,80,.4);color:#ff8080">🗑 Remove Background</button>
   <div class="dock-dd-slider-row" title="How visible both backgrounds are">
@@ -21201,18 +21217,45 @@ function dampSmallRotation(delta){
 }
 function makeTransformable(el){
   let elScale = 1, elRotation = 0;
-  let dragging = false, offX = 0, offY = 0;
+  let homeX = null, homeY = null;   // ensurePositioned() 落定的默认位置，也是 X/Y 滑杆的 0 点
+  let elX = 0, elY = 0;             // 相对 home 的位移（px）
+  let dragging = false, lastPX = 0, lastPY = 0;
   let gesture = null;
   const pointers = new Map();
+  const listeners = [];
   el.style.touchAction = 'none';
 
+  function state(){ return {x:elX, y:elY, scale:elScale, rotation:elRotation}; }
+  function notify(){ const st = state(); listeners.forEach(fn=>{ try{ fn(st); }catch(e){} }); }
+
+  /* 把「left/top:50% + translate(-50%,-50%)」这种 CSS 居中状态换算成绝对 left/top。
+     必须走「可视中心 → 布局左上角」，不能直接拿 getBoundingClientRect().left 当 style.left：
+     r.left 是变换之后的可视左边缘，style.left 是变换之前的布局左边缘，而 transform-origin
+     在中心，两者差 (offsetWidth - 缩放后宽)/2。背景宽 130vw、放大 2.4 倍时那是一千多像素 ——
+     实测「按下鼠标、移动 0 像素，背景跳 -1098px」就是这么来的。
+     用中心来算对旋转也成立，因为旋转同样绕中心发生。 */
   function ensurePositioned(){
-    if(el.dataset.positioned) return;
+    if(el.dataset.positioned){
+      if(homeX===null){   // 位置是别处（例如撤销恢复）写进去的，把它当作新的 home
+        homeX = parseFloat(el.style.left)||0; homeY = parseFloat(el.style.top)||0;
+        elX = 0; elY = 0;
+      }
+      return;
+    }
     const r = el.getBoundingClientRect();
-    el.style.left = r.left + 'px';
-    el.style.top = r.top + 'px';
+    const cx = r.left + r.width/2, cy = r.top + r.height/2;
+    homeX = cx - el.offsetWidth/2;
+    homeY = cy - el.offsetHeight/2;
+    elX = 0; elY = 0;
     el.style.bottom = 'auto';
     el.dataset.positioned = '1';
+    applyPosition();
+    applyTransform();   // 顺手写掉 CSS 里的 translate(-50%,-50%)，不然还会再偏半个身位
+  }
+  function applyPosition(){
+    if(homeX===null) return;
+    el.style.left = (homeX + elX) + 'px';
+    el.style.top  = (homeY + elY) + 'px';
   }
   function applyTransform(){
     el.style.transform = `scale(${elScale}) rotate(${elRotation}rad)`;
@@ -21230,8 +21273,7 @@ function makeTransformable(el){
     if(pointers.size===1){
       pushUndo();
       dragging = true;
-      const r = el.getBoundingClientRect();
-      offX = e.clientX - r.left; offY = e.clientY - r.top;
+      lastPX = e.clientX; lastPY = e.clientY;   // 增量拖动：只累加位移，不再每帧反算绝对位置
       el.classList.add('dragging');
     }else if(pointers.size===2){
       dragging = false;
@@ -21249,11 +21291,13 @@ function makeTransformable(el){
       elScale = Math.max(0.3, Math.min(4, gesture.startScale*scaleFactor));
       elRotation = gesture.startRotation + rotDelta;
       applyTransform();
+      notify();
     }else if(dragging){
-      const x = e.clientX - offX;
-      const y = e.clientY - offY;
-      el.style.left = x + 'px';
-      el.style.top = y + 'px';
+      elX += e.clientX - lastPX;
+      elY += e.clientY - lastPY;
+      lastPX = e.clientX; lastPY = e.clientY;
+      applyPosition();
+      notify();
     }
   });
   function endPointer(e){
@@ -21265,7 +21309,7 @@ function makeTransformable(el){
   el.addEventListener('pointercancel', endPointer);
 
   el.addEventListener('dblclick', ()=>{
-    pushUndo(); elScale=1; elRotation=0; applyTransform();
+    pushUndo(); elScale=1; elRotation=0; applyTransform(); notify();
     if(el.id==='titleDisplay' || el.id==='textADisplay' || el.id==='textBDisplay') openTextStylePanel();
   });
   let elWheelUndoTimer = null;
@@ -21278,7 +21322,28 @@ function makeTransformable(el){
     if(e.shiftKey){ elRotation += e.deltaY*0.0022; }
     else{ elScale = Math.max(0.3, Math.min(4, elScale*(1-e.deltaY*0.0016))); }
     applyTransform();
+    notify();
   }, {passive:false});
+
+  /* 给外部（Position BG 的数值滑杆、resize 时的边界收拢）一个受控入口 ——
+     直接改 el.style.left 会和这里的 elX/elY 状态脱节，面板上的数字就会和画面对不上。 */
+  const api = {
+    state,
+    set(p){
+      ensurePositioned();
+      if(p.x!=null) elX = p.x;
+      if(p.y!=null) elY = p.y;
+      if(p.scale!=null) elScale = Math.max(0.3, Math.min(4, p.scale));
+      if(p.rotation!=null) elRotation = p.rotation;
+      applyPosition(); applyTransform();
+      notify();          // 程序性改动也要通知，否则 Position BG 面板上的数字会停在旧值
+    },
+    nudge(dx, dy){ ensurePositioned(); elX += dx; elY += dy; applyPosition(); notify(); },
+    reset(){ ensurePositioned(); elX=0; elY=0; elScale=1; elRotation=0; applyPosition(); applyTransform(); notify(); },
+    onChange(fn){ listeners.push(fn); }
+  };
+  el._transform = api;
+  return api;
 }
 makeTransformable(titleDisplay);
 makeTransformable(textADisplay);
@@ -21317,20 +21382,86 @@ applyTextLayerOrder();
 makeTransformable(bgImageEl);
 makeTransformable(bgVideoEl);
 
+/* ---------- Position BG 的数值控制 ----------
+   拖动/滚轮是粗调，这组滑杆用来精确到具体数值，同时也让当前参数看得见。
+   X/Y 的 0 点是背景的默认居中位置（ensurePositioned() 记下的 home）。 */
+function activeBgTransform(){
+  const el = hasBgVideo ? bgVideoEl : bgImageEl;
+  return (el && el._transform) ? el._transform : null;
+}
+function syncBgPosControls(st){
+  const t = activeBgTransform();
+  if(!t) return;
+  const s = st || t.state();
+  const deg = Math.round((((s.rotation*180/Math.PI) % 360) + 540) % 360 - 180);   // 归一到 [-180,180)
+  const put = (id, val, text)=>{
+    const sl = document.getElementById(id);   if(sl)  sl.value = String(val);
+    const out = document.getElementById(id.replace('Sel','Val')); if(out) out.textContent = text;
+  };
+  put('bgPosXSel',  Math.round(s.x), Math.round(s.x)+'px');
+  put('bgPosYSel',  Math.round(s.y), Math.round(s.y)+'px');
+  put('bgScaleSel', Math.round(s.scale*100), Math.round(s.scale*100)+'%');
+  put('bgRotateSel', deg, deg+'°');
+}
+[['bgPosXSel', v=>({x:v})],
+ ['bgPosYSel', v=>({y:v})],
+ ['bgScaleSel', v=>({scale:v/100})],
+ ['bgRotateSel', v=>({rotation:v*Math.PI/180})]].forEach(([id, toPatch])=>{
+  const sl = document.getElementById(id);
+  if(!sl) return;
+  let undoTimer = null;
+  sl.addEventListener('input', ()=>{
+    const t = activeBgTransform();
+    if(!t) return;
+    if(!undoTimer) pushUndo();                 // 一次连续拖动只记一步撤销
+    clearTimeout(undoTimer);
+    undoTimer = setTimeout(()=>{ undoTimer = null; }, 500);
+    t.set(toPatch(parseFloat(sl.value)));
+    syncBgPosControls();
+  });
+});
+document.getElementById('bgPosResetBtn').onclick = ()=>{
+  const t = activeBgTransform();
+  if(!t) return;
+  pushUndo();
+  t.reset();
+  syncBgPosControls();
+};
+// 用手拖 / 滚轮缩放时，面板上的数字要跟着走，不然会和画面对不上
+[bgImageEl, bgVideoEl].forEach(el=>{
+  el._transform.onChange(st=>{ if(activeBgTransform() === el._transform) syncBgPosControls(st); });
+});
+
 /* ---------- keep dragged text/background overlays on-screen after a viewport size change ---------- */
 /* makeTransformable() switches an element to absolute left/top px the first time it's dragged
    (dataset.positioned) — those coordinates are only valid for the viewport size they were set in.
    Exiting fullscreen (or any resize) can otherwise leave them off-screen or under the dock. */
 function clampPositionedElements(){
+  const MARGIN = 48;   // 比可视区大的元素，至少要留这么多还压在可视区里，才抓得回来
   [titleDisplay, textADisplay, textBDisplay, bgImageEl, bgVideoEl].forEach(el=>{
-    if(!el || !el.dataset.positioned) return;
+    if(!el || !el.dataset.positioned || !el._transform) return;
     const r = el.getBoundingClientRect();
-    const maxLeft = Math.max(0, innerWidth - PANEL_SAFE_ZONE - r.width);   // also stay clear of an open right-side panel
-    const maxTop = Math.max(0, innerHeight - DOCK_SAFE_ZONE - r.height);
-    const left = Math.min(Math.max(r.left, 0), maxLeft);
-    const top = Math.min(Math.max(r.top, 0), maxTop);
-    if(left !== r.left) el.style.left = left + 'px';
-    if(top !== r.top) el.style.top = top + 'px';
+    const availW = innerWidth - PANEL_SAFE_ZONE, availH = innerHeight - DOCK_SAFE_ZONE;
+
+    /* 比可视区还大的元素不能「塞进屏幕里」。背景是 130vw，再放大就更宽，
+       旧写法算出来的 maxLeft 恒为 0，于是每次 resize / 开关 dock 菜单（那个监听
+       .dock-dd class 的 MutationObserver）都会把辛苦拖好的背景硬拽回左上角。
+       对这类元素只要求「还盖着可视区」，位置一概不动。 */
+    const axis = (start, end, avail) => {
+      const size = end - start;
+      if(size <= avail){
+        if(start < 0) return -start;
+        if(end > avail) return avail - end;
+        return 0;
+      }
+      if(start > avail - MARGIN) return (avail - MARGIN) - start;
+      if(end < MARGIN) return MARGIN - end;
+      return 0;
+    };
+    const dx = axis(r.left, r.right, availW);
+    const dy = axis(r.top, r.bottom, availH);
+    // 走 API 而不是直接写 style.left —— 否则 Position BG 面板上的数字会和画面脱节
+    if(dx || dy) el._transform.nudge(dx, dy);
   });
 }
 addEventListener('resize', clampPositionedElements);
@@ -21348,6 +21479,9 @@ document.getElementById('bgAdjustBtn').onclick = ()=>{
   const btn = document.getElementById('bgAdjustBtn');
   btn.classList.toggle('active', bgAdjustOn);
   btn.textContent = bgAdjustOn ? '🎯 Adjusting…' : '🎯 Position BG';
+  const panel = document.getElementById('bgPosPanel');
+  if(panel) panel.style.display = bgAdjustOn ? 'block' : 'none';
+  if(bgAdjustOn) syncBgPosControls();
 };
 document.getElementById('fxBlendToggle').onclick = ()=>{
   fxBlendOn = !fxBlendOn;
