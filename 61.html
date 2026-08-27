@@ -391,6 +391,7 @@
   #modePanelList .mode-cat-header{cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px}
   #modePanelList .mode-cat-header:hover{opacity:1}
   #bg3DMenuList{display:flex;flex-direction:column;gap:5px}
+  #modeMenuList{display:flex;flex-direction:column;gap:5px}
   #bg3DMenuList .mode-cat-header, #modeMenuList .mode-cat-header{cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;margin:4px 0 0}
   #bg3DMenuList .mode-cat-header:hover, #modeMenuList .mode-cat-header:hover{opacity:1}
   .bg3d-item-row{display:flex;align-items:stretch;gap:5px}
@@ -573,6 +574,14 @@
       width:300px; max-width:300px; height:100%; max-height:none;
       border-radius:0; border-width:0 0 0 1px; border-style:solid; border-color:var(--line);
       padding:16px;
+    }
+    /* ……但 Mode 例外：它要的是从下面的 menubar 往上弹的 drop-up，锚在按钮正上方。
+       其余菜单留在侧栏 —— Background 有四个滑杆、3D 有 120+ 项，侧栏更好用。
+       具体的 left/bottom/max-height 由 setupDockDropdown() 按按钮位置逐次算出来。 */
+    #modeMenu{
+      top:auto; right:auto; bottom:auto; left:0; height:auto;
+      width:auto; min-width:230px; max-width:min(420px, 92vw);
+      border-radius:12px; border-width:1px; padding:8px;
     }
   }
 </style>
@@ -4733,7 +4742,9 @@ let DOCK_SAFE_ZONE = 100;   // CSS px reserved at the bottom of the canvas so ef
 let PANEL_SAFE_ZONE = 0;    // CSS px reserved on the right while a right-side panel (mode panel / dock dropdown, desktop only) is open — see updatePanelSafeZone()
 function updatePanelSafeZone(){
   const isDesktopPanel = matchMedia('(hover:hover) and (pointer:fine)').matches;
-  const panelOpen = isDesktopPanel && (document.querySelector('.mode-panel.show') || document.querySelector('.dock-dd.show'));
+  // #modeMenu 排除在外：它是锚在 menubar 上方的 drop-up，不占右侧空间，
+  // 不该像侧栏那样把画布缩窄 300px（否则一开选单画面就跳一下）
+  const panelOpen = isDesktopPanel && (document.querySelector('.mode-panel.show') || document.querySelector('.dock-dd.show:not(#modeMenu)'));
   PANEL_SAFE_ZONE = panelOpen ? 300 : 0;   // 300 matches the sidebar width in the (hover:hover) and (pointer:fine) CSS block
 }
 function updateDockSafeZone(){
@@ -20272,10 +20283,12 @@ volumeBtn.onclick = ()=>{
 };
 
 /* ---------- dock dropdowns: Media and More collapse several controls behind one button ---------- */
-function setupDockDropdown(btnId, menuId){
+/* alwaysDropUp: 桌面上也强制走「锚在按钮上方」的定位，而不是右侧侧栏。
+   目前只有 Mode 用 —— 它要的是从下面的 menubar 往上弹的选单。 */
+function setupDockDropdown(btnId, menuId, alwaysDropUp){
   const btn = document.getElementById(btnId);
   const menu = document.getElementById(menuId);
-  const isDesktopDock = ()=> matchMedia('(hover:hover) and (pointer:fine)').matches;
+  const isDesktopDock = ()=> !alwaysDropUp && matchMedia('(hover:hover) and (pointer:fine)').matches;
   btn.onclick = (e)=>{
     e.stopPropagation();
     const isOpen = menu.classList.contains('show');
@@ -20288,13 +20301,17 @@ function setupDockDropdown(btnId, menuId){
         menu.classList.add('show');
       }else{
         const r = btn.getBoundingClientRect();
-        menu.style.maxHeight = Math.max(120, r.top - 20) + 'px';   // never taller than the space actually available above the trigger
-        menu.classList.add('show');                                // show first so we can measure its real rendered width
+        // 竖向锚在整条 dock 的上边缘，而不是按钮的上边缘 —— 按钮缩在 dock 的内边距里，
+        // 按按钮算的话菜单底边会压在 dock 顶边那条上，看起来像糊在一起
+        const dockEl = btn.closest('.dock');
+        const anchorTop = dockEl ? dockEl.getBoundingClientRect().top : r.top;
+        menu.style.maxHeight = Math.max(120, anchorTop - 20) + 'px';   // never taller than the space actually available above the trigger
+        menu.classList.add('show');                                    // show first so we can measure its real rendered width
         const menuW = menu.offsetWidth || 200;
-        let left = Math.round(r.left + r.width/2);
+        let left = Math.round(r.left + r.width/2);                     // 横向仍然对准触发它的那个按钮
         left = Math.max(menuW/2+8, Math.min(left, innerWidth-menuW/2-8));
         menu.style.left = left + 'px';
-        menu.style.bottom = Math.round(innerHeight - r.top + 10) + 'px';
+        menu.style.bottom = Math.round(innerHeight - anchorTop + 10) + 'px';
         menu.style.transform = 'translateX(-50%)';
       }
     }
@@ -20372,7 +20389,7 @@ function buildModeMenu(){
   markActiveModeInMenu();
 }
 buildModeMenu();
-setupDockDropdown('modeBtn', 'modeMenu');
+setupDockDropdown('modeBtn', 'modeMenu', true);   // 唯一走真正 drop-up 的菜单
 document.getElementById('modeRandomQuickBtn').onclick = ()=>{ randomCombo(); markActiveModeInMenu(); };
 document.getElementById('modeMoreBtn').onclick = ()=>{
   document.querySelectorAll('.dock-dd.show').forEach(m=>m.classList.remove('show'));

@@ -218,3 +218,108 @@ test('✕ 删除按钮也收进 drop-up，dock 上不再有它', async () => {
     expect(res.visibleWithNone).toBe('none');
   });
 });
+
+/* 桌面（有鼠标）上，61.html 的 (hover:hover) and (pointer:fine) 媒体查询把「所有」
+   .dock-dd 都改成了右侧 300px 全高侧栏 —— 包括 Mode。用户要的是从下面的 menubar
+   往上弹的 drop-up，所以 #modeMenu 要从那条规则里单独豁免出来。
+   其余菜单（Logo/Sound/Background/3D/Looks/Tools）保持侧栏不变：Background 有四个
+   滑杆、3D 有 120+ 项，侧栏更好用。 */
+test('桌面上 Mode 选单是真正的 drop-up：锚在 menubar 上方，不是右侧全高侧栏', async () => {
+  await withApp('modemenu-8', async (win) => {
+    const res = await win.evaluate(() => {
+      document.getElementById('modeBtn').click();
+      const menu = document.getElementById('modeMenu').getBoundingClientRect();
+      const btn = document.getElementById('modeBtn').getBoundingClientRect();
+      const dock = document.querySelector('.dock').getBoundingClientRect();
+      return {
+        desktop: matchMedia('(hover:hover) and (pointer:fine)').matches,
+        menu: { top: menu.top, bottom: menu.bottom, left: menu.left, right: menu.right, w: menu.width, h: menu.height },
+        btnCentre: btn.left + btn.width / 2,
+        dockTop: dock.top,
+        vh: innerHeight, vw: innerWidth
+      };
+    });
+
+    expect(res.desktop).toBe(true);   // 前提：这台机器命中的确实是桌面分支
+    // 底边贴在 dock 上方 —— 这才叫从 menubar 弹出来
+    expect(res.menu.bottom).toBeLessThanOrEqual(res.dockTop + 2);
+    // 不是全高侧栏
+    expect(res.menu.h).toBeLessThan(res.vh - 40);
+    // 也不是贴着右边缘的 300px 宽侧栏
+    expect(res.menu.right).toBeLessThan(res.vw - 4);
+    // 水平上大致对准 Mode 按钮（贴边时会被夹住，所以给宽一点的容差）
+    const menuCentre = res.menu.left + res.menu.w / 2;
+    expect(Math.abs(menuCentre - res.btnCentre)).toBeLessThan(res.menu.w / 2 + 20);
+  });
+});
+
+test('其他 dock 菜单仍然是右侧全高侧栏，没被这次改动波及', async () => {
+  await withApp('modemenu-9', async (win) => {
+    const res = await win.evaluate(() => {
+      const out = {};
+      ['bgMenuBtn', 'looksMenuBtn', 'moreMenuBtn'].forEach(id => {
+        document.getElementById(id).click();
+        const menuId = { bgMenuBtn: 'bgMenu', looksMenuBtn: 'looksMenu', moreMenuBtn: 'moreMenu' }[id];
+        const r = document.getElementById(menuId).getBoundingClientRect();
+        out[menuId] = { h: r.height, right: r.right };
+      });
+      return { out, vh: innerHeight, vw: innerWidth };
+    });
+
+    Object.entries(res.out).forEach(([id, r]) => {
+      expect(r.h, id).toBeGreaterThan(res.vh - 4);      // 全高
+      expect(r.right, id).toBeGreaterThan(res.vw - 4);  // 贴右边缘
+    });
+  });
+});
+
+test('打开 Mode drop-up 不会把画布缩窄（那是侧栏才需要的让位）', async () => {
+  await withApp('modemenu-10', async (win) => {
+    const res = await win.evaluate(async () => {
+      const settle = () => new Promise(r => setTimeout(r, 350));
+      const widthBefore = cv.width;
+      document.getElementById('modeBtn').click();
+      await settle();
+      const withMode = { cvWidth: cv.width, safeZone: PANEL_SAFE_ZONE };
+      document.querySelectorAll('.dock-dd.show').forEach(m => m.classList.remove('show'));
+      await settle();
+
+      // 对照：侧栏式的菜单该照旧让位
+      document.getElementById('bgMenuBtn').click();
+      await settle();
+      const withSidebar = { cvWidth: cv.width, safeZone: PANEL_SAFE_ZONE };
+      return { widthBefore, withMode, withSidebar };
+    });
+
+    expect(res.withMode.safeZone).toBe(0);
+    expect(res.withMode.cvWidth).toBe(res.widthBefore);
+    // 侧栏仍然让位，这条逻辑没被改坏
+    expect(res.withSidebar.safeZone).toBeGreaterThan(0);
+    expect(res.withSidebar.cvWidth).toBeLessThan(res.widthBefore);
+  });
+});
+
+test('drop-up 高度封顶在 menubar 上方的可用空间内，内容多了自己滚动', async () => {
+  await withApp('modemenu-11', async (win) => {
+    const res = await win.evaluate(() => {
+      document.getElementById('modeBtn').click();
+      const menu = document.getElementById('modeMenu');
+      // 展开一个大分类，把内容撑起来
+      [...menu.querySelectorAll('.mode-cat-header')][0].click();
+      const r = menu.getBoundingClientRect();
+      const dock = document.querySelector('.dock').getBoundingClientRect();
+      return {
+        h: r.height, top: r.top, dockTop: dock.top,
+        scrollable: menu.scrollHeight > menu.clientHeight,
+        overflowY: getComputedStyle(menu).overflowY,
+        listColumn: getComputedStyle(document.getElementById('modeMenuList')).flexDirection
+      };
+    });
+
+    expect(res.top).toBeGreaterThanOrEqual(0);        // 不能超出屏幕顶端
+    expect(res.h).toBeLessThanOrEqual(res.dockTop);   // 不能盖过 menubar
+    expect(res.overflowY).toBe('auto');
+    expect(res.scrollable).toBe(true);                // 展开大分类后确实要滚
+    expect(res.listColumn).toBe('column');            // 竖排一项一行，不是横向平铺
+  });
+});
