@@ -789,6 +789,29 @@
 <div id="modeMenu" class="dock-dd">
   <div id="modeMenuList"></div>
   <!-- modeMenuList 由 buildModeMenu() 按 MODE_CATEGORIES 生成，结构照搬 bg3DMenuList -->
+  <!-- 自动轮换。原本在 Looks 菜单里，但想让特效自动换的人会来 Mode 找。
+       它是纯定时器，不依赖音频播放；来源选「我的预设」时轮换的是整套 Look，
+       那个用法也可以从 Looks 面板的「自动轮换预设」按钮走 —— 同一份状态。 -->
+  <button id="micShuffleToggle" class="dock-dd-item" style="margin-top:8px;border-top:1px solid var(--line);padding-top:12px" title="Automatically change effects (or whole Looks, depending on Source below) on a timer — hands-free for live sets">🔀 Auto-Shuffle: Off</button>
+  <select id="micShuffleIntervalSel" class="dock-dd-select" title="How often to change">
+    <option value="4000">Every 4 sec</option>
+    <option value="8000">Every 8 sec</option>
+    <option value="16000">Every 16 sec</option>
+    <option value="32000" selected>Every 32 sec</option>
+    <option value="64000">Every 64 sec</option>
+    <option value="change">⚡ On Sudden Change</option>
+    <option value="custom">Custom…</option>
+  </select>
+  <div class="dock-dd-slider-row" id="micShuffleCustomRow" style="display:none" title="Custom interval, in seconds">
+    <span>⏱</span>
+    <input type="number" id="micShuffleCustomSel" min="3" max="3600" step="1" value="45" style="width:70px">
+    <span id="micShuffleCustomUnit">sec</span>
+  </div>
+  <select id="micShuffleSourceSel" class="dock-dd-select" title="Where the shuffle picks modes from">
+    <option value="favorites">Source: My Favourites</option>
+    <option value="random">Source: Full Random</option>
+    <option value="presets">Source: My Presets</option>
+  </select>
   <button id="modeDeleteBtn" class="dock-dd-item" style="display:none;margin-top:8px;border-top:1px solid var(--line);padding-top:12px;border-color:rgba(255,80,80,.4);color:#ff8080" title="Remove the currently-focused effect">✕ Remove current effect</button>
   <button id="modeRandomQuickBtn" class="dock-dd-item" title="Random mode combo">🎲 Random</button>
   <button id="modeMoreBtn" class="dock-dd-item" title="Search, thumbnails, brightness, favourites, front/back layering">⚙ All mode settings…</button>
@@ -840,27 +863,7 @@
 <div id="looksMenu" class="dock-dd">
   <button id="presetsBtn" class="dock-dd-item" title="Save or load a look">💾 Presets</button>
   <button id="randomBtn" class="dock-dd-item" title="Random mode combo">🎲 Random</button>
-  <button id="nextLookBtn" class="dock-dd-item" title="Manually trigger one change, using whatever Auto-Shuffle source is set below">⏭ Next Look</button>
-  <button id="micShuffleToggle" class="dock-dd-item" style="margin-top:8px;border-top:1px solid var(--line);padding-top:12px" title="Automatically change modes (or presets, depending on Source below) on a timer — hands-free for live sets">🔀 Auto-Shuffle: Off</button>
-  <select id="micShuffleIntervalSel" class="dock-dd-select" title="How often to change">
-    <option value="4000">Every 4 sec</option>
-    <option value="8000">Every 8 sec</option>
-    <option value="16000">Every 16 sec</option>
-    <option value="32000" selected>Every 32 sec</option>
-    <option value="64000">Every 64 sec</option>
-    <option value="change">⚡ On Sudden Change</option>
-    <option value="custom">Custom…</option>
-  </select>
-  <div class="dock-dd-slider-row" id="micShuffleCustomRow" style="display:none" title="Custom interval, in seconds">
-    <span>⏱</span>
-    <input type="number" id="micShuffleCustomSel" min="3" max="3600" step="1" value="45" style="width:70px">
-    <span id="micShuffleCustomUnit">sec</span>
-  </div>
-  <select id="micShuffleSourceSel" class="dock-dd-select" title="Where the shuffle picks modes from">
-    <option value="favorites">Source: My Favourites</option>
-    <option value="random">Source: Full Random</option>
-    <option value="presets">Source: My Presets</option>
-  </select>
+  <button id="nextLookBtn" class="dock-dd-item" title="Manually trigger one change, using whatever Auto-Shuffle source is set in the Mode menu">⏭ Next Look</button>
 </div>
 
 <div id="moreMenu" class="dock-dd">
