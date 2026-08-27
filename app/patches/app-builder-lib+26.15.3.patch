@@ -1,8 +1,8 @@
 diff --git a/node_modules/app-builder-lib/out/util/electronGet.js b/node_modules/app-builder-lib/out/util/electronGet.js
-index a941f9d..263a20c 100644
+index a941f9d..0177b72 100644
 --- a/node_modules/app-builder-lib/out/util/electronGet.js
 +++ b/node_modules/app-builder-lib/out/util/electronGet.js
-@@ -184,7 +184,28 @@ async function extractArchive(file, dir) {
+@@ -184,7 +184,37 @@ async function extractArchive(file, dir) {
              throw new Error(`Extraction of ${path.basename(file)} produced no files`);
          }
          await fs.rm(dir, { recursive: true, force: true });
@@ -16,14 +16,23 @@ index a941f9d..263a20c 100644
 +        // electron-builder version stops seeing this on CI/dev machines, this retry can be
 +        // removed (or app-builder-lib upstream may fix it: see nodejs fs.rename EPERM reports
 +        // on Windows around AV scanning of new files).
++        const MAX_RENAME_ATTEMPTS = 15;
 +        for (let attempt = 1; ; attempt++) {
 +            try {
 +                await fs.rename(tmpDir, dir);
++                if (attempt > 1) {
++                    builder_util_1.log.info({ attempt }, "rename succeeded after retry");
++                }
 +                break;
 +            }
 +            catch (err) {
-+                if (err && err.code === "EPERM" && attempt < 5) {
-+                    await new Promise(r => setTimeout(r, 200 * attempt));
++                if (err && err.code === "EPERM" && attempt < MAX_RENAME_ATTEMPTS) {
++                    // 退避上限 2s，累计约 24s。原来是 5 次 / 累计 2s，实测在这台机器上不够 ——
++                    // 构建连续两次以 EPERM 失败，而进程一退出手动执行同一个 rename 立刻成功，
++                    // 说明锁确实是瞬时的，只是持续时间超过了原来的预算。
++                    const waitMs = Math.min(2000, 250 * attempt);
++                    builder_util_1.log.warn({ attempt, waitMs }, "rename hit EPERM (likely AV scanning), retrying");
++                    await new Promise(r => setTimeout(r, waitMs));
 +                    continue;
 +                }
 +                throw err;
