@@ -20123,8 +20123,12 @@ document.getElementById('exitSaveNameIn').addEventListener('keydown', e=>{
 });
 
 /* ---------- random mode combo ---------- */
+/* 这里不关任何选单。会换 mode 的六条路径里，本来就只有这一条会去关 —— M 键循环、
+   Timing 的定时切换、载入 Look、drop-up 里点一项、大面板里选，全都不碰。
+   而这一条最常被碰到的两个入口根本没有人动手：自动轮换定时器（每 N 秒一次）和
+   「⚡ On Sudden Change」（音乐一变就触发）。于是正在 3D 选单里挑东西，选单自己没了。
+   规则统一成：只有你自己动手才会关选单（点选单外面、再按一次那个按钮、按 Esc）。 */
 function randomCombo(idxPool){
-  document.querySelectorAll('.dock-dd.show').forEach(m=>m.classList.remove('show'));
   pushUndo();
   startTransition();
   const count = 2 + Math.floor(Math.random()*6); // 2-7 modes
@@ -20144,10 +20148,7 @@ function randomCombo(idxPool){
   refreshModePanelActive();
 }
 document.getElementById('randomBtn').onclick = ()=> randomCombo();
-document.getElementById('nextLookBtn').onclick = ()=>{
-  document.querySelectorAll('.dock-dd.show').forEach(m=>m.classList.remove('show'));
-  runMicShuffleTick();
-};
+document.getElementById('nextLookBtn').onclick = ()=> runMicShuffleTick();   // 同上，不关选单
 
 /* ---------- aspect ratio: letterbox the canvas for portrait/square social video ---------- */
 const ASPECT_CYCLE = ['free','portrait','square','landscape'];
@@ -20536,15 +20537,8 @@ function buildModeMenu(){
 }
 buildModeMenu();
 setupDockDropdown('modeBtn', 'modeMenu', true);   // 唯一走真正 drop-up 的菜单
-document.getElementById('modeRandomQuickBtn').onclick = ()=>{
-  // randomCombo() 会关掉所有 drop-up（它也从 Looks 菜单和快捷键调用），但从 Mode 选单
-  // 里点的时候要留着 —— 和点单个特效一致，能连着换几次挑一个满意的
-  const menu = document.getElementById('modeMenu');
-  const wasOpen = menu.classList.contains('show');
-  randomCombo();
-  if(wasOpen) menu.classList.add('show');
-  markActiveModeInMenu();
-};
+// randomCombo() 现在不关选单了，之前那个「关掉再打开」的补丁可以去掉
+document.getElementById('modeRandomQuickBtn').onclick = ()=>{ randomCombo(); markActiveModeInMenu(); };
 document.getElementById('modeMoreBtn').onclick = ()=>{
   document.querySelectorAll('.dock-dd.show').forEach(m=>m.classList.remove('show'));
   openModePanel();
