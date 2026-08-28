@@ -324,3 +324,67 @@ test('drop-up 高度封顶在 menubar 上方的可用空间内，内容多了自
     expect(res.listColumn).toBe('column');            // 竖排一项一行，不是横向平铺
   });
 });
+
+test('「➕ Duplicate」复制出来的特效，在 drop-up 里照样标成正在用', async () => {
+  await withApp('modemenu-12', async (win) => {
+    const res = await win.evaluate(async () => {
+      const frames = n => new Promise(r => { let k = n; const t = () => (--k <= 0 ? r() : requestAnimationFrame(t)); requestAnimationFrame(t); });
+      const marked = () => [...document.querySelectorAll('#modeMenuList [data-mode-key].active')].map(el => el.dataset.modeKey);
+
+      activeModes = [MODES.indexOf('radial')]; focusModeIdx = activeModes[0];
+      refreshModePanelActive();
+      await frames(2);
+      const plain = marked();
+
+      // 复制会产生一个小数索引的独立副本（0 → 0.0001），它跑的还是同一个 mode
+      document.getElementById('modeDuplicateBtn').click();
+      await frames(3);
+      const dupIdx = activeModes.find(m => !Number.isInteger(m));
+      const bothPresent = marked();
+
+      // 只留下副本 —— 屏幕上还是 radial 在跑，drop-up 就必须还标着 radial
+      activeModes = [dupIdx]; focusModeIdx = dupIdx;
+      refreshModePanelActive();
+      await frames(3);
+
+      return { plain, dupIdx, bothPresent, dupOnly: marked(), dockBtn: document.getElementById('modeBtn').textContent };
+    });
+
+    expect(res.plain).toEqual(['radial']);
+    expect(Number.isInteger(res.dupIdx), '没有产生小数索引的副本').toBe(false);
+    expect(res.bothPresent).toEqual(['radial']);
+    // 修之前这里是 []：markActiveModeInMenu 用严格相等比 MODES.indexOf(key)，0.0001 匹配不上，
+    // 于是「我要知道现在用着什么 mode」这个 drop-up 的全部意义就没了
+    expect(res.dupOnly, 'drop-up 对复制出来的特效不标记').toEqual(['radial']);
+    expect(res.dockBtn.toLowerCase()).toContain('radial');
+  });
+});
+
+test('从 drop-up 里点 🎲 Random，选单留着继续挑，标记也跟着更新', async () => {
+  await withApp('modemenu-13', async (win) => {
+    const res = await win.evaluate(async () => {
+      const frames = n => new Promise(r => { let k = n; const t = () => (--k <= 0 ? r() : requestAnimationFrame(t)); requestAnimationFrame(t); });
+      const menu = document.getElementById('modeMenu');
+      document.getElementById('modeBtn').click();
+      await frames(2);
+      const before = { open: menu.classList.contains('show'), modes: [...activeModes] };
+
+      document.getElementById('modeRandomQuickBtn').click();
+      await frames(3);
+      const after = {
+        open: menu.classList.contains('show'),
+        modes: [...activeModes],
+        marked: document.querySelectorAll('#modeMenuList [data-mode-key].active').length
+      };
+      document.querySelectorAll('.dock-dd.show').forEach(m => m.classList.remove('show'));
+      return { before, after };
+    });
+
+    expect(res.before.open).toBe(true);
+    // randomCombo() 会把所有 drop-up 关掉（它也从别处调用），但从 Mode 选单里点的时候
+    // 应该留着 —— 和点单个特效的行为一致，能连着换几次挑一个满意的
+    expect(res.after.open, '点 Random 之后 drop-up 被关掉了').toBe(true);
+    expect(res.after.modes).not.toEqual(res.before.modes);
+    expect(res.after.marked, 'Random 之后没有任何 mode 被标成正在用').toBeGreaterThan(0);
+  });
+});

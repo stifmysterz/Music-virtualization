@@ -4826,17 +4826,31 @@ function resize(){
     if(availW/availH > ratio){ cssH = availH; cssW = availH*ratio; }
     else{ cssW = availW; cssH = availW/ratio; }
   }
+  /* 录制中画布缓冲区锁死在 4K，任何 resize 都不许动它。
+     resize() 的触发点比想象中多得多 —— 窗口变化、进出全屏，还有那个监听
+     .mode-panel / .dock-dd class 变化的 MutationObserver。于是录制途中随手打开
+     一个 dock 菜单，缓冲区就被打回窗口分辨率：实测 3840 → 开 Mode drop-up 后 1352、
+     开 Background 菜单后 1007（侧栏让位又多缩 300px），而且不会自己恢复，
+     exitRecordingResolution() 要停止录制才跑。
+     CSS 显示尺寸照常跟着走 —— 冻住的是缓冲区，不是屏幕上那块画面。 */
+  if(recordingResolutionActive){
+    syncCanvasLayers(cssW, cssH, availW, true);
+    return;
+  }
   W = cssW * DPR;
   H = cssH * DPR;
   syncCanvasLayers(cssW, cssH, availW);
   CX = W/2; CY = H/2;
 }
+/* resize() 在下面就会被立即调用一次，而 enterRecordingResolution() 那一整块在文件很后面 ——
+   这个标志必须在这里声明，否则首次 resize() 会撞上 let 的 TDZ（连 typeof 都会抛）。 */
+let recordingResolutionActive = false;
 
 /* #cv / #cvFx / #cvBack 必须始终同尺寸同位置，否则三层合成会错位。
    任何改动 W/H 的地方（resize、录制切 4K）都走这里，别再单独设 cv.width。 */
-function syncCanvasLayers(cssW, cssH, availW){
+function syncCanvasLayers(cssW, cssH, availW, cssOnly){
   [cv, cvFx, cvBack].forEach(c=>{
-    c.width = W; c.height = H;
+    if(!cssOnly){ c.width = W; c.height = H; }   // cssOnly：录制中只更新显示尺寸，4K 缓冲区不碰
     if(cssW!=null){
       c.style.width = cssW+'px'; c.style.height = cssH+'px';
       c.style.left = (availW/2)+'px';   // center within the panel-free region instead of the CSS default (50% of the full viewport)
@@ -20293,7 +20307,7 @@ function resetEffectLayoutCaches(){
   RECORDING_RESOLUTION_CACHES.forEach(arr=>{ if(arr) arr.length = 0; });
 }
 const RECORD_W = 3840, RECORD_H = 2160;
-let recordingResolutionActive = false;
+// recordingResolutionActive 在 resize() 旁边声明 —— 它要在那里就能读到，见那边的说明
 function enterRecordingResolution(){
   W = RECORD_W;
   H = RECORD_H;
@@ -20304,9 +20318,9 @@ function enterRecordingResolution(){
 }
 function exitRecordingResolution(){
   if(!recordingResolutionActive) return;
+  recordingResolutionActive = false;   // 必须先清掉，否则下面这句 resize() 会被自己的录制守卫挡回去
   resize();   // recomputes W/H/CX/CY correctly for the real on-screen size/DPR/aspect mode
   resetEffectLayoutCaches();
-  recordingResolutionActive = false;
 }
 let fileWritable = null, usingFileSystemWrite = false;
 function ensureStreamDest(){
@@ -20491,8 +20505,13 @@ function selectSingleMode(key){
   markActiveModeInMenu();
 }
 function markActiveModeInMenu(){
+  /* activeModes 里不一定都是整数：「➕ Duplicate」复制出来的副本用的是小数索引
+     （0 → 0.0001），跑的还是同一个 mode。用严格相等去比 MODES.indexOf(key) 就一个都
+     匹配不上 —— 实测复制一次之后 drop-up 里被标出来的项是 0 个，而这个 drop-up 存在的
+     全部理由就是「让我知道现在用着什么」。取整之后才对得上目录里的整数索引。 */
+  const activeBase = new Set(activeModes.map(m=>Math.floor(m)));
   document.querySelectorAll('#modeMenuList [data-mode-key]').forEach(el=>{
-    el.classList.toggle('active', activeModes.includes(MODES.indexOf(el.dataset.modeKey)));
+    el.classList.toggle('active', activeBase.has(MODES.indexOf(el.dataset.modeKey)));
   });
 }
 function buildModeMenu(){
@@ -20517,7 +20536,15 @@ function buildModeMenu(){
 }
 buildModeMenu();
 setupDockDropdown('modeBtn', 'modeMenu', true);   // 唯一走真正 drop-up 的菜单
-document.getElementById('modeRandomQuickBtn').onclick = ()=>{ randomCombo(); markActiveModeInMenu(); };
+document.getElementById('modeRandomQuickBtn').onclick = ()=>{
+  // randomCombo() 会关掉所有 drop-up（它也从 Looks 菜单和快捷键调用），但从 Mode 选单
+  // 里点的时候要留着 —— 和点单个特效一致，能连着换几次挑一个满意的
+  const menu = document.getElementById('modeMenu');
+  const wasOpen = menu.classList.contains('show');
+  randomCombo();
+  if(wasOpen) menu.classList.add('show');
+  markActiveModeInMenu();
+};
 document.getElementById('modeMoreBtn').onclick = ()=>{
   document.querySelectorAll('.dock-dd.show').forEach(m=>m.classList.remove('show'));
   openModePanel();
