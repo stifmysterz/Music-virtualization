@@ -12832,14 +12832,27 @@ const BG3D_HUE       = 46;     // 度，中高音拉满时的色相偏移上限
    于是开一下 Director 就把用户设的 3D 亮度冲掉了。现在只有这一个出口。
    基准值由亮度滑杆维护；初值保持 1，跟改动前「没碰过滑杆就没有 filter」的观感一致。 */
 let bg3DBaseBrightness = 1, bg3DBaseSaturate = 1;
-function applyBg3DFilter(mid, high, now){
+const BG3D_NO_BOUNCE = {brightness:1, blur:0, contrast:1, saturate:1};
+/* bounce 是 computeBgBounceParams() 的返回值。它算出 9 个参数，但
+   applyBgBounceToCamera() 只能吃 offX/offY/rotation/scale 四个几何量 ——
+   剩下的 brightness/blur/contrast/saturate 是画面参数，只能靠 CSS filter 落地，
+   所以在这里合成。不接的话，13 个跳动风格里有 7 个在 3D 上残废，其中虚焦脉冲、
+   暗角脉冲、饱和脉冲、反差闪光、颗粒脉冲这 5 个基本等于什么都不做
+   （实测 Bass Punch 算出 brightness 1.18，而 3D 画布上是 brightness(1)）。
+   2D 背景走 updateBgBounceDom()，那边四个一直都用上了 —— 这里补上，两种背景才一致。 */
+function applyBg3DFilter(mid, high, now, bounce){
+  const b = bounce || BG3D_NO_BOUNCE;
   // 两个互质频率叠加 —— 单一正弦是「呼吸」，叠起来才是「闪」
   const flick01 = ((Math.sin(now*0.041) + Math.sin(now*0.067)) * 0.25) + 0.5;   // 0..1
-  const brightness = bg3DBaseBrightness * (1 + high*BG3D_FLICKER*flick01) * (1 + dirDropPunch*0.6);
+  // 各路亮度是相乘不是相互覆盖：滑杆定的基准 × 跳动 × 高音闪烁 × Director 的冲击
+  const brightness = bg3DBaseBrightness * b.brightness * (1 + high*BG3D_FLICKER*flick01) * (1 + dirDropPunch*0.6);
+  const saturate = bg3DBaseSaturate * b.saturate;
   // 色相：随中高音能量给一个稳定偏移，再叠一层慢漂移，才是「在变色」而不是「换了个色」
   const hue = (mid*0.35 + high*0.65) * (BG3D_HUE*0.65 + BG3D_HUE*0.35*Math.sin(now*0.0011));   // 稳定项占大头，慢漂移只是让它一直在变，不会在谷底几乎归零
   const parts = [`brightness(${brightness.toFixed(3)})`];
-  if(bg3DBaseSaturate !== 1) parts.push(`saturate(${bg3DBaseSaturate})`);
+  if(saturate !== 1) parts.push(`saturate(${saturate.toFixed(3)})`);
+  if(b.contrast !== 1) parts.push(`contrast(${b.contrast.toFixed(3)})`);
+  if(b.blur > 0.01) parts.push(`blur(${b.blur.toFixed(2)}px)`);
   parts.push(`hue-rotate(${hue.toFixed(2)}deg)`);
   bgThreeCanvas.style.filter = parts.join(' ');
 }
@@ -12860,7 +12873,12 @@ function renderBg3D(bass, mid, high, dt){
     if(s.scene.userData.baseFogDensity===undefined) s.scene.userData.baseFogDensity = s.scene.fog.density;
     s.scene.fog.density = s.scene.userData.baseFogDensity * dirM.fogMul;
   }
-  applyBgBounceToCamera(s.camera, computeBgBounceParams(bass, mid, high, performance.now()));
+  /* 一帧只算一次 —— computeBgBounceParams() 会推进 bgBounceSpinAngle/bgBounceOrbitAngle，
+     而且 bassshake 用的是 Math.random()，算两次几何量和画面参数就对不上了。
+     几何量（offX/offY/rotation/scale）交给摄影机，画面参数（brightness/blur/contrast/
+     saturate）交给下面的 applyBg3DFilter —— 摄影机吃不下那四个。 */
+  const bounceParams = computeBgBounceParams(bass, mid, high, performance.now());
+  applyBgBounceToCamera(s.camera, bounceParams);
   s.camera.zoom *= 1 + beat*0.16 + bass*0.15 + dirDropPunch*0.6;   // beat (sharp transient, snaps to 1 then decays) drives the punch; bass alone must also be strong enough to visibly pulse tracks whose beat never crosses detectBeat()'s onset threshold — always-on, independent of the optional Bounce toggle, so every style — current and future — visibly pulses with the music
   /* 中音摇摆 + 高音闪烁/变色，见上面 BG3D_SWAY_* 那段说明。
      叠加在 applyBgBounceToCamera 刚写好的基准值之上 —— 它每帧重设 rotation.z 和
@@ -12869,7 +12887,7 @@ function renderBg3D(bass, mid, high, dt){
   const sway = Math.sin(audioNow*0.0040)*0.6 + Math.sin(audioNow*0.0026)*0.4;   // 周期约 1.6s / 2.4s，两个叠一起，摆得不呆板又看得出在跟着动
   s.camera.rotation.z += sway * mid * BG3D_SWAY_ROLL;
   s.camera.position.x += Math.sin(audioNow*0.0016) * mid * BG3D_SWAY_X;
-  applyBg3DFilter(mid, high, audioNow);
+  applyBg3DFilter(mid, high, audioNow, bounceParams);
   applyBg3DCameraMotion(s.camera, bass, mid, high, dt*bg3DSpeed);
   s.camera.updateProjectionMatrix();
   if(s.composer) s.composer.render();
