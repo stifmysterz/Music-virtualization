@@ -187,7 +187,7 @@ test('中高音驱动变色：色相随音量偏移，安静时不偏', async ()
 
 test('这一层跟风格无关：每个风格拿到的摇摆/闪烁/变色完全一样', async () => {
   await withApp('bg3dreact-4', async (win) => {
-    const res = await win.evaluate(async (h) => {
+    const probe = await win.evaluate(async (h) => {
       eval('(' + h + ')')();
       const T = window.__t;
       // 都是实测里"只看 bass，mid/high 完全不碰"的风格 —— 它们自己不会产生任何中高音反应
@@ -200,6 +200,7 @@ test('这一层跟风格无关：每个风格拿到的摇摆/闪烁/变色完全
       const saved = analyser; analyser = null;
       beat = 0;
       const out = [];
+      const loopStart = performance.now();
       for (const kind of kinds) {
         enableBg3D(kind);
         const s = bg3DScenes[kind];
@@ -215,10 +216,18 @@ test('这一层跟风格无关：每个风格拿到的摇摆/闪烁/变色完全
           hueDelta: +(T.filterVal('hue-rotate') - h0).toFixed(4)
         });
       }
+      const elapsedMs = performance.now() - loopStart;
       analyser = saved;
       disableBg3D();
-      return out;
+      /* 容差要按「这一轮真的花了多久」现算，不能写死：这一层是时间的正弦函数，
+         六次渲染之间流逝多少毫秒，各风格之间就必然差多少。而流逝时间取决于机器负载
+         —— 单独跑这个 spec 是十几毫秒，整套一起跑（机器忙）可能是几十毫秒。
+         上界 = 幅度 × 角频率 × 流逝时间，跟当时摆到哪里无关。 */
+      return { rows: out, elapsedMs: +elapsedMs.toFixed(1),
+               swayRollAmp: BG3D_SWAY_ROLL, swayOmega: 0.0040,
+               hueSlowAmp: BG3D_HUE * 0.35, hueOmega: 0.0011 };
     }, harness.toString());
+    const res = probe.rows;
 
     const spread = (key) => Math.max(...res.map(r => r[key])) - Math.min(...res.map(r => r[key]));
     /* 容差按「物理上限」给，不能按瞬时幅度的比例：
@@ -227,10 +236,14 @@ test('这一层跟风格无关：每个风格拿到的摇摆/闪烁/变色完全
        跟当时摆到哪里无关：摇摆 0.10 rad × 0.0040 rad/ms × 20ms = 0.008。
        早先按「相对瞬时幅度」给容差会偶发失败 —— 采样正好落在过零附近时瞬时幅度只有
        0.014，同样的绝对漂移换算成相对值就超标了。 */
+    const SAFETY = 2;   // 采样点之间还有别的开销，留一倍余量
+    const rollTol = probe.swayRollAmp * probe.swayOmega * probe.elapsedMs * SAFETY;
+    const hueTol  = probe.hueSlowAmp  * probe.hueOmega  * probe.elapsedMs * SAFETY;
     expect(spread('rollDelta'),
-      '各风格拿到的摇摆量不一致: ' + JSON.stringify(res.map(r => [r.kind, r.rollDelta]))).toBeLessThan(0.008);
-    // 色相的慢漂移：46×0.35 度 × 0.0011 rad/ms × 20ms ≈ 0.35 度，留一倍余量
-    expect(spread('hueDelta'), '各风格拿到的变色量不一致').toBeLessThan(0.8);
+      `各风格拿到的摇摆量不一致（这一轮花了 ${probe.elapsedMs}ms，容差 ${rollTol.toFixed(4)}）: `
+      + JSON.stringify(res.map(r => [r.kind, r.rollDelta]))).toBeLessThan(rollTol);
+    expect(spread('hueDelta'),
+      `各风格拿到的变色量不一致（这一轮花了 ${probe.elapsedMs}ms，容差 ${hueTol.toFixed(3)}°）`).toBeLessThan(hueTol);
     // 而且都必须真的不是 0 —— 变色和闪烁跟相位无关，随时都该有
     for (const r of res) {
       expect(Math.abs(r.hueDelta), `${r.kind}: 没有变色`).toBeGreaterThan(10);

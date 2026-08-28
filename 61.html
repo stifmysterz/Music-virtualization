@@ -6358,10 +6358,15 @@ function computeBgBounceParams(bass, mid, high, now){
     /* 以下三种吃的是 beat —— detectBeat() 检出的鼓点瞬态，命中即 1、之后每帧 ×0.9 衰减。
        上面 10 种没有一种用到它，只用持续能量 bass（breathe 更是只有 bass*0.04），
        所以背景只会慢慢呼吸，不会跟着鼓点砸。衰减由 beat 自己完成，这里不需要额外的包络。 */
-    case 'basspunch':     scale = 1 + beat*0.16*amt + bass*0.06*amt; brightness = 1 + beat*0.30*amt; break;
-    case 'bassshake':     offX = (Math.random()*2-1)*beat*amt*26; offY = (Math.random()*2-1)*beat*amt*26;
-                          scale = 1 + beat*0.05*amt; break;
-    case 'basszoom':      scale = 1 + beat*0.34*amt; blur = beat*amt*3; break;
+    /* 系数按 logo 的 punch 对齐过。两边的幅度滑杆是同一个范围、同一个默认值
+       （0~150，默认 60），但 logo 是 pulse = 1 + beat*amt*0.6，默认档就有 +36%，
+       而这三个原来只有 +9.3% / +20.4% / 17.6px —— 同一个滑杆位置差三四倍，
+       所以背景看起来「没什么在跳」。现在默认档和 logo、3D 背景同一个量级；
+       滑杆推到底时背景缩放约 +72%，仍比 logo 的 +90% 温和。 */
+    case 'basspunch':     scale = 1 + beat*0.50*amt + bass*0.06*amt; brightness = 1 + beat*0.65*amt; break;
+    case 'bassshake':     offX = (Math.random()*2-1)*beat*amt*44; offY = (Math.random()*2-1)*beat*amt*44;
+                          scale = 1 + beat*0.10*amt; break;
+    case 'basszoom':      scale = 1 + beat*0.60*amt; blur = beat*amt*5; break;
   }
   return {offX,offY,scale,rotation,skew,blur,brightness,contrast,saturate};
 }
