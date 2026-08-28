@@ -114,3 +114,94 @@ test.describe('构建产物', () => {
     }
   });
 });
+
+/* 小尺寸下图案要撑满图标框。
+ *
+ * 源图外面罩着一大圈很淡的光晕（alpha 8~128），铺满整张 360x360 画布；实心的耳机
+ * 其实只占 257x245，也就是七成。直接整张缩放的话，小尺寸上等于把本来就小的图案
+ * 又白白缩掉三成 —— 16px 的任务栏图标尤其吃亏。
+ * 所以生成 .ico 时先裁到实心内容再缩放。源 PNG 不动（它必须和 61.html 的 LOGO_SRC
+ * 逐字节相同，见上面那条测试），裁剪只发生在 build-icon.js 里。
+ */
+
+/** 把 .ico 里某个尺寸的 BMP32 条目解成 RGBA（BMP 是自下而上存的，这里翻正） */
+function readIcoBmp(icoBuf, wantSize) {
+  const count = icoBuf.readUInt16LE(4);
+  for (let i = 0; i < count; i++) {
+    const o = 6 + i * 16;
+    const size = icoBuf.readUInt8(o) || 256;
+    if (size !== wantSize) continue;
+    const offset = icoBuf.readUInt32LE(o + 12);
+    const headerSize = icoBuf.readUInt32LE(offset);          // BITMAPINFOHEADER = 40
+    const px = offset + headerSize;
+    const rgba = Buffer.alloc(size * size * 4);
+    for (let y = 0; y < size; y++) {
+      const srcRow = size - 1 - y;                            // bottom-up
+      for (let x = 0; x < size; x++) {
+        const s = px + (srcRow * size + x) * 4;
+        const d = (y * size + x) * 4;
+        rgba[d] = icoBuf[s + 2]; rgba[d + 1] = icoBuf[s + 1];
+        rgba[d + 2] = icoBuf[s]; rgba[d + 3] = icoBuf[s + 3];
+      }
+    }
+    return { size, rgba };
+  }
+  return null;
+}
+
+/* 「图案范围」的 alpha 门槛。不能用「完全实心」（>128）来量范围：
+   16px 下耳机那圈细线条被平均之后没有一处能到 128，量出来只剩最粗的耳罩，
+   会把「图案有多大」误报成 63%，而实际上它是撑满整个框的（>64 时是 100%）。 */
+const VISIBLE_ALPHA = 48;
+
+/** 图案范围（alpha > th 的像素）的包围盒 */
+function solidBox(rgba, size, th = VISIBLE_ALPHA) {
+  let minX = size, minY = size, maxX = -1, maxY = -1, n = 0;
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    if (rgba[(y * size + x) * 4 + 3] > th) {
+      n++;
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+  }
+  if (maxX < 0) return null;
+  return { w: maxX - minX + 1, h: maxY - minY + 1, minX, minY, maxX, maxY, count: n };
+}
+
+test('小尺寸的图案撑满图标框，不再被外圈光晕白占三成', () => {
+  const ico = fs.readFileSync(path.join(APP_DIR, 'build', 'icon.ico'));
+  for (const size of [16, 24, 32, 48, 64, 128]) {
+    const e = readIcoBmp(ico, size);
+    expect(e, `${size}px 条目读不出来`).not.toBeNull();
+    const box = solidBox(e.rgba, size);
+    expect(box, `${size}px 里一个实心像素都没有`).not.toBeNull();
+    const fill = Math.max(box.w, box.h) / size;
+    // 裁之前是 0.71（257/360）。留了 4% 边距，所以不要求到 1.0
+    expect(fill, `${size}px 的图案只占 ${(fill * 100).toFixed(0)}% 的框`).toBeGreaterThan(0.88);
+  }
+});
+
+test('裁剪是正方形的，图案没有被拉扁或拉长', () => {
+  const ico = fs.readFileSync(path.join(APP_DIR, 'build', 'icon.ico'));
+  const src = fs.readFileSync(ICON_PNG);
+  // 源图实心内容的长宽比（257x245 ≈ 1.05）—— 裁剪只能平移和缩放，不能改这个比例
+  const e = readIcoBmp(ico, 128);
+  const box = solidBox(e.rgba, 128, 128);   // 128px 够大，用「完全实心」量比例更准
+  const aspect = box.w / box.h;
+  expect(aspect, `128px 里图案的长宽比是 ${aspect.toFixed(3)}，源图是约 1.05`).toBeGreaterThan(0.95);
+  expect(aspect).toBeLessThan(1.15);
+  expect(src.length).toBeGreaterThan(0);
+});
+
+test('图案居中，没有被裁掉一边', () => {
+  const ico = fs.readFileSync(path.join(APP_DIR, 'build', 'icon.ico'));
+  for (const size of [32, 64, 128]) {
+    const e = readIcoBmp(ico, size);
+    const box = solidBox(e.rgba, size);
+    const leftGap = box.minX, rightGap = size - 1 - box.maxX;
+    const topGap = box.minY, bottomGap = size - 1 - box.maxY;
+    // 左右、上下的留白应该差不多；差太多说明裁偏了
+    expect(Math.abs(leftGap - rightGap), `${size}px 左右不对称: 左${leftGap} 右${rightGap}`).toBeLessThanOrEqual(Math.max(2, size * 0.06));
+    expect(Math.abs(topGap - bottomGap), `${size}px 上下不对称: 上${topGap} 下${bottomGap}`).toBeLessThanOrEqual(Math.max(2, size * 0.06));
+  }
+});
