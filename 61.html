@@ -12801,6 +12801,49 @@ function bg3DDirectorMultipliers(){
   return { bassMul:1, speedMul:1, fogMul:1 };
 }
 let bg3DSpeed = 1;   // global playback-speed multiplier, applies uniformly since every style scales its own animation by dt
+
+/* ---------- 中音 / 高音的全局表现 ----------
+   实测过 119 个 3D 风格的 update(bass, mid, high, dt) 各自引用了哪几个频段：
+       完全不看音频             0 个
+       只看 bass，mid/high 全扔  93 个（78%）
+       没用到 mid               94 个
+       没用到 high             114 个（96%）
+       三个频段都用到             4 个
+   mid/high 每帧都算好、每帧都传进去，然后被 93 个风格直接扔掉 —— 中高音在画面上等于不存在。
+   连 bass 也常常很轻：27 个风格只碰一次，例如樱花是
+       arr[i*3+1] -= (0.03 + fall[i]*0.06 + bass*0.05)*dt
+   低音拉满只是花瓣飘快一点，不是跳动。
+
+   而唯一对所有风格都生效的那一层（下面那句 camera.zoom *= 1 + beat*0.16 + bass*0.15）
+   只有 bass/beat，表现形式也只有「整体缩放」一种。
+
+   所以补在这一层：改一处，119 个风格全部受益，且完全不碰任何风格的内部逻辑，
+   不会把现有观感改坏。
+       中音  → 摇摆（摄影机滚转 + 横向摆动）
+       高音  → 闪烁（亮度快速起伏）
+       中+高 → 变色（色相偏移，带慢速漂移） */
+const BG3D_SWAY_ROLL = 0.10;   // rad，中音拉满时的滚转幅度（约 ±5.7°）
+const BG3D_SWAY_X    = 2.4;    // 场景单位，中音拉满时的横向摆幅
+const BG3D_FLICKER   = 0.30;   // 高音拉满时亮度起伏的上限（只提亮，不压暗）
+const BG3D_HUE       = 46;     // 度，中高音拉满时的色相偏移上限
+
+/* #bgThree 的 CSS filter 从这里统一出去。原来有三个写入者互相覆盖 ——
+   背景亮度滑杆写一次、Director 每帧写一次、Director 关掉时又清空一次，
+   于是开一下 Director 就把用户设的 3D 亮度冲掉了。现在只有这一个出口。
+   基准值由亮度滑杆维护；初值保持 1，跟改动前「没碰过滑杆就没有 filter」的观感一致。 */
+let bg3DBaseBrightness = 1, bg3DBaseSaturate = 1;
+function applyBg3DFilter(mid, high, now){
+  // 两个互质频率叠加 —— 单一正弦是「呼吸」，叠起来才是「闪」
+  const flick01 = ((Math.sin(now*0.041) + Math.sin(now*0.067)) * 0.25) + 0.5;   // 0..1
+  const brightness = bg3DBaseBrightness * (1 + high*BG3D_FLICKER*flick01) * (1 + dirDropPunch*0.6);
+  // 色相：随中高音能量给一个稳定偏移，再叠一层慢漂移，才是「在变色」而不是「换了个色」
+  const hue = (mid*0.35 + high*0.65) * (BG3D_HUE*0.65 + BG3D_HUE*0.35*Math.sin(now*0.0011));   // 稳定项占大头，慢漂移只是让它一直在变，不会在谷底几乎归零
+  const parts = [`brightness(${brightness.toFixed(3)})`];
+  if(bg3DBaseSaturate !== 1) parts.push(`saturate(${bg3DBaseSaturate})`);
+  parts.push(`hue-rotate(${hue.toFixed(2)}deg)`);
+  bgThreeCanvas.style.filter = parts.join(' ');
+}
+
 function renderBg3D(bass, mid, high, dt){
   if(!hasBg3D || !bg3DKind || !bg3DScenes[bg3DKind]) return;
   const s = bg3DScenes[bg3DKind];
@@ -12819,14 +12862,19 @@ function renderBg3D(bass, mid, high, dt){
   }
   applyBgBounceToCamera(s.camera, computeBgBounceParams(bass, mid, high, performance.now()));
   s.camera.zoom *= 1 + beat*0.16 + bass*0.15 + dirDropPunch*0.6;   // beat (sharp transient, snaps to 1 then decays) drives the punch; bass alone must also be strong enough to visibly pulse tracks whose beat never crosses detectBeat()'s onset threshold — always-on, independent of the optional Bounce toggle, so every style — current and future — visibly pulses with the music
+  /* 中音摇摆 + 高音闪烁/变色，见上面 BG3D_SWAY_* 那段说明。
+     叠加在 applyBgBounceToCamera 刚写好的基准值之上 —— 它每帧重设 rotation.z 和
+     position.x，所以这里是叠加，不会一帧一帧累积上去。 */
+  const audioNow = performance.now();
+  const sway = Math.sin(audioNow*0.0040)*0.6 + Math.sin(audioNow*0.0026)*0.4;   // 周期约 1.6s / 2.4s，两个叠一起，摆得不呆板又看得出在跟着动
+  s.camera.rotation.z += sway * mid * BG3D_SWAY_ROLL;
+  s.camera.position.x += Math.sin(audioNow*0.0016) * mid * BG3D_SWAY_X;
+  applyBg3DFilter(mid, high, audioNow);
   applyBg3DCameraMotion(s.camera, bass, mid, high, dt*bg3DSpeed);
   s.camera.updateProjectionMatrix();
   if(s.composer) s.composer.render();
   else bg3DRenderer.render(s.scene, s.camera);
-  if(bg3DDirectorOn){
-    dirDropPunch *= 0.9;
-    bgThreeCanvas.style.filter = dirDropPunch>0.01 ? `brightness(${1+dirDropPunch*0.6})` : '';
-  }
+  if(bg3DDirectorOn) dirDropPunch *= 0.9;   // 它的亮度冲击由 applyBg3DFilter 一并合成，不再单独改写 filter
 }
 let bg3DVisible = true;
 function enableBg3D(kind){
@@ -12849,6 +12897,7 @@ function disableBg3D(){
   hasBg3D = false;
   bg3DKind = null;
   bgThreeCanvas.style.display = 'none';
+  bgThreeCanvas.style.filter = '';   // 别把最后一帧的闪烁/变色留在画布上
 }
 
 function loadBgVideo(src){
@@ -21893,7 +21942,9 @@ document.getElementById('bgOpacitySel').addEventListener('input', e=>{
   const f = `brightness(${pct}%) saturate(1.15)`;
   bgImageEl.style.filter = f;
   bgVideoEl.style.filter = f;
-  bgThreeCanvas.style.filter = f;
+  // 3D 那边不直接写 filter —— 只记下基准，由 applyBg3DFilter() 跟闪烁/变色/Director 一起合成
+  bg3DBaseBrightness = parseFloat(pct)/100;
+  bg3DBaseSaturate = 1.15;
 });
 document.getElementById('bg3DSpeedSel').addEventListener('input', e=>{
   bg3DSpeed = parseFloat(e.target.value)/100;
@@ -22233,7 +22284,7 @@ document.getElementById('bg3DDirectorBtn').onclick = ()=>{
   if(!bg3DDirectorOn){
     bg3DDirectorPhase = 'normal';
     dirShortHist = []; dirLongHist = []; dirDropPunch = 0;
-    bgThreeCanvas.style.filter = '';
+    // 不再清空 filter —— 那会把亮度滑杆的设置一起抹掉。punch 归零后 applyBg3DFilter 自然就不亮了
   }
   syncBg3DDirectorBtn();
 };
