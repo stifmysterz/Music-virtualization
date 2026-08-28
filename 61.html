@@ -6107,6 +6107,12 @@ function detectBeat(now){
   const dtMs = (beatPrevNow==null) ? 16.7 : Math.min(100, Math.max(1, t - beatPrevNow));
   beatPrevNow = t;
 
+  /* 衰减必须在判定「之前」——先把上一帧的余量衰掉，这一帧才轮到判定。
+     原来是判定完 beat=1、然后在同一次调用的末尾衰减，于是 beat 永远到不了 1，
+     实测峰值只有 0.72。后果：beatTunnel 里的 if(beat >= 0.999) 是死代码，那个特效的
+     「按拍前进」从没跑过；所有 beat 驱动的幅度也都少了 28%。 */
+  beat *= Math.pow(BEAT_DECAY_PER_FRAME, dtMs/16.7);
+
   if(manualBPM && manualBPM>0 && now!=null){
     const interval = 60000/manualBPM;
     if(bpmNextBeatAt==null) bpmNextBeatAt = now + interval;
@@ -6126,8 +6132,6 @@ function detectBeat(now){
     }
   }
   prevBeatEnergy = e;
-  // 按真实时间衰减。原来的 beat *= 0.9 是按帧的，120Hz 屏上尾巴只有 60Hz 的一半长
-  beat *= Math.pow(BEAT_DECAY_PER_FRAME, dtMs/16.7);
   return e/255;
 }
 
@@ -12822,6 +12826,18 @@ let bg3DSpeed = 1;   // global playback-speed multiplier, applies uniformly sinc
        中音  → 摇摆（摄影机滚转 + 横向摆动）
        高音  → 闪烁（亮度快速起伏）
        中+高 → 变色（色相偏移，带慢速漂移） */
+/* ---------- 每一粒低音都砸一下 ----------
+   跟上面的中音摇摆/高音闪烁并列，也是所有风格共用的那一层。
+   为什么不能指望风格自己：传给它们的 pulsedBass = min(1, bass + beat*0.4) 在压满的
+   曲子上是直流 —— 实测 lastBass 峰峰 0.206，加上 beat*0.4 之后还是 0.206，
+   瞬态被 min(1,…) 的天花板整个吞掉。改 pulsedBass 的语义会动到全部 119 个风格的
+   既有观感，所以不动它，在这里补一条独立的冲击。
+   自带包络而不是直接用 beat：beat 每帧 ×0.72，约 67ms 就衰到 0.27，看起来是抖不是砸。 */
+const BG3D_HIT_DECAY = 0.86;   // 每 16.7ms 衰到 86% —— 约 130ms 一粒，粒粒分明又看得清
+const BG3D_HIT_ZOOM  = 0.22;   // 砸下去时额外推近多少
+const BG3D_HIT_FLASH = 0.34;   // 砸下去时额外提亮多少
+let bg3DHit = 0;
+
 const BG3D_SWAY_ROLL = 0.10;   // rad，中音拉满时的滚转幅度（约 ±5.7°）
 const BG3D_SWAY_X    = 2.4;    // 场景单位，中音拉满时的横向摆幅
 const BG3D_FLICKER   = 0.30;   // 高音拉满时亮度起伏的上限（只提亮，不压暗）
@@ -12845,7 +12861,8 @@ function applyBg3DFilter(mid, high, now, bounce){
   // 两个互质频率叠加 —— 单一正弦是「呼吸」，叠起来才是「闪」
   const flick01 = ((Math.sin(now*0.041) + Math.sin(now*0.067)) * 0.25) + 0.5;   // 0..1
   // 各路亮度是相乘不是相互覆盖：滑杆定的基准 × 跳动 × 高音闪烁 × Director 的冲击
-  const brightness = bg3DBaseBrightness * b.brightness * (1 + high*BG3D_FLICKER*flick01) * (1 + dirDropPunch*0.6);
+  const brightness = bg3DBaseBrightness * b.brightness * (1 + high*BG3D_FLICKER*flick01)
+                     * (1 + bg3DHit*BG3D_HIT_FLASH) * (1 + dirDropPunch*0.6);
   const saturate = bg3DBaseSaturate * b.saturate;
   // 色相：随中高音能量给一个稳定偏移，再叠一层慢漂移，才是「在变色」而不是「换了个色」
   const hue = (mid*0.35 + high*0.65) * (BG3D_HUE*0.65 + BG3D_HUE*0.35*Math.sin(now*0.0011));   // 稳定项占大头，慢漂移只是让它一直在变，不会在谷底几乎归零
@@ -12879,7 +12896,10 @@ function renderBg3D(bass, mid, high, dt){
      saturate）交给下面的 applyBg3DFilter —— 摄影机吃不下那四个。 */
   const bounceParams = computeBgBounceParams(bass, mid, high, performance.now());
   applyBgBounceToCamera(s.camera, bounceParams);
-  s.camera.zoom *= 1 + beat*0.16 + bass*0.15 + dirDropPunch*0.6;   // beat (sharp transient, snaps to 1 then decays) drives the punch; bass alone must also be strong enough to visibly pulse tracks whose beat never crosses detectBeat()'s onset threshold — always-on, independent of the optional Bounce toggle, so every style — current and future — visibly pulses with the music
+  /* 每一粒的冲击。dt 的单位就是「16.7ms 一帧」，所以可以直接当指数用。
+     取 max 而不是累加 —— 累加的话连续鼓点会一粒比一粒高，最后连成一片。 */
+  bg3DHit = Math.max(bg3DHit * Math.pow(BG3D_HIT_DECAY, dt), beat >= 0.999 ? 1 : 0);
+  s.camera.zoom *= 1 + beat*0.16 + bass*0.15 + bg3DHit*BG3D_HIT_ZOOM + dirDropPunch*0.6;   // beat (sharp transient, snaps to 1 then decays) drives the punch; bass alone must also be strong enough to visibly pulse tracks whose beat never crosses detectBeat()'s onset threshold — always-on, independent of the optional Bounce toggle, so every style — current and future — visibly pulses with the music
   /* 中音摇摆 + 高音闪烁/变色，见上面 BG3D_SWAY_* 那段说明。
      叠加在 applyBgBounceToCamera 刚写好的基准值之上 —— 它每帧重设 rotation.z 和
      position.x，所以这里是叠加，不会一帧一帧累积上去。 */

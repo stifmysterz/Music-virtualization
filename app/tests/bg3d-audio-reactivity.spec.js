@@ -221,13 +221,16 @@ test('这一层跟风格无关：每个风格拿到的摇摆/闪烁/变色完全
     }, harness.toString());
 
     const spread = (key) => Math.max(...res.map(r => r[key])) - Math.min(...res.map(r => r[key]));
-    const meanAbs = (key) => res.reduce((a, r) => a + Math.abs(r[key]), 0) / res.length;
-    /* 容差按相对值给，不能按绝对值：六次渲染是真的在跑 WebGL，中间会流逝几毫秒，
-       而摇摆是 1.6 秒周期的正弦，几毫秒就够让它漂个千分之几。
-       要证明的是"六个风格拿到的是同一个量"，所以比的是离散程度相对幅度的比例。 */
-    expect(spread('rollDelta') / meanAbs('rollDelta'),
-      '各风格拿到的摇摆量不一致: ' + JSON.stringify(res.map(r => [r.kind, r.rollDelta]))).toBeLessThan(0.15);
-    expect(spread('hueDelta') / meanAbs('hueDelta'), '各风格拿到的变色量不一致').toBeLessThan(0.15);
+    /* 容差按「物理上限」给，不能按瞬时幅度的比例：
+       六次渲染是真的在跑 WebGL，中间会流逝十几毫秒，而这一层是时间的正弦函数，
+       所以各风格之间必然有一点漂移。漂移量的上界 = 幅度 × 角频率 × 流逝时间，
+       跟当时摆到哪里无关：摇摆 0.10 rad × 0.0040 rad/ms × 20ms = 0.008。
+       早先按「相对瞬时幅度」给容差会偶发失败 —— 采样正好落在过零附近时瞬时幅度只有
+       0.014，同样的绝对漂移换算成相对值就超标了。 */
+    expect(spread('rollDelta'),
+      '各风格拿到的摇摆量不一致: ' + JSON.stringify(res.map(r => [r.kind, r.rollDelta]))).toBeLessThan(0.008);
+    // 色相的慢漂移：46×0.35 度 × 0.0011 rad/ms × 20ms ≈ 0.35 度，留一倍余量
+    expect(spread('hueDelta'), '各风格拿到的变色量不一致').toBeLessThan(0.8);
     // 而且都必须真的不是 0 —— 变色和闪烁跟相位无关，随时都该有
     for (const r of res) {
       expect(Math.abs(r.hueDelta), `${r.kind}: 没有变色`).toBeGreaterThan(10);

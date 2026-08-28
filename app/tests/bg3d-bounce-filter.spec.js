@@ -156,7 +156,8 @@ test('跟高音闪烁、亮度滑杆、Director 叠在一起而不是互相覆�
       const base = R();                       // 只有滑杆的 50%
 
       beat = 1; renderBg3D(1, 0, 0, 1);
-      const withPunch = R();                  // 滑杆 × 鼓点亮度
+      const withPunch = R();                  // 滑杆 × 跳动亮度 × 每粒闪光
+      const hitAmount = bg3DHit;              // 每粒闪光这一路的当前强度，用来算期望值
 
       beat = 1; renderBg3D(1, 0, 1, 1);
       const withPunchAndHigh = R();           // 再叠高音闪烁
@@ -166,13 +167,15 @@ test('跟高音闪烁、亮度滑杆、Director 叠在一起而不是互相覆�
       renderBg3D(1, 0, 0, 1);
       const satCombined = R();
 
-      return { base, withPunch, withPunchAndHigh, satCombined };
+      return { base, withPunch, withPunchAndHigh, satCombined, hitAmount: +hitAmount.toFixed(4) };
     }, bounceProbe.toString());
 
     expect(res.base.brightness, '亮度滑杆的 50% 没生效').toBeCloseTo(0.5, 2);
-    // 0.5 × 1.3 = 0.65：两者相乘，不是谁把谁顶掉
-    expect(res.withPunch.brightness, '鼓点亮度没有和滑杆相乘').toBeGreaterThan(0.6);
-    expect(res.withPunch.brightness).toBeLessThan(0.7);
+    /* 各路是相乘，不是谁把谁顶掉。这里按各路的实际强度算期望值，而不是钉一个数字上限
+       —— 钉数字的话，以后往这个 filter 上再加一路（就像"每一粒砸一下"那次）就会
+       假报回归。三路分别是：滑杆 0.5 × Bass Punch 的 1+beat*0.30*amt × 每粒闪光的 1+hit*0.34 */
+    const expected = 0.5 * (1 + 1 * 0.30 * 1) * (1 + res.hitAmount * 0.34);
+    expect(res.withPunch.brightness, `各路亮度没有相乘（期望约 ${expected.toFixed(3)}）`).toBeCloseTo(expected, 2);
     expect(res.withPunchAndHigh.brightness, '高音闪烁没有再叠上去').toBeGreaterThan(res.withPunch.brightness);
     // 滑杆的 1.15 × 跳动的 1.9 ≈ 2.18
     expect(res.satCombined.saturate, '滑杆饱和度和跳动饱和度没有相乘').toBeGreaterThan(2);
