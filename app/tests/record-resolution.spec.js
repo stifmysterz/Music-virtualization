@@ -66,21 +66,22 @@ test('录制分辨率生效期间，打开 dock 菜单不会把画布打回窗�
       await frames(3);
       const afterExit = snap();
 
-      return { atStart, afterModeMenu, afterModeClose, afterBgMenu, afterWindowResize, afterExit, RECORD_W };
+      // 录制分辨率现在可选 4K/1440p/1080p，宽度从 recordDims() 取（原来是 RECORD_W 常量）
+      return { atStart, afterModeMenu, afterModeClose, afterBgMenu, afterWindowResize, afterExit, recordW: recordDims()[0] };
     });
 
-    expect(res.atStart.cv).toBe(res.RECORD_W);
+    expect(res.atStart.cv).toBe(res.recordW);
     for (const [label, s] of [['打开 Mode drop-up', res.afterModeMenu],
                               ['关掉 Mode drop-up', res.afterModeClose],
                               ['打开 Background 菜单', res.afterBgMenu],
                               ['窗口 resize', res.afterWindowResize]]) {
-      expect(s.cv,     `${label} 之后 #cv 掉出 4K`).toBe(res.RECORD_W);
-      expect(s.cvFx,   `${label} 之后 #cvFx 掉出 4K`).toBe(res.RECORD_W);
-      expect(s.cvBack, `${label} 之后 #cvBack 掉出 4K`).toBe(res.RECORD_W);
-      expect(s.W,      `${label} 之后 W 掉出 4K`).toBe(res.RECORD_W);
+      expect(s.cv,     `${label} 之后 #cv 掉出 4K`).toBe(res.recordW);
+      expect(s.cvFx,   `${label} 之后 #cvFx 掉出 4K`).toBe(res.recordW);
+      expect(s.cvBack, `${label} 之后 #cvBack 掉出 4K`).toBe(res.recordW);
+      expect(s.W,      `${label} 之后 W 掉出 4K`).toBe(res.recordW);
     }
     // 停止录制之后要老老实实回到窗口分辨率
-    expect(res.afterExit.cv).toBeLessThan(res.RECORD_W);
+    expect(res.afterExit.cv).toBeLessThan(res.recordW);
     expect(res.afterExit.cv).toBeGreaterThan(300);
   });
 });
