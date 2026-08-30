@@ -126,6 +126,38 @@ test('dock 上的 🌀 VJ 按钮能开合菜单，点一项就切过去', async 
   });
 });
 
+test('🎲 Random 3D 和 Auto-Shuffle 不会自己切到 VJ 隧道上', async () => {
+  test.setTimeout(180_000);
+  await withApp('vj-random', async (win) => {
+    /* VJ loop 是从 🌀 VJ 菜单主动挑的，不该在 3D 背景轮换时冒出来。
+       randomBg3D() 是 🎲 Random 3D、菜单里的 🎲 Random 和 Auto-Shuffle 三者
+       共用的唯一随机来源（Auto-Shuffle 的 setInterval 直接调它），所以测它就够。 */
+    const res = await win.evaluate((kinds) => {
+      const seen = new Set();
+      for (let i = 0; i < 400; i++) { randomBg3D(); seen.add(bg3DKind); }
+      return {
+        hitVj: [...seen].filter(k => kinds.includes(k)),
+        distinct: seen.size,
+        allInCatalog: [...seen].every(k => BG3D_ORDER.includes(k)),
+        shuffleUsesRandom: String(startBg3DShuffleTimer).includes('randomBg3D'),
+      };
+    }, KINDS);
+    expect(res.hitVj, '3D 随机切到了 VJ 隧道上').toEqual([]);
+    expect(res.allInCatalog, '随机到了 BG3D_CATALOG 之外的东西').toBe(true);
+    expect(res.distinct, '400 次只转出这么几个，随机池可能被缩没了').toBeGreaterThan(30);
+    expect(res.shuffleUsesRandom, 'Auto-Shuffle 不再走 randomBg3D 了，这条测试覆盖不到它').toBe(true);
+
+    // 反过来：VJ 菜单自己的 🎲 只在 VJ 池里挑
+    const vjOnly = await win.evaluate((kinds) => {
+      const seen = new Set();
+      for (let i = 0; i < 120; i++) { document.getElementById('vjRandomBtn').click(); seen.add(bg3DKind); }
+      return { seen: [...seen], allVj: [...seen].every(k => kinds.includes(k)) };
+    }, KINDS);
+    expect(vjOnly.allVj, 'VJ 菜单的随机跑到 VJ 之外去了').toBe(true);
+    expect(vjOnly.seen.length, 'VJ 随机只转出这么几个').toBeGreaterThan(5);
+  });
+});
+
 test('每个隧道都画得出鲜艳的画面，而且元素是从后面往镜头飞', async () => {
   test.setTimeout(180_000);
   await withApp('vj-motion', async (win) => {

@@ -688,7 +688,7 @@
   <button id="liveMicBtn" class="dock-dd-item" title="Toggle the microphone">🎤 Mic</button>
   <button id="liveShuffleBtn" class="dock-dd-item" title="Toggle Auto-Shuffle">🔀 Shuffle</button>
   <button id="liveRandomBtn" class="dock-dd-item" title="Random mode combo">🎲 Random</button>
-  <button id="liveRandom3DBtn" class="dock-dd-item" title="Randomly pick one of the 3D background styles">🎲 Random 3D</button>
+  <button id="liveRandom3DBtn" class="dock-dd-item" title="Randomly pick one of the 3D background styles (not the VJ loop tunnels — those are picked from the VJ menu)">🎲 Random 3D</button>
   <button id="liveUndoBtn" class="dock-dd-item" title="Undo (Ctrl+Z)">↶ Undo</button>
   <button id="liveRecordBtn" class="dock-dd-item" title="Record screen + audio">⏺ Record</button>
   <div class="dock-dd-slider-row" title="How strongly ALL modes react to the music">
@@ -831,9 +831,9 @@
   <div id="bg3DMenuList"></div>
   <!-- bg3DMenuList is populated by buildBg3DMenu() — see BG3D_CATALOG in the script -->
 
-  <button id="bg3DRandomBtn" class="dock-dd-item" style="margin-top:8px;border-top:1px solid var(--line);padding-top:12px" title="Switch to a random 3D background style">🎲 Random</button>
+  <button id="bg3DRandomBtn" class="dock-dd-item" style="margin-top:8px;border-top:1px solid var(--line);padding-top:12px" title="Switch to a random 3D background style (not the VJ loop tunnels)">🎲 Random</button>
   <button id="bg3DNextBtn" class="dock-dd-item" title="Switch to the next 3D background style, in menu order">⏭ Next</button>
-  <button id="bg3DShuffleToggle" class="dock-dd-item" title="Automatically switch to a random 3D background style on a timer">🔀 Auto-Shuffle: Off</button>
+  <button id="bg3DShuffleToggle" class="dock-dd-item" title="Automatically switch to a random 3D background style on a timer (not the VJ loop tunnels)">🔀 Auto-Shuffle: Off</button>
   <select id="bg3DShuffleIntervalSel" class="dock-dd-select" title="How often to change">
     <option value="4000">Every 4 sec</option>
     <option value="8000">Every 8 sec</option>
@@ -22984,10 +22984,15 @@ function randomBg3D(){
   pushUndo();
   // prefer a different category than the current style, not just a different exact style —
   // otherwise Random can keep landing on near-identical neighbors (two particle variants back to back, etc.)
+  /* 池子取 BG3D_ORDER（= BG3D_CATALOG 里的全部），不是 Object.keys(BG3D_BUILDERS)。
+     差别在 🌀 VJ 那十个隧道：它们注册在 BG3D_BUILDERS 里，但不进 BG3D_CATALOG，
+     所以 Random / Auto-Shuffle 不会自己切过去 —— VJ loop 是从 🌀 VJ 菜单主动挑的，
+     不该在 3D 背景轮换时冒出来。这也跟 nextBg3D() 一致，它一直用的就是 BG3D_ORDER。
+     存过的 Look、排程、预设下拉里选的 VJ 仍然照常恢复 —— 那些是使用者明确指定的。 */
   const currentCat = BG3D_CATALOG.find(g => g.kinds.includes(bg3DKind));
-  let pool = Object.keys(BG3D_BUILDERS).filter(k => !currentCat || !currentCat.kinds.includes(k));
-  if(!pool.length) pool = Object.keys(BG3D_BUILDERS).filter(k=>k!==bg3DKind);
-  if(!pool.length) pool = Object.keys(BG3D_BUILDERS);
+  let pool = BG3D_ORDER.filter(k => !currentCat || !currentCat.kinds.includes(k));
+  if(!pool.length) pool = BG3D_ORDER.filter(k=>k!==bg3DKind);
+  if(!pool.length) pool = BG3D_ORDER;
   enableBg3D(pool[Math.floor(Math.random()*pool.length)]);
 }
 document.getElementById('liveRandom3DBtn').onclick = ()=>{
