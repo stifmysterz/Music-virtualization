@@ -5334,6 +5334,29 @@ const UI_STRINGS = {
     bg3DVjKaleidoBtn:"🔮 Kaleido Tunnel",
     bg3DVjChromeTubeBtn:"🪞 Liquid Chrome",
     bg3DVjCubeMatrixBtn:"🧊 Cube Matrix",
+    /* 第二批 20 个，风格分别照着 LuChrome / LiquidGrids / CyborgSpace /
+       AntiGravityRacing / CreatureFeature / Void / AIRealms / NeonRoom /
+       Voyage / TheNextDimension / LunaPark 这些素材包来 */
+    bg3DVjChromeFlowBtn:"🪞 Chrome Flow",
+    bg3DVjMetalTwistBtn:"🎗 Metal Twist",
+    bg3DVjGridMorphBtn:"🧱 Grid Morph",
+    bg3DVjFractalWellBtn:"🕳 Fractal Well",
+    bg3DVjCyborgCorridorBtn:"🤖 Cyborg Corridor",
+    bg3DVjRaceTrackBtn:"🏁 Race Track",
+    bg3DVjSpeedGatesBtn:"🚦 Speed Gates",
+    bg3DVjHoverCityBtn:"🏙 Hover City",
+    bg3DVjTentacleTunnelBtn:"🦑 Tentacle Tunnel",
+    bg3DVjBioMembraneBtn:"🧬 Bio Membrane",
+    bg3DVjVoidNebulaBtn:"🌌 Void Nebula",
+    bg3DVjEventHorizonBtn:"🕳 Event Horizon",
+    bg3DVjCandyOrbsBtn:"🍬 Candy Orbs",
+    bg3DVjDataBloomBtn:"🌸 Data Bloom",
+    bg3DVjNeonTubeRoomBtn:"💡 Neon Tube Room",
+    bg3DVjNeonArchesBtn:"🌈 Neon Arches",
+    bg3DVjHorizonVoyageBtn:"🌅 Horizon Voyage",
+    bg3DVjLightWellBtn:"🔆 Light Well",
+    bg3DVjHyperCubeBtn:"⬡ Hyper Cube",
+    bg3DVjCoasterRushBtn:"🎢 Coaster Rush",
     bg3DCatNeon:"🌈 Neon",
     bg3DCatGeometric:"🔺 Geometric",
     bg3DCatArchitecture:"🏛 Architecture",
@@ -5582,6 +5605,29 @@ const UI_STRINGS = {
     bg3DVjKaleidoBtn:"🔮 万花筒隧道",
     bg3DVjChromeTubeBtn:"🪞 液态铬管",
     bg3DVjCubeMatrixBtn:"🧊 立方矩阵",
+    /* 第二批 20 个，风格分别照着 LuChrome / LiquidGrids / CyborgSpace /
+       AntiGravityRacing / CreatureFeature / Void / AIRealms / NeonRoom /
+       Voyage / TheNextDimension / LunaPark 这些素材包来 */
+    bg3DVjChromeFlowBtn:"🪞 液态铬流",
+    bg3DVjMetalTwistBtn:"🎗 金属扭带",
+    bg3DVjGridMorphBtn:"🧱 网格形变",
+    bg3DVjFractalWellBtn:"🕳 分形网格井",
+    bg3DVjCyborgCorridorBtn:"🤖 赛博走廊",
+    bg3DVjRaceTrackBtn:"🏁 竞速跑道",
+    bg3DVjSpeedGatesBtn:"🚦 加速门",
+    bg3DVjHoverCityBtn:"🏙 悬浮城市",
+    bg3DVjTentacleTunnelBtn:"🦑 触手隧道",
+    bg3DVjBioMembraneBtn:"🧬 生物膜",
+    bg3DVjVoidNebulaBtn:"🌌 虚空星云",
+    bg3DVjEventHorizonBtn:"🕳 事件视界",
+    bg3DVjCandyOrbsBtn:"🍬 糖果球群",
+    bg3DVjDataBloomBtn:"🌸 数据绽放",
+    bg3DVjNeonTubeRoomBtn:"💡 霓虹灯管房",
+    bg3DVjNeonArchesBtn:"🌈 霓虹拱廊",
+    bg3DVjHorizonVoyageBtn:"🌅 地平线航行",
+    bg3DVjLightWellBtn:"🔆 光井",
+    bg3DVjHyperCubeBtn:"⬡ 超立方折叠",
+    bg3DVjCoasterRushBtn:"🎢 过山车冲刺",
     bg3DCatNeon:"🌈 霓虹",
     bg3DCatGeometric:"🔺 几何",
     bg3DCatArchitecture:"🏛 建筑",
@@ -12826,13 +12872,19 @@ function buildBg3DVjLiquidGrid(){
   scene.fog = new THREE.FogExp2(0x04000c, 0.0115);
   const camera = new THREE.PerspectiveCamera(80, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
 
-  const RINGS=46, SEG=48, RAILS=16, R=17, SPACING=VJ_LEN/RINGS;
+  const RINGS=46, SEG=64, RAILS=24, R=17, SPACING=VJ_LEN/RINGS;   // 段数和纵向格线都加密：线框在投影上本来就薄，靠密度补
   const VERTS = (RINGS*SEG + RAILS*(RINGS-1))*2;
   const pos = vjDynAttr(VERTS,3), col = vjDynAttr(VERTS,3);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', pos); geo.setAttribute('color', col);
   const mat = new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false });
   scene.add(new THREE.LineSegments(geo, mat));
+  /* 体积层：沿网格的交点撒实体小块。WebGL 里 LineBasicMaterial 的 linewidth
+     是无效的，线永远只有 1px，所以「加粗」只能靠在同样的位置补实体。 */
+  const NODE_RINGS = 24, NODE_PER = 20, NODES = NODE_RINGS*NODE_PER, NODE_SP = VJ_LEN/NODE_RINGS;
+  const nodes = new THREE.InstancedMesh(new THREE.BoxGeometry(1.15,1.15,1.15), vjSolidMat(1), NODES);
+  nodes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(nodes);
 
   const P = pos.array, C = col.array, tmp = {x:0,y:0}, c3 = new THREE.Color();
   let scroll=0, clock=0;
@@ -12878,6 +12930,20 @@ function buildBg3DVjLiquidGrid(){
       }
     }
     pos.needsUpdate = true; col.needsUpdate = true;
+    const nOff = scroll % NODE_SP;
+    for(let i=0;i<NODE_RINGS;i++){
+      const nz = -i*NODE_SP + nOff - NODE_SP, nwz = i*NODE_SP - scroll;
+      for(let j=0;j<NODE_PER;j++){
+        const th = (j/NODE_PER)*Math.PI*2;
+        vjSuperXY(th, radiusAt(th, nwz, liquid), 4, tmp);
+        const idx = i*NODE_PER+j;
+        const k = 1 + bass*0.7;
+        vjPut(nodes, idx, tmp.x, tmp.y, nz, 0, 0, th, k, k, k);
+        VJ_C.setHSL(((-nwz*0.0065 + clock*0.16 + th*0.055)%1+1)%1, 1, light);
+        nodes.setColorAt(idx, VJ_C);
+      }
+    }
+    vjFlush(nodes);
     camera.fov = 80 + bass*14;
     scene.rotation.z = Math.sin(clock*0.7)*0.10*(0.4+mid);
   }};
@@ -12889,7 +12955,7 @@ function buildBg3DVjHexPulse(){
   scene.fog = new THREE.FogExp2(0x00040e, 0.0125);
   const camera = new THREE.PerspectiveCamera(76, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
 
-  const RINGS=40, SPACING=VJ_LEN/RINGS, R=15;
+  const RINGS=56, SPACING=VJ_LEN/RINGS, R=15;
   const rings=[];
   for(let i=0;i<RINGS;i++){
     const pts=[];
@@ -12902,7 +12968,12 @@ function buildBg3DVjHexPulse(){
     scene.add(loop);
     rings.push({obj:loop, mat:m, baseRot:loop.rotation.z});
   }
-  const { composer } = createBg3DBloom(scene, camera, 1.8, 0.95, 0.08);
+  /* 体积层：六边形的六个角上各放一个实体块，线框就有了骨架 */
+  const NODES = RINGS*6;
+  const nodes = new THREE.InstancedMesh(new THREE.BoxGeometry(1.5,1.5,1.5), vjSolidMat(1), NODES);
+  nodes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(nodes);
+  const { composer } = createBg3DBloom(scene, camera, 1.45, 0.6, 0.38);
   let scroll=0, clock=0;
   return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt*0.016; scroll += vjSpeed(bass,dt)*1.15;
@@ -12916,7 +12987,17 @@ function buildBg3DVjHexPulse(){
       r.obj.rotation.z = r.baseRot + clock*0.35 + wz*0.006*(1+mid);
       r.mat.color.setHSL(((-wz*0.008 + clock*0.2)%1+1)%1, 1, 0.5 + high*0.25);
       r.mat.opacity = 0.55 + 0.45*Math.abs(Math.sin(wz*0.045 + clock*2.2));
+      const rot = r.obj.rotation.z, sc = r.obj.scale.x;
+      for(let k=0;k<6;k++){
+        const a = (k/6)*Math.PI*2 + rot;
+        const idx = i*6+k;
+        const g = 1 + bass*0.8 + 0.4*Math.sin(wz*0.09 + clock*4.5);
+        vjPut(nodes, idx, Math.cos(a)*R*sc, Math.sin(a)*R*sc, r.obj.position.z, 0, 0, a, g, g, g);
+        VJ_C.setHSL(((-wz*0.008 + clock*0.2)%1+1)%1, 1, 0.45 + high*0.2);
+        nodes.setColorAt(idx, VJ_C);
+      }
     });
+    vjFlush(nodes);
     camera.fov = 76 + bass*16;
   }};
 }
@@ -12927,7 +13008,7 @@ function buildBg3DVjNeonRibbon(){
   scene.fog = new THREE.FogExp2(0x080012, 0.011);
   const camera = new THREE.PerspectiveCamera(78, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
 
-  const BANDS=7, PTS=200, R=14;
+  const BANDS=11, PTS=200, R=14;
   const bands=[];
   for(let b=0;b<BANDS;b++){
     const pos = vjDynAttr(PTS,3), col = vjDynAttr(PTS,3);
@@ -12938,14 +13019,19 @@ function buildBg3DVjNeonRibbon(){
     bands.push({pos,col,phase:(b/BANDS)*Math.PI*2, twist:1.6 + (b%3)*0.55, hue:b/BANDS});
   }
   // 顺着飘带撒一串亮点，速度感更强
-  const DOTS=180;
+  const DOTS=420;
   const dPos = vjDynAttr(DOTS,3), dCol = vjDynAttr(DOTS,3);
   const dGeo = new THREE.BufferGeometry();
   dGeo.setAttribute('position',dPos); dGeo.setAttribute('color',dCol);
   const dMat = new THREE.PointsMaterial({ size:1.9, vertexColors:true, transparent:true, opacity:0.72, blending:THREE.AdditiveBlending, depthWrite:false, sizeAttenuation:true });   // 亮点压淡：180 个点 additive 叠起来最容易糊成白
   scene.add(new THREE.Points(dGeo,dMat));
 
-  const { composer } = createBg3DBloom(scene, camera, 1.45, 0.55, 0.38);   // 半径收紧 + 阈值提高：只有最亮的芯溢光，不然整条线糊成一片白雾
+  /* 体积层：沿每条飘带串一排实体块 —— 光靠 1px 的线，飘带在投影上几乎看不见 */
+  const BEADS_PER = 34, BEADS = BANDS*BEADS_PER;
+  const beads = new THREE.InstancedMesh(new THREE.BoxGeometry(1.6,1.6,2.6), vjSolidMat(1), BEADS);
+  beads.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(beads);
+  const { composer } = createBg3DBloom(scene, camera, 1.15, 0.45, 0.5);   // 半径收紧 + 阈值提高：只有最亮的芯溢光，不然整条线糊成一片白雾
   const c3 = new THREE.Color();
   let scroll=0, clock=0;
   return { scene, camera, composer, update(bass,mid,high,dt){
@@ -12978,6 +13064,21 @@ function buildBg3DVjNeonRibbon(){
       DC[i*3]=c3.r; DC[i*3+1]=c3.g; DC[i*3+2]=c3.b;
     }
     dPos.needsUpdate=true; dCol.needsUpdate=true;
+    bands.forEach((b, bi)=>{
+      for(let i=0;i<BEADS_PER;i++){
+        const wz = (i/(BEADS_PER-1))*VJ_LEN;
+        let z = -wz + (scroll % VJ_LEN) - VJ_LEN*0.02;
+        if(z > VJ_FRONT) z -= VJ_LEN;
+        const a = b.phase + wz*0.018*b.twist + clock*0.5;
+        const rr = R*(1 + 0.20*Math.sin(wz*0.05 + clock*1.7)*(0.4+mid));
+        const idx = bi*BEADS_PER+i;
+        const k = 1 + bass*0.6;
+        vjPut(beads, idx, Math.cos(a)*rr, Math.sin(a)*rr, z, 0, 0, a, k, k, k);
+        VJ_C.setHSL(((b.hue + wz*0.0026 + clock*0.13)%1+1)%1, 1, light*0.8);
+        beads.setColorAt(idx, VJ_C);
+      }
+    });
+    vjFlush(beads);
     dMat.size = 1.5 + bass*2.2;
     camera.fov = 78 + bass*12;
     scene.rotation.z = clock*0.12;
@@ -13131,7 +13232,7 @@ function buildBg3DVjStarLane(){
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(86, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 500);
 
-  const N=1200;
+  const N=1500;
   const pos = vjDynAttr(N*2,3), col = vjDynAttr(N*2,3);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position',pos); geo.setAttribute('color',col);
@@ -13146,8 +13247,13 @@ function buildBg3DVjStarLane(){
     v: 0.7 + Math.random()*0.9,
     hue: Math.random(),
   });
+  /* 体积层：把拖尾也做成实体条。1px 的线在投影上几乎不占面积 —— 实测这个效果
+     原来只点亮 6.8% 的像素，是三十个里最稀的。实体条既保留速度感又有厚度。 */
+  const streaks = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), vjSolidMat(1), N);
+  streaks.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(streaks);
   const c3 = new THREE.Color();
-  const { composer } = createBg3DBloom(scene, camera, 1.25, 0.7, 0.32);
+  const { composer } = createBg3DBloom(scene, camera, 1.05, 0.5, 0.46);
   let clock=0;
   return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt*0.016;
@@ -13168,6 +13274,17 @@ function buildBg3DVjStarLane(){
       C[i*6+3]=c3.r; C[i*6+4]=c3.g; C[i*6+5]=c3.b;
     }
     pos.needsUpdate=true; col.needsUpdate=true;
+    for(let i=0;i<N;i++){
+      const s=st[i];
+      const tail = (6 + bass*30 + mid*8) * s.v;
+      const spin = clock*0.25*(1+mid);
+      const x=Math.cos(s.a+spin)*s.r, y=Math.sin(s.a+spin)*s.r;
+      const w = 0.3 + bass*0.5 + (1 - Math.min(1, s.r/30))*0.35;   // 靠中心的更粗，边上的细；近处会被透视放大，基数不能大
+      vjPut(streaks, i, x, y, s.z - tail*0.5, 0, 0, 0, w, w, tail);
+      VJ_C.setHSL(((s.hue + clock*0.18)%1+1)%1, 1, 0.4 + high*0.14);
+      streaks.setColorAt(i, VJ_C);
+    }
+    vjFlush(streaks);
     camera.fov = 86 + bass*18;
   }};
 }
@@ -13178,16 +13295,21 @@ function buildBg3DVjKaleido(){
   scene.fog = new THREE.FogExp2(0x0c0018, 0.012);
   const camera = new THREE.PerspectiveCamera(78, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
 
-  const RINGS=42, SPIKES=9, SEG=SPIKES*2, SPACING=VJ_LEN/RINGS, R=16;
+  const RINGS=52, SPIKES=12, SEG=SPIKES*2, SPACING=VJ_LEN/RINGS, R=16;
   const pos = vjDynAttr(RINGS*SEG*2,3), col = vjDynAttr(RINGS*SEG*2,3);
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position',pos); geo.setAttribute('color',col);
   const mat = new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false });
   scene.add(new THREE.LineSegments(geo,mat));
 
+  /* 体积层：星形的每个尖端放一个实体块，星芒就有了实体感 */
+  const NODES = RINGS*SEG;
+  const nodes = new THREE.InstancedMesh(new THREE.BoxGeometry(1.3,1.3,1.3), vjSolidMat(1), NODES);
+  nodes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(nodes);
   const c3 = new THREE.Color();
   let scroll=0, clock=0;
-  const { composer } = createBg3DBloom(scene, camera, 1.85, 0.85, 0.07);
+  const { composer } = createBg3DBloom(scene, camera, 1.35, 0.55, 0.42);
   return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt*0.016; scroll += vjSpeed(bass,dt);
     const off = scroll % SPACING;
@@ -13209,6 +13331,24 @@ function buildBg3DVjKaleido(){
       }
     }
     pos.needsUpdate=true; col.needsUpdate=true;
+    {
+      let ni = 0;
+      for(let i=0;i<RINGS;i++){
+        const z=-i*SPACING+off-SPACING, wz=i*SPACING-scroll;
+        const twist = wz*0.016*(1+mid*1.5) + clock*0.6;
+        const rr = R*(1 + bass*0.28);
+        for(let sIdx=0;sIdx<SEG;sIdx++){
+          const a=(sIdx/SEG)*Math.PI*2 + twist;
+          const m=(sIdx%2===0)? 1 : inner;
+          const k = (sIdx%2===0 ? 1.5 : 0.9) * (1 + bass*0.5);
+          vjPut(nodes, ni, Math.cos(a)*rr*m, Math.sin(a)*rr*m, z, 0, 0, a, k, k, k);
+          VJ_C.setHSL(((-wz*0.0040 + clock*0.19 + sIdx*0.035)%1+1)%1, 1, 0.5 + high*0.2);
+          nodes.setColorAt(ni, VJ_C);
+          ni++;
+        }
+      }
+      vjFlush(nodes);
+    }
     camera.fov = 78 + bass*15;
   }};
 }
@@ -13303,7 +13443,1040 @@ function buildBg3DVjCubeMatrix(){
   }};
 }
 
-const BG3D_BUILDERS = { particles: buildBg3DParticles, tunnel: buildBg3DTunnel, prism: buildBg3DPrism, festival: buildBg3DFestivalBuilding, galaxy: buildBg3DGalaxy, colorTunnel: buildBg3DColorTunnel, synthwave: buildBg3DSynthwave, helix: buildBg3DHelix, fireworkSky: buildBg3DFireworkSky, aurora: buildBg3DAurora, particleStorm: buildBg3DParticleStorm, particleWaves: buildBg3DParticleWaves, particleRings: buildBg3DParticleRings, particleRain: buildBg3DParticleRain, galaxyMerge: buildBg3DGalaxyMerge, particleVortex: buildBg3DParticleVortex, particleStardust: buildBg3DParticleStardust, particlePulseOrb: buildBg3DParticlePulseOrb, particleWaterfall: buildBg3DParticleWaterfall, rainbowNebula: buildBg3DRainbowNebula, cosmicRings: buildBg3DCosmicRings, galaxySpiral: buildBg3DGalaxySpiral, rainbowWormhole: buildBg3DRainbowWormhole, fireflyForest: buildBg3DFireflyForest, cherryBlossom: buildBg3DCherryBlossom, glacierAurora: buildBg3DGlacierAurora, dandelionSeeds: buildBg3DDandelionSeeds, duneRipple: buildBg3DDuneRipple, rainforestVines: buildBg3DRainforestVines, coralReef: buildBg3DCoralReef, jellyfishSwarm: buildBg3DJellyfishSwarm, bioluminescentDeep: buildBg3DBioluminescentDeep, tideRippleGrid: buildBg3DTideRippleGrid, oceanVortex: buildBg3DOceanVortex, lightningStorm: buildBg3DLightningStorm, snowfallDrift: buildBg3DSnowfallDrift, sandstorm: buildBg3DSandstorm, foggyMoonlight: buildBg3DFoggyMoonlight, rainbowRain: buildBg3DRainbowRain, vhsCube: buildBg3DVhsCube, vaporwaveSunset: buildBg3DVaporwaveSunset, hologramCity: buildBg3DHologramCity, matrixDataRain: buildBg3DMatrixDataRain, warpSpeedStreaks: buildBg3DWarpSpeedStreaks, pixelGlitchField: buildBg3DPixelGlitchField, blackHoleAccretion: buildBg3DBlackHoleAccretion, supernovaBurst: buildBg3DSupernovaBurst, meteorShower: buildBg3DMeteorShower, cometTrail: buildBg3DCometTrail, pulsarBeacon: buildBg3DPulsarBeacon, kaleidoscope: buildBg3DKaleidoscope, fractalTree: buildBg3DFractalTree, voronoiShatter: buildBg3DVoronoiShatter, waveformRings: buildBg3DWaveformRings, mobiusRibbon: buildBg3DMobiusRibbon, liquidMetalWave: buildBg3DLiquidMetalWave, zenRipplePond: buildBg3DZenRipplePond, floatingOrbs: buildBg3DFloatingOrbs, breathingHalo: buildBg3DBreathingHalo, stardustDrift: buildBg3DStardustDrift, horizonGlow: buildBg3DHorizonGlow, heartbeatPulse: buildBg3DHeartbeatPulse, redAlertScan: buildBg3DRedAlertScan, highVoltageGrid: buildBg3DHighVoltageGrid, chaseLightTrails: buildBg3DChaseLightTrails, dangerScanSweep: buildBg3DDangerScanSweep, ambushBeacon: buildBg3DAmbushBeacon, shockwavePulse: buildBg3DShockwavePulse, impactCraterBurst: buildBg3DImpactCraterBurst, groundCrackRift: buildBg3DGroundCrackRift, glassShatterBurst: buildBg3DGlassShatterBurst, thunderStrikeFlash: buildBg3DThunderStrikeFlash, sonicBoomRing: buildBg3DSonicBoomRing, confettiExplosion: buildBg3DConfettiExplosion, giftRevealBurst: buildBg3DGiftRevealBurst, partyBalloonRise: buildBg3DPartyBalloonRise, surpriseStarburst: buildBg3DSurpriseStarburst, ribbonBloom: buildBg3DRibbonBloom, bubblePopBurst: buildBg3DBubblePopBurst, neonRiot: buildBg3DNeonRiot, chromaExplosion: buildBg3DChromaExplosion, strobeMatrix: buildBg3DStrobeMatrix, kineticSpectrum: buildBg3DKineticSpectrum, speedColorRings: buildBg3DSpeedColorRings, electroPartyFlash: buildBg3DElectroPartyFlash, stageSpotlightSweep: buildBg3DStageSpotlightSweep, laserGridShow: buildBg3DLaserGridShow, flameBurstColumn: buildBg3DFlameBurstColumn, energyCoreOverload: buildBg3DEnergyCoreOverload, edmPulseWall: buildBg3DEdmPulseWall, lightWaveSurge: buildBg3DLightWaveSurge, suspenseFlicker: buildBg3DSuspenseFlicker, popScareBurst: buildBg3DPopScareBurst, emergencySignalPulse: buildBg3DEmergencySignalPulse, climaxFlashBurst: buildBg3DClimaxFlashBurst, electricShockArc: buildBg3DElectricShockArc, surpriseFirecrackerPop: buildBg3DSurpriseFirecrackerPop, tensionCountdownRing: buildBg3DTensionCountdownRing, highEnergyFlashStage: buildBg3DHighEnergyFlashStage, criticalMassBurst: buildBg3DCriticalMassBurst, birthdayCake: buildBg3DBirthdayCake, balloonArch: buildBg3DBalloonArch, confettiCannon: buildBg3DConfettiCannon, partyStreamerSwirl: buildBg3DPartyStreamerSwirl, sprinkleShower: buildBg3DSprinkleShower, weddingRings: buildBg3DWeddingRings, doveFlight: buildBg3DDoveFlight, rosePetalFall: buildBg3DRosePetalFall, fairyLightCanopy: buildBg3DFairyLightCanopy, floatingLanterns: buildBg3DFloatingLanterns, birthdayCombo: buildBg3DBirthdayCombo, weddingCombo: buildBg3DWeddingCombo, neonSpiralTunnel: buildBg3DNeonSpiralTunnel, hologramPortal: buildBg3DHologramPortal, hyperspaceRush: buildBg3DHyperspaceRush, waveformTerrain: buildBg3DWaveformTerrain, beatTunnel: buildBg3DBeatTunnel, particleDNAHelix: buildBg3DParticleDNAHelix, frequencyGalaxy: buildBg3DFrequencyGalaxy, vjLiquidGrid: buildBg3DVjLiquidGrid, vjHexPulse: buildBg3DVjHexPulse, vjNeonRibbon: buildBg3DVjNeonRibbon, vjPrismShards: buildBg3DVjPrismShards, vjWaveCorridor: buildBg3DVjWaveCorridor, vjPlasmaRings: buildBg3DVjPlasmaRings, vjStarLane: buildBg3DVjStarLane, vjKaleido: buildBg3DVjKaleido, vjChromeTube: buildBg3DVjChromeTube, vjCubeMatrix: buildBg3DVjCubeMatrix };   /* 末尾这十个是 🌀 VJ 菜单的隧道穿梭 loop —— 引擎共用，但故意不进 BG3D_CATALOG */
+/* ============================================================================
+   VJ LOOP TUNNELS 第二批 —— 20 个，风格照着这些 Resolume 素材包来：
+   LuChrome / LiquidGrids / CyborgSpace / AntiGravityRacing / CreatureFeature /
+   Void / AIRealms / NeonRoom / Voyage / TheNextDimension / LunaPark
+
+   跟第一批同一套约定（见 VJ LOOP TUNNELS 那段），但这批刻意画得更"满"：
+   第一批偏线框，星轨那种只点亮 7% 的像素，投影上偏单薄。这批主要用实体几何 +
+   InstancedMesh 堆密度，配合收紧的 bloom（半径小、阈值高），既满又不泛白。
+   ============================================================================ */
+
+/* 共用的小工具：把一个 InstancedMesh 的实例矩阵一次写好 */
+const VJ_M4 = new THREE.Matrix4(), VJ_Q = new THREE.Quaternion(), VJ_E = new THREE.Euler(),
+      VJ_V = new THREE.Vector3(), VJ_S = new THREE.Vector3(), VJ_C = new THREE.Color();
+function vjPut(mesh, i, x, y, z, rx, ry, rz, sx, sy, sz){
+  VJ_V.set(x, y, z);
+  VJ_E.set(rx, ry, rz);
+  VJ_Q.setFromEuler(VJ_E);
+  VJ_S.set(sx, sy, sz === undefined ? sy : sz);
+  VJ_M4.compose(VJ_V, VJ_Q, VJ_S);
+  mesh.setMatrixAt(i, VJ_M4);
+}
+function vjFlush(mesh){
+  mesh.instanceMatrix.needsUpdate = true;
+  if(mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+}
+/* 实体几何用的材质。additive 在实体上很容易糊成白，所以这批默认走普通混合 +
+   自发光色，靠 bloom 出光晕，不靠叠加提亮。 */
+function vjSolidMat(opacity){
+  return new THREE.MeshBasicMaterial({ transparent: opacity < 1, opacity: opacity===undefined?1:opacity, side: THREE.DoubleSide });
+}
+
+/* ---------- 11. 液态铬流（LuChrome）——
+     铬的观感靠两件事：沿圆周的明暗高光带，加上高光处偏冷、暗处偏彩的色偏。
+     密排的实心环让它有体积，不是一层皮。 ---------- */
+function buildBg3DVjChromeFlow(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x05060a, 0.0075);
+  const camera = new THREE.PerspectiveCamera(82, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const RINGS = 54, PER = 40, N = RINGS*PER, SPACING = VJ_LEN/RINGS, R = 17;
+  const geo = new THREE.BoxGeometry(1.5, 1.5, 3.2);
+  const mesh = new THREE.InstancedMesh(geo, vjSolidMat(1), N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+
+  const { composer } = createBg3DBloom(scene, camera, 1.15, 0.5, 0.55);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt);
+    const off = scroll % SPACING;
+    for(let i=0;i<RINGS;i++){
+      const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
+      for(let j=0;j<PER;j++){
+        const a = (j/PER)*Math.PI*2 + wz*0.012 + clock*0.35;
+        // 管壁厚薄在流动 —— 这是「液态」金属而不是硬管
+        const rr = R * (1 + 0.17*Math.sin(a*2 + wz*0.05 + clock*1.6)*(0.5+mid)
+                          + 0.09*Math.sin(a*5 - wz*0.03 + clock*1.1));
+        // 高光带：沿圆周的一条亮环，随时间转
+        const spec = Math.pow(Math.max(0, Math.cos(a*2 - clock*1.3)), 7);   // 高光带宽一点、柔一点，白区不至于压过彩色
+        const lum = 0.30 + spec*0.62 + bass*0.10;
+        vjPut(mesh, i*PER+j, Math.cos(a)*rr, Math.sin(a)*rr, z, 0, 0, a, 1+spec*1.5, 1+spec*0.6, 1);
+        // 亮处偏冷白（金属反射），暗处才吃色 —— 这就是铬跟塑料的区别
+        VJ_C.setHSL(((0.55 + wz*0.007 + clock*0.05)%1+1)%1, 0.99 - spec*0.26, lum);   // 高光处仍然褪色（金属的特征），但暗部吃满环境色；色相跨度也拉开
+        mesh.setColorAt(i*PER+j, VJ_C);
+      }
+    }
+    vjFlush(mesh);
+    camera.fov = 82 + bass*13;
+    scene.rotation.z = Math.sin(clock*0.5)*0.13*(0.4+mid);
+  }};
+}
+
+/* ---------- 12. 金属扭带（LuChrome）——
+     几条宽金属带拧着推进。带子用一串扁方块拼，每块自己转，
+     所以边缘会闪出高光条，而不是一条死板的带。 ---------- */
+function buildBg3DVjMetalTwist(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x06050c, 0.008);
+  const camera = new THREE.PerspectiveCamera(80, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const BANDS = 5, SEGS = 90, N = BANDS*SEGS, R = 13;
+  const geo = new THREE.BoxGeometry(6.5, 0.5, 3.0);
+  const mesh = new THREE.InstancedMesh(geo, vjSolidMat(1), N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.55, 0.5);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt);
+    for(let b=0;b<BANDS;b++){
+      const phase = (b/BANDS)*Math.PI*2;
+      for(let s=0;s<SEGS;s++){
+        const u = s/SEGS;
+        const wz = u*VJ_LEN;
+        let z = -wz + (scroll % VJ_LEN) - VJ_LEN*0.02;
+        if(z > VJ_FRONT) z -= VJ_LEN;
+        const a = phase + wz*0.026 + clock*0.4;
+        const rr = R * (1 + 0.16*Math.sin(wz*0.045 + clock*1.4)*(0.4+mid));
+        // 带子自己沿轴向拧 —— 转到侧面时厚度收窄，看着就像金属片翻面
+        const twist = wz*0.05 + clock*1.8;
+        const spec = Math.pow(Math.abs(Math.cos(twist)), 6);
+        const i = b*SEGS+s;
+        vjPut(mesh, i, Math.cos(a)*rr, Math.sin(a)*rr, z, twist, 0, a + Math.PI/2, 1, 1 + spec*2.2 + bass*0.8, 1);
+        VJ_C.setHSL(((b/BANDS + wz*0.0055 + clock*0.09)%1+1)%1, 0.99 - spec*0.24, 0.34 + spec*0.45 + high*0.1);
+        mesh.setColorAt(i, VJ_C);
+      }
+    }
+    vjFlush(mesh);
+    camera.fov = 80 + bass*14;
+  }};
+}
+
+/* ---------- 13. 密集网格形变（LiquidGrids）——
+     第一批的液态网格是线框，这个改成实心方块砌成的墙，
+     整片墙像液面一样起伏，密度高很多，投影上厚实。 ---------- */
+function buildBg3DVjGridMorph(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x02010a, 0.0085);
+  const camera = new THREE.PerspectiveCamera(84, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const RINGS = 46, PER = 44, N = RINGS*PER, SPACING = VJ_LEN/RINGS, R = 18;
+  const geo = new THREE.BoxGeometry(2.0, 2.0, 2.0);
+  const mesh = new THREE.InstancedMesh(geo, vjSolidMat(1), N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+  const tmp = {x:0,y:0};
+
+  const { composer } = createBg3DBloom(scene, camera, 1.35, 0.6, 0.42);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt);
+    const off = scroll % SPACING;
+    const liquid = 0.6 + mid*1.2 + bass*0.4;
+    for(let i=0;i<RINGS;i++){
+      const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
+      for(let j=0;j<PER;j++){
+        const a = (j/PER)*Math.PI*2;
+        // 两层不同频率的液面波，叠出不重复的起伏
+        const wave = Math.sin(a*3 + wz*0.05 + clock*1.5) * 0.20*liquid
+                   + Math.sin(a*6 - wz*0.033 + clock*0.95) * 0.11*liquid;
+        vjSuperXY(a, R*(1+wave), 4, tmp);
+        const k = 1 + wave*1.8 + bass*0.5;
+        const idx = i*PER+j;
+        vjPut(mesh, idx, tmp.x, tmp.y, z, 0, 0, a, k, k, 1);
+        VJ_C.setHSL(((-wz*0.0062 + a*0.05 + clock*0.14)%1+1)%1, 1, 0.42 + wave*0.9 + high*0.14);
+        mesh.setColorAt(idx, VJ_C);
+      }
+    }
+    vjFlush(mesh);
+    camera.fov = 84 + bass*13;
+    scene.rotation.z = Math.sin(clock*0.62)*0.09*(0.4+mid);
+  }};
+}
+
+/* ---------- 14. 分形网格井（LiquidGrids）——
+     一圈套一圈的方框，每往里一层就转一点、密一点，
+     像分形一样自相似地收进去。 ---------- */
+function buildBg3DVjFractalWell(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x090014, 0.007);
+  const camera = new THREE.PerspectiveCamera(78, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const RINGS = 40, LAYERS = 4, PER = 28, N = RINGS*LAYERS*PER, SPACING = VJ_LEN/RINGS;
+  const geo = new THREE.BoxGeometry(1.3, 1.3, 2.4);
+  const mesh = new THREE.InstancedMesh(geo, vjSolidMat(1), N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+  const tmp = {x:0,y:0};
+
+  const { composer } = createBg3DBloom(scene, camera, 1.15, 0.5, 0.52);   // 收一点：整屏全亮的话就没有暗部，隧道也就没有纵深
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt);
+    const off = scroll % SPACING;
+    let idx = 0;
+    for(let i=0;i<RINGS;i++){
+      const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
+      for(let L=0;L<LAYERS;L++){
+        // 每层半径减半、转 1/8 圈 —— 自相似地往里收
+        const rad = 20 * Math.pow(0.62, L) * (1 + 0.12*Math.sin(wz*0.05 + L + clock*1.4)*(0.4+mid));
+        const spin = wz*0.01*(L+1) + clock*(0.25 + L*0.18) + L*Math.PI/8;
+        const per = Math.max(8, PER - L*4);
+        for(let j=0;j<PER;j++){
+          if(j >= per){ vjPut(mesh, idx++, 0, 0, 9999, 0,0,0, 0.0001, 0.0001, 0.0001); continue; }
+          const a = (j/per)*Math.PI*2 + spin;
+          vjSuperXY(a, rad, 4, tmp);
+          const k = (1 + bass*0.6) * (1 - L*0.12);
+          vjPut(mesh, idx, tmp.x, tmp.y, z, 0, 0, a, k, k, 1);
+          VJ_C.setHSL(((-wz*0.0055 + L*0.16 + clock*0.16)%1+1)%1, 1, 0.40 + (LAYERS-L)*0.06 + high*0.16);
+          mesh.setColorAt(idx, VJ_C);
+          idx++;
+        }
+      }
+    }
+    vjFlush(mesh);
+    camera.fov = 78 + bass*15;
+  }};
+}
+
+/* ---------- 15. 赛博走廊（CyborgSpace）——
+     机械板块砌成的方形走廊，板缝里透出发光条。
+     板块是暗的哑光，光全在缝里 —— 这是机械感的来源。 ---------- */
+function buildBg3DVjCyborgCorridor(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x01030a, 0.0085);
+  const camera = new THREE.PerspectiveCamera(80, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const SLABS = 40, PER = 30, SPACING = VJ_LEN/SLABS, R = 17;
+  const slabGeo = new THREE.BoxGeometry(3.3, 2.5, 4.4);
+  const slabs = new THREE.InstancedMesh(slabGeo, vjSolidMat(1), SLABS*PER);
+  slabs.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(slabs);
+  // 缝里的光条 —— 细长发光块，夹在板块之间
+  const seamGeo = new THREE.BoxGeometry(3.5, 0.3, 0.7);
+  const seams = new THREE.InstancedMesh(seamGeo, vjSolidMat(1), SLABS*PER);
+  seams.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(seams);
+  const tmp = {x:0,y:0};
+
+  const { composer } = createBg3DBloom(scene, camera, 1.7, 0.6, 0.35);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt);
+    const off = scroll % SPACING;
+    for(let i=0;i<SLABS;i++){
+      const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
+      for(let j=0;j<PER;j++){
+        const a = (j/PER)*Math.PI*2;
+        const rr = R * (1 + 0.05*Math.sin(wz*0.06 + clock*1.2));
+        vjSuperXY(a, rr, 8, tmp);   // n=8：很方，像四面墙板
+        const idx = i*PER+j;
+        vjPut(slabs, idx, tmp.x, tmp.y, z, 0, 0, a + Math.PI/2, 1, 1, 1);
+        VJ_C.setHSL(((0.58 + wz*0.0025)%1+1)%1, 0.75, 0.115 + bass*0.06);   // 板块自己也吃一点色：全压黑的话走廊没有体量，画面只剩几条光缝
+        slabs.setColorAt(idx, VJ_C);
+
+        // 光条沿隧道一段段亮起来，像信号在往回跑
+        const pulse = 0.5 + 0.5*Math.pow(Math.max(0, Math.sin(wz*0.075 + j*0.4 + clock*3.0)), 2);   // 谷底抬高：不然整条隧道会随相位一起明灭
+        vjSuperXY(a, rr*0.955, 8, tmp);
+        vjPut(seams, idx, tmp.x, tmp.y, z + SPACING*0.42, 0, 0, a + Math.PI/2, 1, 1 + pulse*1.4, 1);
+        VJ_C.setHSL(((0.5 + wz*0.0035 + clock*0.1)%1+1)%1, 1, 0.30 + pulse*0.45 + high*0.15);
+        seams.setColorAt(idx, VJ_C);
+      }
+    }
+    vjFlush(slabs); vjFlush(seams);
+    camera.fov = 80 + bass*14;
+  }};
+}
+
+/* ---------- 16. 竞速跑道（AntiGravityRacing）——
+     脚下一条发光赛道往回抽，两侧建筑掠过，头顶一排航道灯。
+     电蓝紫为主，速度全靠地面的分道线和侧墙的节奏。 ---------- */
+function buildBg3DVjRaceTrack(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x03000e, 0.0075);
+  const camera = new THREE.PerspectiveCamera(88, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+  camera.position.y = 2.5;
+
+  const STRIPES = 44, SPACING = VJ_LEN/STRIPES;   // 环距 5.0，理由同过山车
+  // 地面分道线：五条纵向，一段段往回抽
+  const laneGeo = new THREE.BoxGeometry(0.9, 0.25, 7.0);
+  const lanes = new THREE.InstancedMesh(laneGeo, vjSolidMat(1), STRIPES*5);
+  lanes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(lanes);
+  // 两侧墙板
+  const wallGeo = new THREE.BoxGeometry(1.1, 9.0, 5.2);
+  const walls = new THREE.InstancedMesh(wallGeo, vjSolidMat(1), STRIPES*2);
+  walls.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(walls);
+  // 头顶航道灯
+  const barGeo = new THREE.BoxGeometry(26, 0.5, 0.9);
+  const bars = new THREE.InstancedMesh(barGeo, vjSolidMat(1), STRIPES);
+  bars.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(bars);
+
+  const { composer } = createBg3DBloom(scene, camera, 1.55, 0.6, 0.38);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.5;   // 竞速，跑得比别的快
+    const off = scroll % SPACING;
+    for(let i=0;i<STRIPES;i++){
+      const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
+      const beat = 0.5 + 0.5*Math.sin(wz*0.09 + clock*3.2);
+      for(let L=0;L<5;L++){
+        const x = (L-2)*5.2;
+        const idx = i*5+L;
+        // 中间那条最亮，往两边递减 —— 视线自然被带到消失点上
+        const centre = 1 - Math.abs(L-2)/2;
+        vjPut(lanes, idx, x, -7, z, 0, 0, 0, 1, 1 + beat*1.2 + bass*0.8, 1);
+        VJ_C.setHSL(((0.62 + wz*0.0035 + clock*0.08)%1+1)%1, 1, 0.28 + centre*0.3 + beat*0.22 + bass*0.1);
+        lanes.setColorAt(idx, VJ_C);
+      }
+      for(let sgn=0;sgn<2;sgn++){
+        const idx = i*2+sgn;
+        vjPut(walls, idx, (sgn?1:-1)*15.5, -2.4 + Math.sin(wz*0.04+clock)*0.8, z, 0, 0, 0, 1, 1 + beat*0.5, 1);
+        VJ_C.setHSL(((0.74 + wz*0.0028 + clock*0.07)%1+1)%1, 0.95, 0.14 + beat*0.34 + high*0.12);
+        walls.setColorAt(idx, VJ_C);
+      }
+      vjPut(bars, i, 0, 9.5, z, 0, 0, 0, 1, 1 + beat*1.6, 1);
+      VJ_C.setHSL(((0.52 + wz*0.004 + clock*0.11)%1+1)%1, 1, 0.16 + beat*0.5);
+      bars.setColorAt(i, VJ_C);
+    }
+    vjFlush(lanes); vjFlush(walls); vjFlush(bars);
+    camera.fov = 88 + bass*16;
+  }};
+}
+
+/* ---------- 17. 加速门（AntiGravityRacing）——
+     一道道发光门框迎面套过来。门框本身是实心的粗边，
+     所以穿过去的瞬间会有明确的"框住视野"的压迫感。 ---------- */
+function buildBg3DVjSpeedGates(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x06000f, 0.0075);
+  const camera = new THREE.PerspectiveCamera(86, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const GATES = 26, SPACING = VJ_LEN/GATES;
+  const gates = [];
+  for(let i=0;i<GATES;i++){
+    const g = new THREE.Group();
+    const mat = vjSolidMat(1);
+    // 四条边拼成一个方框
+    const h = new THREE.BoxGeometry(30, 1.7, 1.7), v = new THREE.BoxGeometry(1.7, 19, 1.7);
+    [[0, 9.5, h], [0, -9.5, h]].forEach(([x,y,gg])=>{ const m = new THREE.Mesh(gg, mat); m.position.set(x,y,0); g.add(m); });
+    [[-14.2, 0, v], [14.2, 0, v]].forEach(([x,y,gg])=>{ const m = new THREE.Mesh(gg, mat); m.position.set(x,y,0); g.add(m); });
+    scene.add(g);
+    gates.push({ g, mat });
+  }
+
+  const { composer } = createBg3DBloom(scene, camera, 1.4, 0.5, 0.46);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.45;
+    const off = scroll % SPACING;
+    gates.forEach((gate, i)=>{
+      const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
+      gate.g.position.z = z;
+      gate.g.position.x = Math.sin(wz*0.03 + clock*0.8)*4.5*(0.4+mid);
+      gate.g.position.y = Math.cos(wz*0.041 + clock*0.6)*2.8*(0.4+mid);
+      gate.g.rotation.z = wz*0.014 + clock*0.25;
+      const k = 1 + bass*0.22 + 0.12*Math.sin(wz*0.1 + clock*4);
+      gate.g.scale.set(k, k, 1);
+      // 越靠近镜头越亮 —— 门迎面压过来时会「点亮」
+      const near = Math.max(0, 1 - Math.abs(z)/70);
+      gate.mat.color.setHSL(((0.6 + wz*0.0055 + clock*0.13)%1+1)%1, 1, 0.2 + near*0.32 + high*0.1);
+    });
+    camera.fov = 86 + bass*17;
+  }};
+}
+
+/* ---------- 18. 悬浮城市掠过（AntiGravityRacing）——
+     两侧的高楼贴着镜头飞过去，楼身上密排窗格。
+     楼是暗的，窗是亮的，速度感来自窗格阵列在视野里拉过去。 ---------- */
+function buildBg3DVjHoverCity(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x02020c, 0.0068);
+  const camera = new THREE.PerspectiveCamera(88, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const COLS = 34, WIN_R = 6, WIN_C = 3, PER = WIN_R*WIN_C, SPACING = VJ_LEN/COLS;
+  const towerGeo = new THREE.BoxGeometry(9, 40, 9);
+  const towers = new THREE.InstancedMesh(towerGeo, vjSolidMat(1), COLS*2);
+  towers.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(towers);
+  const winGeo = new THREE.BoxGeometry(1.5, 1.9, 0.4);
+  const wins = new THREE.InstancedMesh(winGeo, vjSolidMat(1), COLS*2*PER);
+  wins.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(wins);
+
+  const seed = [];
+  for(let i=0;i<COLS*2;i++) seed.push({ h: 0.6+Math.random()*1.5, y: -6+Math.random()*10, lit: Math.random() });
+
+  const { composer } = createBg3DBloom(scene, camera, 1.5, 0.55, 0.4);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.4;
+    const off = scroll % SPACING;
+    for(let i=0;i<COLS;i++){
+      const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
+      for(let sgn=0;sgn<2;sgn++){
+        const t = i*2+sgn, s = seed[t];
+        const x = (sgn?1:-1)*(20 + Math.sin(wz*0.03+sgn)*3);
+        vjPut(towers, t, x, s.y, z, 0, 0, 0, 1, s.h, 1);
+        VJ_C.setHSL(0.62, 0.5, 0.035);   // 楼身几乎全黑，光全在窗上
+        towers.setColorAt(t, VJ_C);
+        for(let r=0;r<WIN_R;r++) for(let c=0;c<WIN_C;c++){
+          const wi = t*PER + r*WIN_C + c;
+          const wy = s.y + (r - WIN_R/2 + 0.5) * 6.2 * s.h;
+          // 一部分窗常亮，一部分跟着节拍闪 —— 全亮就成一块光板了
+          const on = ((r*3+c*7+t*5) % 5 !== 0) ? 1 : (0.5 + 0.5*Math.sin(clock*4 + t + r));
+          vjPut(wins, wi, x + (sgn?-1:1)*4.6, wy, z + (c-1)*2.6, 0, Math.PI/2, 0, 1, 1, 1);
+          VJ_C.setHSL(((0.55 + s.lit*0.35 + clock*0.05)%1+1)%1, 1, (0.12 + on*0.5)*(0.65 + bass*0.5 + high*0.2));
+          wins.setColorAt(wi, VJ_C);
+        }
+      }
+    }
+    vjFlush(towers); vjFlush(wins);
+    camera.fov = 88 + bass*15;
+    scene.rotation.z = Math.sin(clock*0.4)*0.05*(0.3+mid);
+  }};
+}
+
+/* ---------- 19. 触手隧道（CreatureFeature）——
+     管壁是活的：一圈粗触手顺着隧道蠕动，横截面被挤成不规则形状。
+     跟机械那几个的区别在于运动是慢的、连续的、非对称的。 ---------- */
+function buildBg3DVjTentacleTunnel(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0a0210, 0.0085);
+  const camera = new THREE.PerspectiveCamera(84, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const ARMS = 11, SEGS = 46, N = ARMS*SEGS, SPACING = VJ_LEN/SEGS;
+  const geo = new THREE.SphereGeometry(1, 10, 8);
+  const mesh = new THREE.InstancedMesh(geo, vjSolidMat(1), N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+
+  const { composer } = createBg3DBloom(scene, camera, 1.45, 0.6, 0.4);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt)*0.85;   // 生物比机械慢
+    const off = scroll % SPACING;
+    for(let s=0;s<SEGS;s++){
+      const z = -s*SPACING + off - SPACING, wz = s*SPACING - scroll;
+      for(let a=0;a<ARMS;a++){
+        const base = (a/ARMS)*Math.PI*2;
+        // 每条触手自己扭，相位错开 —— 所以管壁不是同步呼吸，是各自蠕动
+        const ang = base + Math.sin(wz*0.035 + a*1.7 + clock*0.9)*0.42*(0.5+mid);
+        const rr = 15 + Math.sin(wz*0.055 + a*2.3 + clock*1.25)*4.6*(0.5+mid) + bass*2.2;
+        // 沿触手粗细变化，像一节节的肉
+        const girth = 2.4 + Math.sin(wz*0.16 + a*0.8 + clock*2.1)*0.55 + bass*0.7;   // clock 项对所有触手同相位，幅度大了整条隧道会一起胀缩
+        const i = s*ARMS+a;
+        vjPut(mesh, i, Math.cos(ang)*rr, Math.sin(ang)*rr, z, 0, 0, 0, girth, girth, girth*1.35);
+        VJ_C.setHSL(((0.87 + a*0.02 - wz*0.0035 + clock*0.07)%1+1)%1, 0.95, 0.30 + Math.sin(wz*0.16+a+clock*2.1)*0.16 + high*0.16);
+        mesh.setColorAt(i, VJ_C);
+      }
+    }
+    vjFlush(mesh);
+    camera.fov = 84 + bass*14;
+    scene.rotation.z = Math.sin(clock*0.35)*0.16*(0.4+mid);
+  }};
+}
+
+/* ---------- 20. 生物膜（CreatureFeature）——
+     一层层半透的细胞膜迎面套过来，膜上有核。
+     半透叠加出体积，像在活体组织里穿行。 ---------- */
+function buildBg3DVjBioMembrane(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0c0308, 0.008);
+  const camera = new THREE.PerspectiveCamera(82, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const LAYERS = 30, CELLS = 26, SPACING = VJ_LEN/LAYERS;
+  const memGeo = new THREE.SphereGeometry(1, 14, 10);
+  const mem = new THREE.InstancedMesh(memGeo, vjSolidMat(0.42), LAYERS*CELLS);
+  mem.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mem);
+  const coreGeo = new THREE.SphereGeometry(1, 8, 6);
+  const core = new THREE.InstancedMesh(coreGeo, vjSolidMat(1), LAYERS*CELLS);
+  core.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(core);
+
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.55, 0.5);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt)*0.9;
+    const off = scroll % SPACING;
+    for(let L=0;L<LAYERS;L++){
+      const z = -L*SPACING + off - SPACING, wz = L*SPACING - scroll;
+      for(let c=0;c<CELLS;c++){
+        const a = (c/CELLS)*Math.PI*2 + Math.sin(wz*0.03 + L*0.4)*0.3 + clock*0.18;
+        const rr = 9 + ((c*7+L*3)%5)*2.4 + Math.sin(wz*0.05 + c + clock*1.1)*2.6*(0.4+mid);
+        // 细胞自己在鼓 —— 低音一来整片膜胀开
+        const puff = 2.6 + Math.sin(wz*0.1 + c*1.3 + clock*1.9)*0.9 + bass*1.5;
+        const i = L*CELLS+c;
+        vjPut(mem, i, Math.cos(a)*rr, Math.sin(a)*rr, z, 0, 0, 0, puff, puff*0.92, puff*0.8);
+        VJ_C.setHSL(((0.94 + c*0.006 - wz*0.003 + clock*0.06)%1+1)%1, 1, 0.34 + high*0.16);
+        mem.setColorAt(i, VJ_C);
+        vjPut(core, i, Math.cos(a)*rr, Math.sin(a)*rr, z, 0, 0, 0, puff*0.34, puff*0.34, puff*0.34);
+        VJ_C.setHSL(((0.12 + c*0.01 + clock*0.09)%1+1)%1, 1, 0.5 + bass*0.2);
+        core.setColorAt(i, VJ_C);
+      }
+    }
+    vjFlush(mem); vjFlush(core);
+    camera.fov = 82 + bass*13;
+  }};
+}
+
+/* ---------- 21. 虚空星云（Void）——
+     不是稀疏的星点，是有体积的气团：大量半透球体叠出云的厚度，
+     里面埋着亮核。深蓝紫为主，冥想感来自慢速和大尺度。 ---------- */
+function buildBg3DVjVoidNebula(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x02010a, 0.006);
+  const camera = new THREE.PerspectiveCamera(84, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const PUFFS = 620;
+  const puffGeo = new THREE.SphereGeometry(1, 8, 6);
+  // 半透的气团靠叠加出厚度 —— 单个很淡，几百个叠起来才是云
+  const puffs = new THREE.InstancedMesh(puffGeo, vjSolidMat(0.2), PUFFS);
+  puffs.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(puffs);
+  const CORES = 150;
+  const cores = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 6, 5), vjSolidMat(1), CORES);
+  cores.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(cores);
+
+  const p = [], c = [];
+  for(let i=0;i<PUFFS;i++) p.push({ a:Math.random()*Math.PI*2, r:2+Math.pow(Math.random(),0.7)*34,
+    z:-Math.random()*VJ_LEN, s:4+Math.random()*11, hue:0.6+Math.random()*0.25, spin:(Math.random()-0.5)*0.004 });
+  for(let i=0;i<CORES;i++) c.push({ a:Math.random()*Math.PI*2, r:2+Math.pow(Math.random(),0.8)*30,
+    z:-Math.random()*VJ_LEN, s:0.5+Math.random()*1.5, hue:Math.random(), ph:Math.random()*6.3 });
+
+  const { composer } = createBg3DBloom(scene, camera, 1.5, 0.75, 0.3);
+  let clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016;
+    const sp = vjSpeed(bass, dt)*0.75;   // 虚空是慢的
+    for(let i=0;i<PUFFS;i++){
+      const o = p[i];
+      o.z += sp; if(o.z > VJ_FRONT){ o.z -= VJ_LEN; o.a = Math.random()*Math.PI*2; }
+      o.a += o.spin*dt*(1+mid);
+      const s = o.s*(1 + bass*0.28 + Math.sin(clock*0.7 + i)*0.1);
+      vjPut(puffs, i, Math.cos(o.a)*o.r, Math.sin(o.a)*o.r, o.z, 0, 0, 0, s, s*0.85, s);
+      VJ_C.setHSL((o.hue + clock*0.02)%1, 0.95, 0.16 + high*0.1);
+      puffs.setColorAt(i, VJ_C);
+    }
+    for(let i=0;i<CORES;i++){
+      const o = c[i];
+      o.z += sp*1.1; if(o.z > VJ_FRONT){ o.z -= VJ_LEN; o.hue = Math.random(); }
+      const tw = 0.55 + 0.45*Math.sin(clock*2.4 + o.ph);   // 星核在闪
+      const s = o.s*(1 + bass*0.6)*(0.6 + tw*0.8);
+      vjPut(cores, i, Math.cos(o.a)*o.r, Math.sin(o.a)*o.r, o.z, 0, 0, 0, s, s, s);
+      VJ_C.setHSL((o.hue + clock*0.05)%1, 1, 0.45 + tw*0.3 + high*0.15);
+      cores.setColorAt(i, VJ_C);
+    }
+    vjFlush(puffs); vjFlush(cores);
+    camera.fov = 84 + bass*12;
+    scene.rotation.z = clock*0.045;
+  }};
+}
+
+/* ---------- 22. 事件视界（Void）——
+     正前方一个黑洞，吸积盘绕着它高速旋进，物质一边转一边被拉向中心。
+     镜头一直在往里推，所以盘会越来越大地压过来。 ---------- */
+function buildBg3DVjEventHorizon(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x000005, 0.0055);
+  const camera = new THREE.PerspectiveCamera(80, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const N = 2600;
+  const geo = new THREE.BoxGeometry(1, 1, 1);
+  const mesh = new THREE.InstancedMesh(geo, vjSolidMat(1), N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+  // 视界本身：一个纯黑球，把盘的中心挡住
+  const hole = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 18), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+  scene.add(hole);
+
+  const d = [];
+  for(let i=0;i<N;i++) d.push({ a:Math.random()*Math.PI*2, r:5+Math.pow(Math.random(),0.55)*26,
+    z:-Math.random()*VJ_LEN, tilt:(Math.random()-0.5)*0.5, sp:0.5+Math.random()*1.1 });
+
+  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.48, 0.52);
+  let clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016;
+    const sp = vjSpeed(bass, dt);
+    for(let i=0;i<N;i++){
+      const o = d[i];
+      o.z += sp; if(o.z > VJ_FRONT){ o.z -= VJ_LEN; o.r = 5+Math.pow(Math.random(),0.55)*26; }
+
+      // 越靠内转得越快 —— 开普勒式的剪切，盘会被拉出旋臂
+      o.a += (0.028/Math.max(2, o.r*0.16)) * dt * (1 + mid*2.2) * o.sp;
+      const x = Math.cos(o.a)*o.r, y = Math.sin(o.a)*o.r*0.34 + o.tilt*o.r*0.3;
+      // 内圈又热又亮：从外面的暗红一路烧到中心的白
+      const heat = Math.max(0, 1 - (o.r-5)/26);
+      const k = (0.4 + heat*1.15)*(1 + bass*0.5);
+      vjPut(mesh, i, x, y, o.z, 0, 0, o.a, k*1.5, k*0.42, k);
+      VJ_C.setHSL(((0.02 - heat*0.42 + clock*0.03)%1+1)%1, 1 - heat*0.05, 0.28 + heat*0.34 + high*0.12);   // 外圈红 → 内圈蓝紫，内圈不再褪成白
+      mesh.setColorAt(i, VJ_C);
+    }
+    vjFlush(mesh);
+    // 视界跟着最近的那截盘一起推过来
+    const hz = ((clock*14) % VJ_LEN) - VJ_LEN*0.55;
+    hole.position.z = hz;
+    const hs = 6.5*(1 + bass*0.2);
+    hole.scale.set(hs, hs, hs);
+    camera.fov = 80 + bass*14;
+  }};
+}
+
+/* ---------- 23. 糖果球群（AIRealms）——
+     光滑塑料质感：高饱和、亮部干净、球面上一块死白的高光点。
+     球密排成管道往前冲，是这批里最"甜"的一个。 ---------- */
+function buildBg3DVjCandyOrbs(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0a0714, 0.0075);
+  const camera = new THREE.PerspectiveCamera(84, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const RINGS = 46, PER = 30, N = RINGS*PER, SPACING = VJ_LEN/RINGS;
+  const ball = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 12, 9), vjSolidMat(1), N);
+  ball.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(ball);
+  // 高光点：塑料和金属的差别就在这一小块白 —— 位置固定在球的左上
+  const spec = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 6, 5), vjSolidMat(0.9), N);
+  spec.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(spec);
+
+  const { composer } = createBg3DBloom(scene, camera, 1.1, 0.45, 0.56);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt);
+    const off = scroll % SPACING;
+    for(let i=0;i<RINGS;i++){
+      const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
+      for(let j=0;j<PER;j++){
+        const a = (j/PER)*Math.PI*2 + wz*0.014 + clock*0.3;
+        const rr = 15 + Math.sin(wz*0.05 + j*0.5 + clock*1.3)*3.4*(0.4+mid);
+        const bounce = 1 + 0.34*Math.pow(Math.max(0, Math.sin(wz*0.09 + j*0.35 + clock*2.6)), 2);
+        const s = (1.45 + bass*0.75) * bounce;
+        const x = Math.cos(a)*rr, y = Math.sin(a)*rr;
+        const idx = i*PER+j;
+        vjPut(ball, idx, x, y, z, 0, 0, 0, s, s, s);
+        VJ_C.setHSL(((j/PER*0.6 - wz*0.0035 + clock*0.11)%1+1)%1, 1, 0.52 + high*0.14);
+        ball.setColorAt(idx, VJ_C);
+        vjPut(spec, idx, x - s*0.34, y + s*0.36, z - s*0.34, 0, 0, 0, s*0.3, s*0.3, s*0.3);
+        VJ_C.setRGB(1, 1, 1);
+        spec.setColorAt(idx, VJ_C);
+      }
+    }
+    vjFlush(ball); vjFlush(spec);
+    camera.fov = 84 + bass*13;
+  }};
+}
+
+/* ---------- 24. 数据绽放（AIRealms）——
+     生成感：一层层点阵从中心绽开，一边往前推一边展开成花形，
+     像模型在把潜空间铺出来。 ---------- */
+function buildBg3DVjDataBloom(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x04000e, 0.008);
+  const camera = new THREE.PerspectiveCamera(82, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const LAYERS = 38, PER = 32, N = LAYERS*PER, SPACING = VJ_LEN/LAYERS;
+  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), vjSolidMat(1), N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+  const PHI = Math.PI * (3 - Math.sqrt(5));   // 黄金角，撒点最均匀
+
+  const { composer } = createBg3DBloom(scene, camera, 1.1, 0.48, 0.56);   // 1680 个方块密排，bloom 再猛一点就糊成一片白雾
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt);
+    const off = scroll % SPACING;
+    for(let L=0;L<LAYERS;L++){
+      const z = -L*SPACING + off - SPACING, wz = L*SPACING - scroll;
+      // 绽放进度：远处还是一点，推到近处已经全铺开
+      const bloom = 0.18 + 0.82 * Math.min(1, Math.max(0, (wz + VJ_LEN*0.5) / (VJ_LEN*0.5)));
+      const open = bloom * (0.7 + mid*0.6 + bass*0.3);
+      for(let j=0;j<PER;j++){
+        const a = j*PHI + wz*0.012 + clock*0.3;
+        const rr = Math.sqrt(j/PER) * 24 * open;
+        const s = (0.9 + (1-j/PER)*1.5) * (1 + bass*0.6);
+        const idx = L*PER+j;
+        vjPut(mesh, idx, Math.cos(a)*rr, Math.sin(a)*rr, z, clock*0.5+j, a, 0, s, s, s);
+        VJ_C.setHSL(((j/PER*0.85 - wz*0.003 + clock*0.13)%1+1)%1, 1, 0.36 + (1-j/PER)*0.14 + high*0.12);
+        mesh.setColorAt(idx, VJ_C);
+      }
+    }
+    vjFlush(mesh);
+    camera.fov = 82 + bass*14;
+  }};
+}
+
+/* ---------- 25. 霓虹灯管房间（NeonRoom）——
+     一间方房间往前无限延伸，四壁贴满霓虹灯管。
+     配色刻意收紧（只在两三个邻近色相里走），这是 NeonRoom 的关键 ——
+     不是彩虹，是一套讲究的窄色域。 ---------- */
+function buildBg3DVjNeonTubeRoom(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x050010, 0.0075);
+  const camera = new THREE.PerspectiveCamera(86, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const SEGS = 44, SPACING = VJ_LEN/SEGS;
+  // 纵向灯管：四壁各三根，顺着房间往前延伸
+  const tubeGeo = new THREE.BoxGeometry(0.55, 0.55, 5.6);
+  const tubes = new THREE.InstancedMesh(tubeGeo, vjSolidMat(1), SEGS*12);
+  tubes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(tubes);
+  // 环形灯管：每隔几段一个方环，把房间"分节"
+  const ringGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
+  const RING_PER = 32;
+  const rings = new THREE.InstancedMesh(ringGeo, vjSolidMat(1), SEGS*RING_PER);
+  rings.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(rings);
+  const tmp = {x:0,y:0};
+  const HUE_BASE = 0.72;   // 品红-紫-蓝这一段，收紧的配色
+
+  const { composer } = createBg3DBloom(scene, camera, 1.9, 0.65, 0.3);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt);
+    const off = scroll % SPACING;
+    const RW = 17;
+    for(let i=0;i<SEGS;i++){
+      const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
+      for(let w=0;w<4;w++) for(let k=0;k<3;k++){
+        const t = (k-1)*7.5;
+        let x, y;
+        if(w===0){ x = t; y = -RW; } else if(w===1){ x = t; y = RW; }
+        else if(w===2){ x = -RW; y = t; } else { x = RW; y = t; }
+        const idx = i*12 + w*3 + k;
+        const glow = 0.5 + 0.5*Math.sin(wz*0.05 + w*1.4 + k*0.7 + clock*1.7);
+        vjPut(tubes, idx, x, y, z, 0, 0, 0, 1 + glow*0.5, 1 + glow*0.5, 1);
+        VJ_C.setHSL((HUE_BASE + w*0.035 + k*0.02 + Math.sin(clock*0.25)*0.05)%1, 1, 0.26 + glow*0.42 + high*0.12);
+        tubes.setColorAt(idx, VJ_C);
+      }
+      // 每隔 3 段来一个方环
+      const isRing = (i % 3 === 0);
+      for(let j=0;j<RING_PER;j++){
+        const idx = i*RING_PER + j;
+        if(!isRing){ vjPut(rings, idx, 0, 0, 9999, 0,0,0, 0.0001,0.0001,0.0001); continue; }
+        const a = (j/RING_PER)*Math.PI*2;
+        vjSuperXY(a, RW*1.02, 10, tmp);
+        const pulse = 0.4 + 0.6*Math.pow(Math.max(0, Math.sin(wz*0.06 + clock*2.4)), 2);
+        vjPut(rings, idx, tmp.x, tmp.y, z, 0, 0, a, 1 + pulse*1.1 + bass*0.7, 1 + pulse*1.1, 1);
+        VJ_C.setHSL((HUE_BASE + 0.12 + Math.sin(clock*0.2)*0.04)%1, 1, 0.3 + pulse*0.45);
+        rings.setColorAt(idx, VJ_C);
+      }
+    }
+    vjFlush(tubes); vjFlush(rings);
+    camera.fov = 86 + bass*13;
+  }};
+}
+
+/* ---------- 26. 霓虹拱廊（NeonRoom）——
+     一道道霓虹拱门排成走廊。拱是弯的，所以穿过去时顶部先压下来，
+     跟方框门的感觉完全不同。同样走窄色域。 ---------- */
+function buildBg3DVjNeonArches(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x030012, 0.0072);
+  const camera = new THREE.PerspectiveCamera(86, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+  camera.position.y = 1.5;
+
+  const ARCHES = 34, PER = 26, N = ARCHES*PER, SPACING = VJ_LEN/ARCHES;
+  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.35, 1.35, 1.35), vjSolidMat(1), N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+  // 地面倒影：拱在地上的一条亮带，撑起空间感
+  const refl = new THREE.InstancedMesh(new THREE.BoxGeometry(30, 0.3, 1.6), vjSolidMat(0.45), ARCHES);
+  refl.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(refl);
+  const HUE_BASE = 0.5;   // 青-蓝-紫这一段
+
+  const { composer } = createBg3DBloom(scene, camera, 1.5, 0.55, 0.44);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.1;
+    const off = scroll % SPACING;
+    for(let i=0;i<ARCHES;i++){
+      const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
+      const glow = 0.4 + 0.6*Math.pow(Math.max(0, Math.sin(wz*0.07 + clock*2.2)), 2);
+      const w = 15 + Math.sin(wz*0.04 + clock*1.1)*1.8*(0.4+mid);
+      for(let j=0;j<PER;j++){
+        // 半圆拱 + 两条腿：t<0.75 走拱，之后垂下来
+        const t = j/(PER-1);
+        let x, y;
+        if(t < 0.78){
+          const a = Math.PI * (t/0.78);
+          x = -Math.cos(a)*w; y = Math.sin(a)*w*0.72 - 3.5;
+        }else{
+          const leg = (t-0.78)/0.22;
+          x = (j%2 ? 1 : -1) * w; y = -3.5 - leg*7;
+        }
+        const idx = i*PER+j;
+        const s = (1 + glow*0.9 + bass*0.5);
+        vjPut(mesh, idx, x, y, z, 0, 0, 0, s, s, s);
+        VJ_C.setHSL((HUE_BASE + t*0.1 + Math.sin(clock*0.22)*0.06)%1, 1, 0.28 + glow*0.44 + high*0.13);
+        mesh.setColorAt(idx, VJ_C);
+      }
+      vjPut(refl, i, 0, -11.2, z, 0, 0, 0, 1, 1, 1 + glow);
+      VJ_C.setHSL((HUE_BASE + 0.06)%1, 1, 0.1 + glow*0.28);
+      refl.setColorAt(i, VJ_C);
+    }
+    vjFlush(mesh); vjFlush(refl);
+    camera.fov = 86 + bass*13;
+  }};
+}
+
+/* ---------- 27. 地平线航行（Voyage）——
+     极简：一条地平线，一轮巨大的光晕，脚下的网格地面往回抽。
+     这批里最克制的一个，靠留白和景深取胜，不靠密度。 ---------- */
+function buildBg3DVjHorizonVoyage(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x050310, 0.0075);
+  const camera = new THREE.PerspectiveCamera(80, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+  camera.position.y = 2;
+
+  // 地面网格：横线一道道往回抽
+  const ROWS = 52, COLS = 46, SPACING = VJ_LEN/ROWS;
+  const tile = new THREE.InstancedMesh(new THREE.BoxGeometry(2.0, 0.45, 2.0), vjSolidMat(1), ROWS*COLS);
+  tile.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(tile);
+  // 远处那轮光晕，用同心环叠出渐变
+  const HALO = 40;
+  const halo = new THREE.InstancedMesh(new THREE.TorusGeometry(1, 0.06, 6, 40), vjSolidMat(0.55), HALO);
+  halo.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(halo);
+
+  const { composer } = createBg3DBloom(scene, camera, 1.75, 0.85, 0.28);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt);
+    const off = scroll % SPACING;
+    for(let r=0;r<ROWS;r++){
+      const z = -r*SPACING + off - SPACING, wz = r*SPACING - scroll;
+      // 远处淡出，近处亮 —— 景深靠这个，不靠雾
+      const near = Math.max(0, 1 - (-z)/VJ_LEN);
+      for(let c=0;c<COLS;c++){
+        const x = (c - COLS/2 + 0.5) * 3.4;
+        const y = -9 + Math.sin(x*0.12 + wz*0.05 + clock*1.3)*1.5*(0.3+mid) + Math.sin(wz*0.03+clock*0.7)*0.8;
+        const idx = r*COLS+c;
+        const lit = 0.5 + 0.5*Math.sin(wz*0.08 + c*0.4 + clock*1.9);
+        vjPut(tile, idx, x, y, z, 0, 0, 0, 1, 1 + lit*1.4 + bass*0.9, 1);
+        VJ_C.setHSL(((0.56 + near*0.12 + clock*0.05)%1+1)%1, 1, (0.1 + lit*0.3 + bass*0.12) * (0.25 + near*0.9));
+        tile.setColorAt(idx, VJ_C);
+      }
+    }
+    for(let i=0;i<HALO;i++){
+      const t = i/(HALO-1);
+      const rr = 5 + t*38 * (1 + bass*0.22);
+      vjPut(halo, i, 0, 3.5, -VJ_LEN*0.72, 0, 0, 0, rr, rr, 1);
+      VJ_C.setHSL(((0.09 - t*0.12 + clock*0.03)%1+1)%1, 1, (0.55 - t*0.4) * (0.7 + high*0.5 + bass*0.3));
+      halo.setColorAt(i, VJ_C);
+    }
+    vjFlush(tile); vjFlush(halo);
+    camera.fov = 80 + bass*12;
+    camera.position.y = 2 + Math.sin(clock*0.6)*0.8*(0.3+mid);
+  }};
+}
+
+/* ---------- 28. 光井（Voyage）——
+     一口向前无限延伸的圆井，井壁由密排的光条构成，
+     光条一圈圈错位，转出螺旋。井底是一团亮，一直在前方吸着你。 ---------- */
+function buildBg3DVjLightWell(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x02020c, 0.0065);
+  const camera = new THREE.PerspectiveCamera(84, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const RINGS = 48, PER = 34, N = RINGS*PER, SPACING = VJ_LEN/RINGS;
+  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(2.4, 0.7, 1.9), vjSolidMat(1), N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+  // 井底那团光
+  const core = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), vjSolidMat(0.85));
+  core.position.z = -VJ_LEN*0.8;
+  scene.add(core);
+
+  const { composer } = createBg3DBloom(scene, camera, 1.7, 0.7, 0.32);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt);
+    const off = scroll % SPACING;
+    for(let i=0;i<RINGS;i++){
+      const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
+      // 每圈错开一点，整条井就拧成螺旋
+      const twist = wz*0.02*(1+mid*0.8) + clock*0.5;
+      const rr = 16 + Math.sin(wz*0.04 + clock*1.1)*2.2*(0.4+mid);
+      for(let j=0;j<PER;j++){
+        const a = (j/PER)*Math.PI*2 + twist;
+        const idx = i*PER+j;
+        const run = 0.4 + 0.6*Math.pow(Math.max(0, Math.sin(a*3 - wz*0.06 + clock*2.4)), 2);
+        vjPut(mesh, idx, Math.cos(a)*rr, Math.sin(a)*rr, z, 0, 0, a, 1 + run*0.8 + bass*0.5, 1 + run*1.2, 1);
+        VJ_C.setHSL(((0.5 + run*0.16 - wz*0.0028 + clock*0.07)%1+1)%1, 1, 0.24 + run*0.44 + high*0.14);
+        mesh.setColorAt(idx, VJ_C);
+      }
+    }
+    vjFlush(mesh);
+    const cs = 7 + bass*4 + Math.sin(clock*1.6)*1.2;
+    core.scale.set(cs, cs, cs);
+    core.material.color.setHSL(((0.52 + clock*0.05)%1+1)%1, 1, 0.6 + high*0.2);
+    camera.fov = 84 + bass*13;
+  }};
+}
+
+/* ---------- 29. 超立方折叠（TheNextDimension）——
+     四维立方体在三维里的投影：内外两个立方体加连接棱，
+     一边转一边"翻面"（内外互换），这是四维旋转看起来的样子。 ---------- */
+function buildBg3DVjHyperCube(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x04000c, 0.007);
+  const camera = new THREE.PerspectiveCamera(80, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const CUBES = 18, EDGES = 32, N = CUBES*EDGES, SPACING = VJ_LEN/CUBES;   // 间距 17 > 投影半径 8，立方体之间才不会互相穿插
+  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), vjSolidMat(1), N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+
+  // 4D 立方体的 16 个顶点
+  const V4 = [];
+  for(let i=0;i<16;i++) V4.push([(i&1)?1:-1, (i&2)?1:-1, (i&4)?1:-1, (i&8)?1:-1]);
+  // 只差一位的顶点之间连棱，共 32 条
+  const E = [];
+  for(let i=0;i<16;i++) for(let j=i+1;j<16;j++){
+    const d = i ^ j;
+    if(d && !(d & (d-1))) E.push([i, j]);
+  }
+  const pa = new THREE.Vector3(), pb = new THREE.Vector3(), mid3 = new THREE.Vector3(), dir = new THREE.Vector3();
+  const up = new THREE.Vector3(0, 1, 0), q2 = new THREE.Quaternion(), m4b = new THREE.Matrix4(), s3 = new THREE.Vector3();
+
+  const { composer } = createBg3DBloom(scene, camera, 1.55, 0.6, 0.36);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt);
+    const off = scroll % SPACING;
+    for(let c=0;c<CUBES;c++){
+      const z = -c*SPACING + off - SPACING, wz = c*SPACING - scroll;
+      const t = clock*0.55 + c*0.6;
+      // xw / yz 两个平面上的四维旋转 —— 视觉上就是内外立方体互相翻出来
+      const ca = Math.cos(t), sa = Math.sin(t);
+      const cb = Math.cos(t*0.73 + wz*0.01), sb = Math.sin(t*0.73 + wz*0.01);
+      const nearFade = Math.min(1, Math.max(0.38, (-z + 6) / 46));   // 快贴到镜头时缩掉，否则最近那个会糊满整屏
+      const scale = 3.1 * (1 + bass*0.3) * nearFade;
+      const proj = (v)=>{
+        let [x, y, zz, w] = v;
+        let nx = x*ca - w*sa, nw = x*sa + w*ca;               // xw 旋转
+        let ny = y*cb - zz*sb, nz = y*sb + zz*cb;             // yz 旋转
+        const k = 2.6 / (2.6 - nw);                            // 四维透视投影：w 越近放得越大
+        return [nx*k*scale, ny*k*scale, nz*k*scale];
+      };
+      for(let e=0;e<EDGES;e++){
+        const [i, j] = E[e];
+        const A = proj(V4[i]), B = proj(V4[j]);
+        pa.set(A[0], A[1], A[2] + z); pb.set(B[0], B[1], B[2] + z);
+        mid3.addVectors(pa, pb).multiplyScalar(0.5);
+        dir.subVectors(pb, pa);
+        const len = dir.length();
+        dir.normalize();
+        q2.setFromUnitVectors(up, dir);
+        s3.set(0.42 + bass*0.3, len, 0.42 + bass*0.3);   // 棱细一点，四维旋转的结构才看得出来
+        m4b.compose(mid3, q2, s3);
+        const idx = c*EDGES+e;
+        mesh.setMatrixAt(idx, m4b);
+        VJ_C.setHSL(((e/EDGES*0.55 - wz*0.0035 + clock*0.12)%1+1)%1, 1, 0.42 + high*0.18);
+        mesh.setColorAt(idx, VJ_C);
+      }
+    }
+    vjFlush(mesh);
+    camera.fov = 80 + bass*14;
+  }};
+}
+
+/* ---------- 30. 过山车冲刺（LunaPark）——
+     一条挂满灯泡的轨道在前方左右翻滚，两侧掠过嘉年华的彩灯。
+     「既安全又不安」那种劲：轨道扭得厉害，但灯是暖的、密的、热闹的。 ---------- */
+function buildBg3DVjCoasterRush(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x08030e, 0.0075);
+  const camera = new THREE.PerspectiveCamera(88, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const SEGS = 50, SPACING = VJ_LEN/SEGS;   // 环距 4.4：太密的话回收帧占比高，运动方向会测不准
+  // 轨道：两条钢轨 + 枕木
+  const rail = new THREE.InstancedMesh(new THREE.BoxGeometry(0.5, 0.5, 5.4), vjSolidMat(1), SEGS*2);
+  rail.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(rail);
+  const tie = new THREE.InstancedMesh(new THREE.BoxGeometry(6.4, 0.35, 0.8), vjSolidMat(1), SEGS);
+  tie.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(tie);
+  // 轨道两侧的灯泡串
+  const BULB_PER = 8;
+  const bulb = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 7, 6), vjSolidMat(1), SEGS*BULB_PER);
+  bulb.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(bulb);
+  // 远处嘉年华的彩灯
+  const FAIR = 620;
+  const fair = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 6, 5), vjSolidMat(1), FAIR);
+  fair.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(fair);
+  const f = [];
+  for(let i=0;i<FAIR;i++) f.push({ a:Math.random()*Math.PI*2, r:22+Math.random()*22, z:-Math.random()*VJ_LEN,
+    s:0.6+Math.random()*1.3, hue:Math.random(), ph:Math.random()*6.3 });
+
+  // 轨道中心线：左右上下大幅摆动，这是过山车的灵魂
+  const trackAt = (wz, clock, mid)=>({
+    x: Math.sin(wz*0.026 + clock*0.5)*11*(0.5+mid) + Math.sin(wz*0.011)*6,
+    y: Math.cos(wz*0.019 + clock*0.4)*7*(0.5+mid) - 6,
+  });
+
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.5, 0.48);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.3;
+    const off = scroll % SPACING;
+    for(let i=0;i<SEGS;i++){
+      const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
+      const p = trackAt(wz, clock, mid);
+      const p2 = trackAt(wz + SPACING, clock, mid);
+      const roll = Math.atan2(p2.x - p.x, SPACING) * 1.6;   // 转弯时轨道跟着倾
+      for(let s=0;s<2;s++){
+        const idx = i*2+s;
+        const ox = (s?1:-1)*2.6*Math.cos(roll), oy = (s?1:-1)*2.6*Math.sin(roll);
+        vjPut(rail, idx, p.x+ox, p.y+oy, z, 0, 0, roll, 1, 1, 1);
+        VJ_C.setHSL(((0.03 + wz*0.004 + clock*0.06)%1+1)%1, 1, 0.26 + bass*0.12);   // 霓虹轨道：游乐园的轨道本来就挂满灯，做成暖灰虽然真实但整屏发灰
+        rail.setColorAt(idx, VJ_C);
+      }
+      vjPut(tie, i, p.x, p.y, z, 0, 0, roll, 1, 1, 1);
+      VJ_C.setHSL(((0.06 + wz*0.004 + clock*0.06)%1+1)%1, 0.85, 0.17);
+      tie.setColorAt(i, VJ_C);
+      for(let b=0;b<BULB_PER;b++){
+        const idx = i*BULB_PER+b;
+        const side = (b<2?-1:1), lvl = (b%2)?1:-1;
+        // 灯泡按跑马灯的节奏一颗颗亮过去
+        const chase = 0.35 + 0.65*Math.pow(Math.max(0, Math.sin(wz*0.14 + b*1.2 + clock*4.2)), 2);
+        const s = (0.55 + chase*0.75)*(1 + bass*0.5);
+        vjPut(bulb, idx, p.x + side*3.6*Math.cos(roll) - lvl*0.6*Math.sin(roll),
+                         p.y + side*3.6*Math.sin(roll) + lvl*1.9*Math.cos(roll), z, 0, 0, 0, s, s, s);
+        VJ_C.setHSL(((0.11 + b*0.06 + clock*0.1)%1+1)%1, 1, 0.3 + chase*0.16 + high*0.06);
+        bulb.setColorAt(idx, VJ_C);
+      }
+    }
+    const sp = vjSpeed(bass, dt)*1.3;
+    for(let i=0;i<FAIR;i++){
+      const o = f[i];
+      o.z += sp; if(o.z > VJ_FRONT){ o.z -= VJ_LEN; o.hue = Math.random(); }
+      const tw = 0.4 + 0.6*Math.sin(clock*3.4 + o.ph);
+      const s = o.s*(0.6 + tw*0.9)*(1 + bass*0.4);
+      vjPut(fair, i, Math.cos(o.a)*o.r, Math.sin(o.a)*o.r*0.7 - 2, o.z, 0, 0, 0, s, s, s);
+      VJ_C.setHSL((o.hue + clock*0.06)%1, 1, 0.34 + tw*0.15 + high*0.08);   // 顶到 0.57 就够亮了，再高只会发白
+      fair.setColorAt(i, VJ_C);
+    }
+    vjFlush(rail); vjFlush(tie); vjFlush(bulb); vjFlush(fair);
+    camera.fov = 88 + bass*15;
+    scene.rotation.z = Math.sin(clock*0.7)*0.14*(0.4+mid);   // 跟着轨道晃
+  }};
+}
+
+const BG3D_BUILDERS = { particles: buildBg3DParticles, tunnel: buildBg3DTunnel, prism: buildBg3DPrism, festival: buildBg3DFestivalBuilding, galaxy: buildBg3DGalaxy, colorTunnel: buildBg3DColorTunnel, synthwave: buildBg3DSynthwave, helix: buildBg3DHelix, fireworkSky: buildBg3DFireworkSky, aurora: buildBg3DAurora, particleStorm: buildBg3DParticleStorm, particleWaves: buildBg3DParticleWaves, particleRings: buildBg3DParticleRings, particleRain: buildBg3DParticleRain, galaxyMerge: buildBg3DGalaxyMerge, particleVortex: buildBg3DParticleVortex, particleStardust: buildBg3DParticleStardust, particlePulseOrb: buildBg3DParticlePulseOrb, particleWaterfall: buildBg3DParticleWaterfall, rainbowNebula: buildBg3DRainbowNebula, cosmicRings: buildBg3DCosmicRings, galaxySpiral: buildBg3DGalaxySpiral, rainbowWormhole: buildBg3DRainbowWormhole, fireflyForest: buildBg3DFireflyForest, cherryBlossom: buildBg3DCherryBlossom, glacierAurora: buildBg3DGlacierAurora, dandelionSeeds: buildBg3DDandelionSeeds, duneRipple: buildBg3DDuneRipple, rainforestVines: buildBg3DRainforestVines, coralReef: buildBg3DCoralReef, jellyfishSwarm: buildBg3DJellyfishSwarm, bioluminescentDeep: buildBg3DBioluminescentDeep, tideRippleGrid: buildBg3DTideRippleGrid, oceanVortex: buildBg3DOceanVortex, lightningStorm: buildBg3DLightningStorm, snowfallDrift: buildBg3DSnowfallDrift, sandstorm: buildBg3DSandstorm, foggyMoonlight: buildBg3DFoggyMoonlight, rainbowRain: buildBg3DRainbowRain, vhsCube: buildBg3DVhsCube, vaporwaveSunset: buildBg3DVaporwaveSunset, hologramCity: buildBg3DHologramCity, matrixDataRain: buildBg3DMatrixDataRain, warpSpeedStreaks: buildBg3DWarpSpeedStreaks, pixelGlitchField: buildBg3DPixelGlitchField, blackHoleAccretion: buildBg3DBlackHoleAccretion, supernovaBurst: buildBg3DSupernovaBurst, meteorShower: buildBg3DMeteorShower, cometTrail: buildBg3DCometTrail, pulsarBeacon: buildBg3DPulsarBeacon, kaleidoscope: buildBg3DKaleidoscope, fractalTree: buildBg3DFractalTree, voronoiShatter: buildBg3DVoronoiShatter, waveformRings: buildBg3DWaveformRings, mobiusRibbon: buildBg3DMobiusRibbon, liquidMetalWave: buildBg3DLiquidMetalWave, zenRipplePond: buildBg3DZenRipplePond, floatingOrbs: buildBg3DFloatingOrbs, breathingHalo: buildBg3DBreathingHalo, stardustDrift: buildBg3DStardustDrift, horizonGlow: buildBg3DHorizonGlow, heartbeatPulse: buildBg3DHeartbeatPulse, redAlertScan: buildBg3DRedAlertScan, highVoltageGrid: buildBg3DHighVoltageGrid, chaseLightTrails: buildBg3DChaseLightTrails, dangerScanSweep: buildBg3DDangerScanSweep, ambushBeacon: buildBg3DAmbushBeacon, shockwavePulse: buildBg3DShockwavePulse, impactCraterBurst: buildBg3DImpactCraterBurst, groundCrackRift: buildBg3DGroundCrackRift, glassShatterBurst: buildBg3DGlassShatterBurst, thunderStrikeFlash: buildBg3DThunderStrikeFlash, sonicBoomRing: buildBg3DSonicBoomRing, confettiExplosion: buildBg3DConfettiExplosion, giftRevealBurst: buildBg3DGiftRevealBurst, partyBalloonRise: buildBg3DPartyBalloonRise, surpriseStarburst: buildBg3DSurpriseStarburst, ribbonBloom: buildBg3DRibbonBloom, bubblePopBurst: buildBg3DBubblePopBurst, neonRiot: buildBg3DNeonRiot, chromaExplosion: buildBg3DChromaExplosion, strobeMatrix: buildBg3DStrobeMatrix, kineticSpectrum: buildBg3DKineticSpectrum, speedColorRings: buildBg3DSpeedColorRings, electroPartyFlash: buildBg3DElectroPartyFlash, stageSpotlightSweep: buildBg3DStageSpotlightSweep, laserGridShow: buildBg3DLaserGridShow, flameBurstColumn: buildBg3DFlameBurstColumn, energyCoreOverload: buildBg3DEnergyCoreOverload, edmPulseWall: buildBg3DEdmPulseWall, lightWaveSurge: buildBg3DLightWaveSurge, suspenseFlicker: buildBg3DSuspenseFlicker, popScareBurst: buildBg3DPopScareBurst, emergencySignalPulse: buildBg3DEmergencySignalPulse, climaxFlashBurst: buildBg3DClimaxFlashBurst, electricShockArc: buildBg3DElectricShockArc, surpriseFirecrackerPop: buildBg3DSurpriseFirecrackerPop, tensionCountdownRing: buildBg3DTensionCountdownRing, highEnergyFlashStage: buildBg3DHighEnergyFlashStage, criticalMassBurst: buildBg3DCriticalMassBurst, birthdayCake: buildBg3DBirthdayCake, balloonArch: buildBg3DBalloonArch, confettiCannon: buildBg3DConfettiCannon, partyStreamerSwirl: buildBg3DPartyStreamerSwirl, sprinkleShower: buildBg3DSprinkleShower, weddingRings: buildBg3DWeddingRings, doveFlight: buildBg3DDoveFlight, rosePetalFall: buildBg3DRosePetalFall, fairyLightCanopy: buildBg3DFairyLightCanopy, floatingLanterns: buildBg3DFloatingLanterns, birthdayCombo: buildBg3DBirthdayCombo, weddingCombo: buildBg3DWeddingCombo, neonSpiralTunnel: buildBg3DNeonSpiralTunnel, hologramPortal: buildBg3DHologramPortal, hyperspaceRush: buildBg3DHyperspaceRush, waveformTerrain: buildBg3DWaveformTerrain, beatTunnel: buildBg3DBeatTunnel, particleDNAHelix: buildBg3DParticleDNAHelix, frequencyGalaxy: buildBg3DFrequencyGalaxy, vjLiquidGrid: buildBg3DVjLiquidGrid, vjHexPulse: buildBg3DVjHexPulse, vjNeonRibbon: buildBg3DVjNeonRibbon, vjPrismShards: buildBg3DVjPrismShards, vjWaveCorridor: buildBg3DVjWaveCorridor, vjPlasmaRings: buildBg3DVjPlasmaRings, vjStarLane: buildBg3DVjStarLane, vjKaleido: buildBg3DVjKaleido, vjChromeTube: buildBg3DVjChromeTube, vjCubeMatrix: buildBg3DVjCubeMatrix, vjChromeFlow: buildBg3DVjChromeFlow, vjMetalTwist: buildBg3DVjMetalTwist, vjGridMorph: buildBg3DVjGridMorph, vjFractalWell: buildBg3DVjFractalWell, vjCyborgCorridor: buildBg3DVjCyborgCorridor, vjRaceTrack: buildBg3DVjRaceTrack, vjSpeedGates: buildBg3DVjSpeedGates, vjHoverCity: buildBg3DVjHoverCity, vjTentacleTunnel: buildBg3DVjTentacleTunnel, vjBioMembrane: buildBg3DVjBioMembrane, vjVoidNebula: buildBg3DVjVoidNebula, vjEventHorizon: buildBg3DVjEventHorizon, vjCandyOrbs: buildBg3DVjCandyOrbs, vjDataBloom: buildBg3DVjDataBloom, vjNeonTubeRoom: buildBg3DVjNeonTubeRoom, vjNeonArches: buildBg3DVjNeonArches, vjHorizonVoyage: buildBg3DVjHorizonVoyage, vjLightWell: buildBg3DVjLightWell, vjHyperCube: buildBg3DVjHyperCube, vjCoasterRush: buildBg3DVjCoasterRush };   /* 末尾这三十个是 🌀 VJ 菜单的隧道穿梭 loop —— 引擎共用，但故意不进 BG3D_CATALOG */
 
 function resizeBg3D(){
   const availH = Math.max(1, window.innerHeight - DOCK_SAFE_ZONE);   // keep 3D content out of the strip reserved for the dock, same idea as the 2D canvas clip
@@ -21939,7 +23112,8 @@ buildBg3DMenu();
 /* ---------- 🌀 VJ 菜单 ----------
    这十个隧道注册在 BG3D_BUILDERS 里，enableBg3D / 预设 / 随机全部照旧能用；
    但它们不在 BG3D_CATALOG 里，所以 🌌 3D 菜单的列表和它的 ⏭ Next 顺序完全不受影响。 */
-const VJ_TUNNEL_KINDS = ["vjLiquidGrid","vjHexPulse","vjNeonRibbon","vjPrismShards","vjWaveCorridor","vjPlasmaRings","vjStarLane","vjKaleido","vjChromeTube","vjCubeMatrix"];
+const VJ_TUNNEL_KINDS = ["vjLiquidGrid","vjHexPulse","vjNeonRibbon","vjPrismShards","vjWaveCorridor","vjPlasmaRings","vjStarLane","vjKaleido","vjChromeTube","vjCubeMatrix",
+  "vjChromeFlow","vjMetalTwist","vjGridMorph","vjFractalWell","vjCyborgCorridor","vjRaceTrack","vjSpeedGates","vjHoverCity","vjTentacleTunnel","vjBioMembrane","vjVoidNebula","vjEventHorizon","vjCandyOrbs","vjDataBloom","vjNeonTubeRoom","vjNeonArches","vjHorizonVoyage","vjLightWell","vjHyperCube","vjCoasterRush"];
 function buildVjMenu(){
   const list = document.getElementById('vjMenuList');
   if(!list) return;

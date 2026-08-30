@@ -17,7 +17,15 @@ const APP_DIR = path.join(__dirname, '..');
  */
 
 const KINDS = ['vjLiquidGrid','vjHexPulse','vjNeonRibbon','vjPrismShards','vjWaveCorridor',
-               'vjPlasmaRings','vjStarLane','vjKaleido','vjChromeTube','vjCubeMatrix'];
+               'vjPlasmaRings','vjStarLane','vjKaleido','vjChromeTube','vjCubeMatrix',
+               /* 第二批：LuChrome / LiquidGrids / CyborgSpace / AntiGravityRacing /
+                  CreatureFeature / Void / AIRealms / NeonRoom / Voyage /
+                  TheNextDimension / LunaPark */
+               'vjChromeFlow','vjMetalTwist','vjGridMorph','vjFractalWell',
+               'vjCyborgCorridor','vjRaceTrack','vjSpeedGates','vjHoverCity',
+               'vjTentacleTunnel','vjBioMembrane','vjVoidNebula','vjEventHorizon',
+               'vjCandyOrbs','vjDataBloom','vjNeonTubeRoom','vjNeonArches',
+               'vjHorizonVoyage','vjLightWell','vjHyperCube','vjCoasterRush'];
 
 async function withApp(label, fn) {
   const dir = newUserDataDir(label);
@@ -46,6 +54,9 @@ function harness() {
       const s = bg3DScenes[bg3DKind];
       const out = [];
       s.scene.traverse(o => {
+        // Group 要单独记：加速门那种把整扇门装进 Group 再整体推，
+        // 子 Mesh 的 position.z 是相对 Group 的，恒为 0，只看子 Mesh 会以为它没动
+        if (o.isGroup && o !== s.scene) { out.push(o.position.z); return; }
         if (o.isInstancedMesh) {
           const m = o.instanceMatrix.array;
           for (let i = 0; i < o.count; i++) out.push(m[i * 16 + 14]);
@@ -203,9 +214,11 @@ test('每个隧道都画得出鲜艳的画面，而且元素是从后面往镜�
       console.log(`${kind.padEnd(16)} lit=${(r.lit / r.total * 100).toFixed(1)}%  ` +
                   `vivid=${(r.vivid / r.lit * 100).toFixed(0)}%  hues=${r.hueBuckets}  ` +
                   `fwd=${r.fwdFrames}/back=${r.backFrames}`);
-      // 用 soft 断言：一次跑完看到 10 个的全貌，而不是卡在第一个失败上
-      // 画出来了，而且不是稀稀拉拉几个点
-      expect.soft(r.lit / r.total, `${kind}: 画面几乎全黑`).toBeGreaterThan(0.02);
+      // 用 soft 断言：一次跑完看到三十个的全貌，而不是卡在第一个失败上
+      /* 「画质要饱满」是明确要求，所以下限定在 25%，而不是「别全黑」的 2%。
+         第一批原本走线框路子，最稀的星轨只点亮 6.8% 的像素，投影上很单薄；
+         补上实体的体积层之后全都在 32% 以上。这条守的就是别再退回去。 */
+      expect.soft(r.lit / r.total, `${kind}: 画面太稀，不够饱满`).toBeGreaterThan(0.25);
       // 鲜艳：亮像素里大半是高饱和的，而且色相不止一种。发灰通常是 bloom 开太猛，
       // 把细线糊成一片泛白的光晕 —— 那就是"不够靓"，得回去调 bloom，不是放宽这条
       expect.soft(r.vivid / r.lit, `${kind}: 颜色发灰，不够鲜艳`).toBeGreaterThan(0.5);
