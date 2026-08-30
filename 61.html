@@ -14345,9 +14345,9 @@ function drawSpectrumCurveGlow(bass, now, dt){
 }
 
 /* ---------- Glitch Bars family: full-height vertical colour bars, TV-signal/glitch aesthetic ---------- */
-let glitchBarLayout = null;
+let glitchBarLayout = null, glitchBarLayoutW = 0;
 function ensureGlitchBars(){
-  if(glitchBarLayout && glitchBarLayout.length) return glitchBarLayout;
+  if(glitchBarLayout && glitchBarLayout.length && glitchBarLayoutW === W) return glitchBarLayout;
   const bars = []; let x = 0;
   while(x < W){
     const w = (16 + Math.random()*44) * DPR;
@@ -14355,6 +14355,7 @@ function ensureGlitchBars(){
     x += w;
   }
   glitchBarLayout = bars;
+  glitchBarLayoutW = W;
   return bars;
 }
 let glitchLastBeatT = 0, glitchRedistributeT = 0, glitchScanY = 0, glitchScanHist = [], glitchTearOffsets = {};
@@ -14396,6 +14397,18 @@ function drawGlitchBarsFamily(variant, bass, now, dt){
   fadeGlitchLayer();
 }
 
+/* glitchBarsRgbBloom 专用的离屏层。不能借 getLayerCtx() —— 那边的
+   pruneLayerCanvases() 会把不在 activeModes 里的 key 删掉，每帧重建一张
+   全尺寸画布（4K 下 33MB）比省下来的还贵。 */
+let glitchBlurLayer = null;
+function ensureGlitchBlurLayer(){
+  if(!glitchBlurLayer || glitchBlurLayer.canvas.width!==W || glitchBlurLayer.canvas.height!==H){
+    const canvas = glitchBlurLayer ? glitchBlurLayer.canvas : document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    glitchBlurLayer = { canvas, ctx: canvas.getContext('2d') };
+  }
+  return glitchBlurLayer;
+}
 function drawGlitchBarsRgbFamily(variant, bass, now, dt){
   const bars = ensureGlitchBars();
   const beat = bass > 0.55 && now - glitchLastBeatT > 140;
@@ -14413,15 +14426,20 @@ function drawGlitchBarsRgbFamily(variant, bass, now, dt){
     channels[2].dx = Math.cos(ang+Math.PI)*sep; channels[2].dy = Math.sin(ang+Math.PI)*sep;
   }
   g2.globalCompositeOperation = 'lighter';
+  const blurPx = variant===4 ? (3+bass*4)*DPR : 0;
+  const lay = variant===4 ? ensureGlitchBlurLayer() : null;
   channels.forEach(ch=>{
-    g2.save();
-    if(variant===4){ g2.filter = `blur(${(3+bass*4)*DPR}px)`; }
-    bars.forEach((b,i)=>{
-      const hue = ch.tint;
-      g2.fillStyle = `hsla(${hue},90%,55%,0.55)`;
-      g2.fillRect(b.x0+fxOffX+ch.dx*DPR, fxOffY+ch.dy*DPR, b.w, H);
-    });
-    g2.restore();
+    // 目标上下文：要模糊的话先平铺到离屏层，最后连同 filter 一次性合成回来
+    const dst = lay ? lay.ctx : g2;
+    if(lay) lay.ctx.clearRect(0,0,W,H);
+    dst.fillStyle = `hsla(${ch.tint},90%,55%,0.55)`;   // 一个通道一个色，不用每条 bar 重设
+    bars.forEach(b=> dst.fillRect(b.x0+fxOffX+ch.dx*DPR, fxOffY+ch.dy*DPR, b.w, H));
+    if(lay){
+      g2.save();
+      g2.filter = `blur(${blurPx}px)`;
+      g2.drawImage(lay.canvas, 0, 0);
+      g2.restore();
+    }
   });
   g2.globalCompositeOperation = 'source-over';
   fadeGlitchLayer();
