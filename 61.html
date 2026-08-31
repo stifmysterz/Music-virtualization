@@ -860,6 +860,7 @@
     <option value="drift">🎥 Camera: Rotation Drift</option>
   </select>
   <button id="bg3DDirectorBtn" class="dock-dd-item" title="Auto-detects Build Up / Drop / Breakdown from the music and nudges the current 3D style's intensity accordingly">🎬 Auto Director: Off</button>
+  <button id="bg3DSeeThroughBtn" class="dock-dd-item" title="Let the photo/video background show through the dark parts of the 3D scene — bright areas stay solid">🪟 See Through: On</button>
   <div class="dock-dd-slider-row" id="bg3DOpacityRow" title="How visible the 3D background is — independent of the photo/video background's own brightness slider">
     <span>◐</span>
     <input type="range" id="bg3DOpacitySel" class="mode-bright-slider" min="0" max="100" value="100" step="1">
@@ -5918,7 +5919,7 @@ const T2 = {
       bounceOn:'Bounce: On',bounceOff:'Bounce: Off',
       fxBlendLabelOn:'✳ FX over BG: On',fxBlendLabelOff:'✳ FX over BG: Off',mic:'Mic',micOn:'Mic On',
       outlineLabel:'Canvas Outline',debug3dLabel:'3D Debug',onWord:'On',offWord:'Off',
-      fpsLabel:'FPS Meter',recordQualityLabel:'Quality',fpsRecording:'recording',
+      fpsLabel:'FPS Meter',recordQualityLabel:'Quality',fpsRecording:'recording',seeThroughLabel:'See Through',
       fpsTipQuality:'Recording is dropping frames — try a lower Quality in Tools.',
       fpsTipLayers:'Still dropping frames at 1080p — try using fewer modes at once.',
       recordQualityLocked:'Stop the recording before changing quality.',
@@ -5957,7 +5958,7 @@ const T2 = {
       screenBlendOn:'✳ 去黑底：开',screenBlendOff:'✳ 去黑底：关',
       fxBlendLabelOn:'✳ 特效透背景：开',fxBlendLabelOff:'✳ 特效透背景：关',
       outlineLabel:'画布边框',debug3dLabel:'3D 调试',onWord:'开',offWord:'关',
-      fpsLabel:'帧率',recordQualityLabel:'录制画质',fpsRecording:'录制中',
+      fpsLabel:'帧率',recordQualityLabel:'录制画质',fpsRecording:'录制中',seeThroughLabel:'透出背景',
       fpsTipQuality:'录制掉帧了 —— 到 Tools 里把录制画质调低一档试试。',
       fpsTipLayers:'1080p 还是掉帧 —— 试试同时少开几个 mode。',
       recordQualityLocked:'先停止录制，再改画质。',
@@ -6005,6 +6006,7 @@ const STATEFUL_LABELS = {
   debugOutlineBtn: ()=> '▭ ' + t2('outlineLabel') + ': ' + t2((typeof debugOutlineOn!=='undefined' && debugOutlineOn) ? 'onWord' : 'offWord'),
   bg3dDebugBtn: ()=> '🐞 ' + t2('debug3dLabel') + ': ' + t2((typeof bg3dDebugOn!=='undefined' && bg3dDebugOn) ? 'onWord' : 'offWord'),
   fpsHudBtn: ()=> '📊 ' + t2('fpsLabel') + ': ' + t2((typeof fpsHudOn!=='undefined' && fpsHudOn) ? 'onWord' : 'offWord'),
+  bg3DSeeThroughBtn: ()=> '🪟 ' + t2('seeThroughLabel') + ': ' + t2((typeof bg3DSeeThrough==='undefined' || bg3DSeeThrough) ? 'onWord' : 'offWord'),
   recordQualityBtn: ()=> '🎬 ' + t2('recordQualityLabel') + ': ' + ({'4k':'4K','1440p':'1440p','1080p':'1080p'})[typeof recordQuality!=='undefined'?recordQuality:'4k'],
   micBtn: ()=> (typeof micActive!=='undefined' && micActive) ? ('🎤 '+t2('micOn')) : ('🎤 '+t2('mic')),
   micShuffleToggle: ()=> (typeof micShuffleOn!=='undefined' && micShuffleOn) ? t2('shuffleOn') : t2('shuffleOff'),
@@ -6612,12 +6614,78 @@ function ensureBg3DDotTexture(){
    Mirrors the composer/RenderPass/UnrealBloomPass boilerplate each of the 21 earlier effects
    (Prism..RainbowWormhole) already duplicates inline, so new effects don't have to repeat it.
    Returns bloom too, since several existing effects modulate bloom.strength per-frame from audio. */
+/* 让 3D 背景透出照片/视频背景。
+ *
+ * #bgThree 本来就是 alpha:true + setClearColor(0,0,0,0)，空白处该是透明的，
+ * 但只要挂了 EffectComposer，最终那道 pass 把画面拷到屏幕时会写入 alpha=1，
+ * 把透明度整个覆盖掉 —— 实测三十个 VJ 隧道全部 100% 遮挡背景，连线框那批也一样，
+ * 而没用 bloom 的 particles / nebula3d 则是 98~100% 透。所以根因是 composer，
+ * 不是画面里画了什么。
+ *
+ * 解法是在 composer 末尾补一道 pass，按亮度把 alpha 写回去：越黑越透，越亮越实。
+ * 配合 renderer 默认的 premultipliedAlpha，浏览器的合成就是
+ *     结果 = 3D 的颜色 + 背景 * (1 - 亮度)
+ * 也就是纯黑处完全是背景、高光处完全是 3D 的原色，中间是发光体叠上去的样子。
+ * 比给整个 canvas 加 mix-blend-mode:screen 干净得多 —— screen 会把整幅画提亮、
+ * 把黑色全部吃掉（纵深就没了），还会让背景的颜色去污染 3D 的颜色。
+ */
+const BG3D_ALPHA_SHADER = {
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: [
+    'uniform sampler2D tDiffuse;',
+    'varying vec2 vUv;',
+    'void main(){',
+    '  vec4 c = texture2D(tDiffuse, vUv);',
+    // 取三通道最大值而不是感知亮度：饱和的纯蓝(0,0,1)在感知亮度里只有 0.07，
+    // 那样蓝色的效果会几乎整个透掉。要的是「有颜色就算实」。
+    '  gl_FragColor = vec4(c.rgb, max(c.r, max(c.g, c.b)));',
+    '}'
+  ].join('\n')
+};
+let bg3DSeeThrough = true;
+try{ bg3DSeeThrough = localStorage.getItem('subremix_bg3dseethrough') !== '0'; }catch(e){}
+const bg3DAlphaPasses = [];   // 场景是建好就缓存的，开关要能改到已经建过的那些
+function applyBg3DSeeThrough(){
+  bg3DAlphaPasses.forEach(p => { p.enabled = bg3DSeeThrough; });
+  const btn = document.getElementById('bg3DSeeThroughBtn');
+  if(btn){ btn.textContent = STATEFUL_LABELS.bg3DSeeThroughBtn(); btn.classList.toggle('active', bg3DSeeThrough); }
+}
+/* 一部分效果（particles / galaxy / synthwave 这些）没挂 bloom，走的是直接
+   bg3DRenderer.render()，也就没有那道写回 alpha 的 pass —— 实测 synthwave 仍然
+   100% 挡住背景。给它们补一个只有 RenderPass + alpha 的 composer，「透出背景」
+   才对所有效果一致生效。关掉开关时 composer 里只剩 RenderPass，等价于原来的直接渲染。 */
+function makeBg3DAlphaPass(){
+  const p = new THREE.ShaderPass(BG3D_ALPHA_SHADER);
+  /* NoBlending：直接把 (rgb, alpha) 写进 framebuffer，不在 GL 这一层再混一次。
+     混合交给浏览器按 premultipliedAlpha 去做，否则 rgb 会被 alpha 乘两遍、中间调发暗。 */
+  p.material.blending = THREE.NoBlending;
+  p.__bg3dAlpha = true;
+  p.enabled = bg3DSeeThrough;
+  bg3DAlphaPasses.push(p);
+  return p;
+}
+function ensureBg3DComposer(s){
+  if(!s) return;
+  if(!s.composer){
+    // 没挂 composer 的（particles / galaxy 这些走直接 render）：补一个最小的
+    const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+    composer.addPass(new THREE.RenderPass(s.scene, s.camera));
+    s.composer = composer;
+  }
+  /* 不管 composer 是 createBg3DBloom 建的还是效果自己手写的（有 21 个是自己写的，
+     例如 synthwave），末尾都得有那道写回 alpha 的 pass，否则「透出背景」对它们无效。 */
+  const passes = s.composer.passes;
+  if(!passes.length || !passes[passes.length-1].__bg3dAlpha) s.composer.addPass(makeBg3DAlphaPass());
+}
 function createBg3DBloom(scene, camera, strength, radius, threshold){
   const composer = new THREE.EffectComposer(ensureBg3DRenderer());
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), strength, radius, threshold);
   composer.addPass(bloom);
-  return { composer, bloom };
+  const alphaPass = makeBg3DAlphaPass();
+  composer.addPass(alphaPass);
+  return { composer, bloom, alphaPass };
 }
 
 /* -- style 1: particle field -- */
@@ -14677,6 +14745,7 @@ function enableBg3D(kind){
   try{
     ensureBg3DRenderer();
     if(!bg3DScenes[kind]) bg3DScenes[kind] = BG3D_BUILDERS[kind]();
+    ensureBg3DComposer(bg3DScenes[kind]);   // 没挂 bloom 的效果也要能透出背景
     resizeBg3D();
     bgThreeCanvas.style.display = bg3DVisible ? 'block' : 'none';
     bg3DKind = kind;
@@ -23882,6 +23951,12 @@ document.getElementById('bg3DSpeedSel').addEventListener('input', e=>{
 document.getElementById('bg3DOpacitySel').addEventListener('input', e=>{
   bgThreeCanvas.style.opacity = String(parseFloat(e.target.value)/100);
 });
+document.getElementById('bg3DSeeThroughBtn').onclick = ()=>{
+  bg3DSeeThrough = !bg3DSeeThrough;
+  try{ localStorage.setItem('subremix_bg3dseethrough', bg3DSeeThrough ? '1' : '0'); }catch(e){}
+  applyBg3DSeeThrough();
+};
+applyBg3DSeeThrough();
 document.getElementById('bg3DCameraMotionSel').addEventListener('change', e=>{
   bg3DCameraMotion = e.target.value;
 });

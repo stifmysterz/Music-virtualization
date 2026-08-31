@@ -238,16 +238,20 @@ test('跑满一整个循环之后画面还在 —— 元素没有飞光，也没
       const r = await win.evaluate((k) => {
         enableBg3D(k);
         window.__vj.step(30, 0.5, 0.4, 0.3);
-        const warmLit = window.__vj.avgLit(10, 0.5, 0.4, 0.3);   // 热身之后的平均亮度，当基准
+        const warmLit = window.__vj.avgLit(20, 0.5, 0.4, 0.3);   // 热身之后的平均亮度，当基准
         // 有音乐时每帧走 2.5 —— 400 帧 = 1000 单位 = 四圈半
         window.__vj.step(400, 0.5, 0.4, 0.3);
-        const lit = window.__vj.avgLit(10, 0.5, 0.4, 0.3);
+        const lit = window.__vj.avgLit(20, 0.5, 0.4, 0.3);
         const zs = window.__vj.zs();
         return { lit, warmLit, total: window.__vj.pixels().total, spread: Math.max(...zs) - Math.min(...zs) };
       }, kind);
-      // 跟热身时的亮度比，而不是定一个绝对阈值 —— 六角脉冲那种细线本来就只点亮 1.7%
-      // 的像素，绝对阈值卡的是线宽，不是循环接没接上
-      expect(r.lit / r.warmLit, `${kind}: 跑完四圈半后画面塌了 —— 循环没接上`).toBeGreaterThan(0.5);
+      /* 跟热身时的亮度比，而不是定一个绝对阈值 —— 不同效果的密度差很多，
+         绝对阈值卡的是密度，不是循环接没接上。
+         比值判据放在 0.25：这条要抓的故障是「元素全飞光、画面空掉」，那时亮度会
+         塌到接近 0。而好几个效果本身就有周期性的整体胀缩（触手隧道最明显，它的
+         clock 项让整条隧道一起呼吸），采样窗口盖不满那个周期，比值在 0.4~1 之间
+         正常起伏 —— 卡在 0.5 会偶发误报（实测三次里错两次）。 */
+      expect(r.lit / r.warmLit, `${kind}: 跑完四圈半后画面塌了 —— 循环没接上`).toBeGreaterThan(0.25);
       expect(r.lit / r.total, `${kind}: 跑完四圈半后画面空了`).toBeGreaterThan(0.01);
       expect(r.spread, `${kind}: 元素全堆在同一个深度上了`).toBeGreaterThan(20);
     }
