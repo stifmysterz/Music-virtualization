@@ -396,6 +396,17 @@
   #modePanelList .mode-cat-header{cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px}
   #modePanelList .mode-cat-header:hover{opacity:1}
   #bg3DMenuList, #vjMenuList{display:flex;flex-direction:column;gap:5px}
+  #nowPlayingList{display:flex;flex-direction:column;gap:4px}
+  /* 每一层的小标题，右边挂着这一层的轮换状态 */
+  .np-group{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:8px 2px 2px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;opacity:.72;cursor:default}
+  .np-shuffle{font-size:10px;text-transform:none;letter-spacing:0;opacity:.9}
+  .np-shuffle.on{color:#ffd27d}
+  .np-row{display:flex;align-items:center;gap:5px}
+  .np-row .np-name{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .np-row .np-name.focused{border-color:#7de3ff;color:#7de3ff}
+  .np-del{flex:0 0 auto;width:30px;padding:6px 0;border-radius:8px;border:1px solid rgba(255,80,80,.35);background:transparent;color:#ff8080;cursor:pointer;font-size:13px}
+  .np-del:hover{background:rgba(255,80,80,.16)}
+  .np-empty{padding:5px 8px;font-size:12px;opacity:.45;cursor:default}
   #modeMenuList{display:flex;flex-direction:column;gap:5px}
   #bg3DMenuList .mode-cat-header, #modeMenuList .mode-cat-header{cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;margin:4px 0 0}
   #bg3DMenuList .mode-cat-header:hover, #modeMenuList .mode-cat-header:hover{opacity:1}
@@ -669,6 +680,7 @@
 <div class="dock" role="toolbar" aria-label="Player controls">
   <button id="playBtn" class="primary" aria-label="Play or pause">Play</button>
   <div class="sep"></div>
+  <button id="nowPlayingBtn" class="grp-mode" title="Everything running right now — 2D effects, 3D background, VJ tunnel. Double-click a row to select or jump to it">🎛 Now Playing</button>
   <button id="modeBtn" class="grp-mode" title="Choose visual mode (M cycles)">Mode</button>
   <button id="textStyleBtn" class="grp-text" title="Song title, Text A/B, colour, font and size">📝 Text</button>
   <div class="sep"></div>
@@ -869,6 +881,15 @@
   <button id="bg3DToggleBtn" class="dock-dd-item active" title="Show/hide the 3D background" style="display:none">👁 Show 3D</button>
   <button id="bg3DRemoveBtn" class="dock-dd-item" title="Remove the 3D background" style="display:none;border-color:rgba(255,80,80,.4);color:#ff8080">🗑 Remove 3D</button>
   <div id="bg3DBounceHint" style="padding:6px 8px;font-size:11px;opacity:.6;cursor:default">💡 Bounce animation (also applies here) is in the Background menu</div>
+</div>
+
+<!-- 🎛 Now Playing —— 一眼看到现在到底有什么在跑。
+     信息本来散在三个菜单里：2D 的活跃项混在 Mode 面板 241 个格子中间，
+     3D/VJ 则要各自打开菜单才知道。这里集中列出来，双击一行就能选中或跳过去。
+     内容由 renderNowPlaying() 生成，菜单开着时每 500ms 刷一次 —— 三层都可能
+     开着自动轮换，不刷的话列表会跟画面对不上。 -->
+<div id="nowPlayingMenu" class="dock-dd">
+  <div id="nowPlayingList"></div>
 </div>
 
 <!-- 🌀 VJ —— 隧道穿梭 loop 自己的菜单。跑的是同一个 three.js 引擎（所以速度、摄影机、
@@ -5341,6 +5362,7 @@ const UI_STRINGS = {
     bg3DCatGalaxy:"🌌 Galaxy & Space",
     bg3DCatTunnels:"🌀 Tunnels",
     /* 🌀 VJ 菜单（隧道穿梭 loop）—— 按钮 id 用的是 bg3DIdFor() 那套规则，applyLanguage() 就能自动翻到 */
+    nowPlayingBtn:"🎛 Now Playing",
     vjMenuBtn:"🌀 VJ",
     vjMenuTitle:"🌀 VJ Loop Tunnels",
     vjRandomBtn:"🎲 Random Tunnel",
@@ -5612,6 +5634,7 @@ const UI_STRINGS = {
     bg3DCatGalaxy:"🌌 星系宇宙",
     bg3DCatTunnels:"🌀 隧道",
     /* 🌀 VJ 菜单（隧道穿梭 loop）—— 按钮 id 用的是 bg3DIdFor() 那套规则，applyLanguage() 就能自动翻到 */
+    nowPlayingBtn:"🎛 正在播放",
     vjMenuBtn:"🌀 VJ",
     vjMenuTitle:"🌀 VJ 循环隧道",
     vjRandomBtn:"🎲 随机隧道",
@@ -23277,6 +23300,121 @@ document.getElementById('vjShuffleCustomSel').addEventListener('change', ()=>{
 });
 syncVjShuffleBtn();
 
+/* ---------- 🎛 Now Playing ----------
+   现在在跑什么，一个地方看全。三类：2D 效果（可以多个叠）、3D 背景、VJ 隧道。
+   双击一行：2D 是把它设为手势的作用对象（focusModeIdx）；3D/VJ 没有任何手势
+   操作，设「焦点」没有意义，所以改成直接打开它所属的那个菜单 —— 那才是能改它的
+   地方（速度、摄影机、透明度、透出背景）。
+   每层标题右边标着这一层的轮换状态：不标的话会出现「刚双击选中一个效果，还没来得及
+   拖，Auto-Shuffle 就把整套换掉了」，看起来像是面板坏了。 */
+function nowPlayingShuffleLabel(on, selId){
+  if(!on) return currentLang==='zh' ? '🔀 关' : '🔀 Off';
+  const sel = document.getElementById(selId);
+  const v = sel ? sel.value : '';
+  if(v === 'change') return currentLang==='zh' ? '🔀 突变时' : '🔀 On change';
+  if(v === 'custom'){
+    const cs = document.getElementById(selId.replace('IntervalSel','CustomSel'));
+    const secs = parseInt(cs?.value, 10);
+    return '🔀 ' + (currentLang==='zh' ? ('每 '+(secs||'?')+' 秒') : ('every '+(secs||'?')+'s'));
+  }
+  const secs = Math.round((parseInt(v,10)||0)/1000);
+  return '🔀 ' + (currentLang==='zh' ? ('每 '+secs+' 秒') : ('every '+secs+'s'));
+}
+function makeNowPlayingGroup(title, shuffleOn, selId){
+  const head = document.createElement('div');
+  head.className = 'np-group';
+  const left = document.createElement('span');
+  left.textContent = title;
+  head.appendChild(left);
+  const right = document.createElement('span');
+  right.className = 'np-shuffle' + (shuffleOn ? ' on' : '');
+  right.textContent = nowPlayingShuffleLabel(shuffleOn, selId);
+  head.appendChild(right);
+  return head;
+}
+function makeNowPlayingRow(label, opts){
+  const row = document.createElement('div');
+  row.className = 'np-row';
+  const btn = document.createElement('button');
+  btn.className = 'dock-dd-item np-name' + (opts.focused ? ' focused' : '');
+  btn.textContent = (opts.focused ? '⊕ ' : '') + label;
+  btn.title = opts.title || '';
+  btn.ondblclick = opts.onActivate;
+  row.appendChild(btn);
+  const del = document.createElement('button');
+  del.className = 'np-del';
+  del.textContent = '✕';
+  del.title = currentLang==='zh' ? '移除' : 'Remove';
+  del.onclick = (e)=>{ e.stopPropagation(); opts.onRemove(); renderNowPlaying(); };
+  row.appendChild(del);
+  return row;
+}
+function renderNowPlaying(){
+  const list = document.getElementById('nowPlayingList');
+  if(!list) return;
+  list.innerHTML = '';
+  const zh = currentLang==='zh';
+  const emptyRow = ()=>{
+    const d = document.createElement('div');
+    d.className = 'np-empty';
+    d.textContent = zh ? '（无）' : '(none)';
+    return d;
+  };
+
+  // --- 2D 效果。activeModes 的顺序就是层序，后面的画在上面，所以倒过来列，
+  //     最上层排最前，跟眼睛看到的一致 ---
+  list.appendChild(makeNowPlayingGroup(
+    (zh ? '2D 效果' : '2D Effects') + ' (' + activeModes.length + ')',
+    micShuffleOn, 'micShuffleIntervalSel'));
+  if(!activeModes.length) list.appendChild(emptyRow());
+  [...activeModes].reverse().forEach(idx=>{
+    list.appendChild(makeNowPlayingRow(getModeLabel(MODES[Math.floor(idx)]), {
+      focused: focusModeIdx === idx,
+      title: zh ? '双击选中它，之后在画面上拖拽/缩放/旋转都作用在它身上' : 'Double-click to select — drag / pinch / rotate on screen then apply to this one',
+      onActivate: ()=>{ focusModeIdx = idx; setLastInteracted('mode'); refreshModePanelActive(); renderNowPlaying(); },
+      onRemove: ()=>{
+        pushUndo();
+        startTransition();
+        const at = activeModes.indexOf(idx);
+        if(at > -1) activeModes.splice(at, 1);
+        if(focusModeIdx === idx) focusModeIdx = activeModes.length ? activeModes[activeModes.length-1] : null;
+        refreshModePanelActive();
+      },
+    }));
+  });
+
+  // --- 3D 背景 / VJ 隧道。同一时刻只有一个 bg3DKind，按它属于哪一类归到对应组 ---
+  const onVj = hasBg3D && bg3DKind && VJ_TUNNEL_KINDS.includes(bg3DKind);
+  const on3d = hasBg3D && bg3DKind && !onVj;
+  const bgRow = (menuBtnId)=> makeNowPlayingRow(bg3DText(bg3DIdFor(bg3DKind)), {
+    focused: false,
+    title: zh ? '双击打开它的菜单去改（背景没有手势操作）' : 'Double-click to open its menu (backgrounds have no on-screen gestures)',
+    onActivate: ()=>{ document.getElementById(menuBtnId).click(); },
+    onRemove: ()=> disableBg3D(),
+  });
+
+  list.appendChild(makeNowPlayingGroup(zh ? '3D 背景' : '3D Background', bg3DShuffleOn, 'bg3DShuffleIntervalSel'));
+  list.appendChild(on3d ? bgRow('bg3DMenuBtn') : emptyRow());
+
+  list.appendChild(makeNowPlayingGroup(zh ? 'VJ 隧道' : 'VJ Tunnel', vjShuffleOn, 'vjShuffleIntervalSel'));
+  list.appendChild(onVj ? bgRow('vjMenuBtn') : emptyRow());
+}
+/* 菜单开着的时候才刷 —— 三层都可能在自动轮换，不刷的话列表跟画面对不上；
+   关着还刷就是白烧 CPU。 */
+let nowPlayingTimer = null;
+function syncNowPlayingTimer(){
+  const open = document.getElementById('nowPlayingMenu')?.classList.contains('show');
+  if(open && !nowPlayingTimer){
+    renderNowPlaying();
+    nowPlayingTimer = setInterval(renderNowPlaying, 500);
+  }else if(!open && nowPlayingTimer){
+    clearInterval(nowPlayingTimer); nowPlayingTimer = null;
+  }
+}
+setupDockDropdown('nowPlayingBtn', 'nowPlayingMenu');
+document.getElementById('nowPlayingBtn').addEventListener('click', ()=> setTimeout(syncNowPlayingTimer, 0));
+document.addEventListener('click', ()=> setTimeout(syncNowPlayingTimer, 0));
+
 /* 三层各自注册到「突变时切换」。isArmed 是「开着 + 这一档选的是 change」，
    fire 就是各自平时定时器里跑的那件事。 */
 SUDDEN_CHANGE_SUBSCRIBERS.push(
@@ -23289,7 +23427,7 @@ SUDDEN_CHANGE_SUBSCRIBERS.push(
    of them need to change behavior, just get labeled correctly for assistive tech ---------- */
 document.querySelectorAll('.dock-dd').forEach(el=> el.setAttribute('role','menu'));
 document.querySelectorAll('.dock-dd-item').forEach(el=> el.setAttribute('role','menuitem'));
-['logoMenuBtn','soundMenuBtn','bgMenuBtn','bg3DMenuBtn','vjMenuBtn','looksMenuBtn','moreMenuBtn','modeBtn','textStyleBtn','timingBtn'].forEach(id=>{
+['logoMenuBtn','soundMenuBtn','bgMenuBtn','bg3DMenuBtn','vjMenuBtn','nowPlayingBtn','looksMenuBtn','moreMenuBtn','modeBtn','textStyleBtn','timingBtn'].forEach(id=>{
   const btn = document.getElementById(id);
   if(btn) btn.setAttribute('aria-haspopup','true');
 });
