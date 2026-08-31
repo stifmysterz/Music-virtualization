@@ -840,6 +840,7 @@
     <option value="16000">Every 16 sec</option>
     <option value="32000" selected>Every 32 sec</option>
     <option value="64000">Every 64 sec</option>
+    <option value="change">⚡ On Sudden Change</option>
     <option value="custom">Custom…</option>
   </select>
   <div class="dock-dd-slider-row" id="bg3DShuffleCustomRow" style="display:none" title="Custom interval, in seconds">
@@ -878,6 +879,21 @@
   <!-- vjMenuList 由 buildVjMenu() 按 VJ_TUNNEL_KINDS 生成 -->
   <button id="vjRandomBtn" class="dock-dd-item" style="margin-top:8px;border-top:1px solid var(--line);padding-top:12px" title="Jump to a random tunnel">🎲 Random Tunnel</button>
   <button id="vjNextBtn" class="dock-dd-item" title="Next tunnel, in menu order">⏭ Next Tunnel</button>
+  <button id="vjShuffleToggle" class="dock-dd-item" title="Automatically switch to another tunnel on a timer — turning this on stops the 3D menu's Auto-Shuffle, since both drive the same background">🔀 Auto-Shuffle: Off</button>
+  <select id="vjShuffleIntervalSel" class="dock-dd-select" title="How often to change">
+    <option value="4000">Every 4 sec</option>
+    <option value="8000">Every 8 sec</option>
+    <option value="16000" selected>Every 16 sec</option>
+    <option value="32000">Every 32 sec</option>
+    <option value="64000">Every 64 sec</option>
+    <option value="change">⚡ On Sudden Change</option>
+    <option value="custom">Custom…</option>
+  </select>
+  <div class="dock-dd-slider-row" id="vjShuffleCustomRow" style="display:none" title="Custom interval, in seconds">
+    <span>⏱</span>
+    <input type="number" id="vjShuffleCustomSel" min="3" max="3600" step="1" value="16" style="width:70px">
+    <span id="vjShuffleCustomUnit">sec</span>
+  </div>
   <div id="vjMenuHint" style="padding:8px 2px 0;font-size:11px;opacity:.6;cursor:default">💡 Speed, camera and opacity live in the 🌌 3D menu</div>
 </div>
 
@@ -4581,11 +4597,16 @@ function playFile(file){
 /* ---------- microphone: react live to whatever's in the room — DJ booth, venue speakers, etc. ---------- */
 let micStream = null, micSourceNode = null, micActive = false;
 let micShuffleOn = false, micShuffleTimer = null;
+/* 「⚡ 突变时切换」：不看时钟，看音乐。比较最近 0.5 秒和最近 4 秒的低音平均值，
+   差得够多就认为进了新段落（副歌、drop、突然安静）。
+   2D 效果、3D 背景、VJ 隧道三边都能用这一档，所以历史只攒一份 ——
+   段落变化是音乐本身的属性，各算一遍既浪费也会出现「2D 认为变了、3D 认为没变」。
+   冷却也是共用的：一次段落变化就该触发一轮，而不是三边各自数自己的 4 秒。 */
 let changeShortHist = [], changeLongHist = [], lastChangeShuffleAt = 0;
+const SUDDEN_CHANGE_SUBSCRIBERS = [];   // { isArmed(), fire() }，在各自的 shuffle 实现旁边注册
 function checkSuddenChangeShuffle(now){
-  if(!micShuffleOn) return;
-  const sel = document.getElementById('micShuffleIntervalSel');
-  if(sel?.value !== 'change') return;
+  const armed = SUDDEN_CHANGE_SUBSCRIBERS.filter(sub => { try{ return sub.isArmed(); }catch(e){ return false; } });
+  if(!armed.length){ changeShortHist.length = 0; changeLongHist.length = 0; return; }
   changeShortHist.push(lastBass); if(changeShortHist.length>30) changeShortHist.shift();   // ~0.5s at 60fps
   changeLongHist.push(lastBass); if(changeLongHist.length>240) changeLongHist.shift();      // ~4s at 60fps
   if(changeLongHist.length < 120) return;   // need a couple of seconds of history before comparing
@@ -4594,7 +4615,7 @@ function checkSuddenChangeShuffle(now){
   if(Math.abs(shortAvg-longAvg) > 0.3 && (now-lastChangeShuffleAt) > 4000){
     lastChangeShuffleAt = now;
     changeLongHist = [];   // let the new section establish its own baseline rather than comparing against the old one
-    runMicShuffleTick();
+    armed.forEach(sub => { try{ sub.fire(); }catch(e){ console.error('sudden-change subscriber failed:', e); } });
   }
 }
 async function startMic(){
@@ -5479,7 +5500,7 @@ const UI_STRINGS = {
     bg3DChapterFutureCityBtn:"↳ Future City",
     bg3DRandomBtn:"🎲 Random",
     bg3DNextBtn:"⏭ Next",
-    micShuffleCustomUnit:"sec",bg3DShuffleCustomUnit:"sec",
+    micShuffleCustomUnit:"sec",bg3DShuffleCustomUnit:"sec",vjShuffleCustomUnit:"sec",
     previewBassBtn:"Bass",
     previewMidBtn:"Mid",
     previewHighBtn:"High",
@@ -5750,7 +5771,7 @@ const UI_STRINGS = {
     bg3DChapterFutureCityBtn:"↳ AI未来世界",
     bg3DRandomBtn:"🎲 随机",
     bg3DNextBtn:"⏭ 下一个",
-    micShuffleCustomUnit:"秒",bg3DShuffleCustomUnit:"秒",
+    micShuffleCustomUnit:"秒",bg3DShuffleCustomUnit:"秒",vjShuffleCustomUnit:"秒",
     previewBassBtn:"低音",
     previewMidBtn:"中音",
     previewHighBtn:"高音",
@@ -5867,7 +5888,7 @@ const CAMERA_MOTION_NAMES = {
   zh:{off:'🎥 镜头：关闭',orbit:'🎥 镜头：慢速环绕',flythrough:'🎥 镜头：穿越推进',zoomburst:'🎥 镜头：节拍推近',shake:'🎥 镜头：震动冲击',drift:'🎥 镜头：缓慢漂移'}
 };
 function applyShuffleOptionNames(){
-  document.querySelectorAll('#micShuffleIntervalSel, #bg3DShuffleIntervalSel').forEach(sel=>{
+  document.querySelectorAll('#micShuffleIntervalSel, #bg3DShuffleIntervalSel, #vjShuffleIntervalSel').forEach(sel=>{
     [...sel.options].forEach(opt=>{
       const name = (INTERVAL_OPTION_NAMES[currentLang] && INTERVAL_OPTION_NAMES[currentLang][opt.value]) || INTERVAL_OPTION_NAMES.en[opt.value];
       if(name) opt.textContent = name;
@@ -5910,6 +5931,7 @@ function applyBounceStyleNames(){
   if(bgBtn) bgBtn.textContent = (currentLang==='zh'?'弹跳：':'Bounce: ') + (bgBounceOn ? (currentLang==='zh'?'开':'On') : (currentLang==='zh'?'关':'Off'));
   const bg3DShuffleBtn = document.getElementById('bg3DShuffleToggle');
   if(bg3DShuffleBtn) bg3DShuffleBtn.textContent = (currentLang==='zh'?'自动轮换：':'Auto-Shuffle: ') + (typeof bg3DShuffleOn!=='undefined' && bg3DShuffleOn ? (currentLang==='zh'?'开':'On') : (currentLang==='zh'?'关':'Off'));
+  if(typeof syncVjShuffleBtn === 'function') syncVjShuffleBtn();
   if(typeof syncBg3DDirectorBtn==='function') syncBg3DDirectorBtn();
 }
 const T2 = {
@@ -23205,11 +23227,63 @@ document.getElementById('vjNextBtn').onclick = ()=>{
   const i = VJ_TUNNEL_KINDS.indexOf(bg3DKind);   // 当前不是 VJ 隧道时 i=-1，(-1+1)=0 刚好从第一个开始
   enableBg3D(VJ_TUNNEL_KINDS[(i+1) % VJ_TUNNEL_KINDS.length]);
 };
-document.getElementById('vjRandomBtn').onclick = ()=>{
+function randomVjTunnel(){
   pushUndo();
   const pool = VJ_TUNNEL_KINDS.filter(k=> k !== bg3DKind);
   enableBg3D(pool[Math.floor(Math.random()*pool.length)]);
-};
+}
+document.getElementById('vjRandomBtn').onclick = randomVjTunnel;
+
+/* VJ 的自动轮换。跟 🌌 3D 菜单里那个互斥 —— 两边驱动的是同一个 bg3DKind，
+   同一时刻只能显示一个，同时开着的话两个定时器会互相抢画面。
+   互斥之后行为一句话说得清：菜单上哪个显示「开」，转的就是哪个。 */
+let vjShuffleOn = false, vjShuffleTimer = null;
+function startVjShuffleTimer(){
+  stopVjShuffleTimer();
+  const sel = document.getElementById('vjShuffleIntervalSel');
+  if(sel?.value === 'change') return;   // 交给 checkSuddenChangeShuffle 驱动
+  let interval;
+  if(sel?.value === 'custom'){
+    const secs = parseInt(document.getElementById('vjShuffleCustomSel')?.value, 10);
+    interval = (secs>=1 ? secs : 16) * 1000;
+  }else{
+    interval = parseInt(sel?.value, 10) || 16000;
+  }
+  vjShuffleTimer = setInterval(randomVjTunnel, interval);
+}
+function stopVjShuffleTimer(){
+  if(vjShuffleTimer){ clearInterval(vjShuffleTimer); vjShuffleTimer = null; }
+}
+function syncVjShuffleBtn(){
+  const btn = document.getElementById('vjShuffleToggle');
+  if(!btn) return;
+  btn.textContent = (currentLang==='zh'?'🔀 自动轮换：':'🔀 Auto-Shuffle: ') + (vjShuffleOn ? (currentLang==='zh'?'开':'On') : (currentLang==='zh'?'关':'Off'));
+  btn.classList.toggle('active', vjShuffleOn);
+}
+function setVjShuffle(on){
+  vjShuffleOn = on;
+  if(on) setBg3DShuffle(false);   // 互斥：VJ 转起来就把 3D 那个停掉
+  if(on) startVjShuffleTimer(); else stopVjShuffleTimer();
+  syncVjShuffleBtn();
+}
+document.getElementById('vjShuffleToggle').onclick = ()=> setVjShuffle(!vjShuffleOn);
+document.getElementById('vjShuffleIntervalSel').addEventListener('change', ()=>{
+  const isCustom = document.getElementById('vjShuffleIntervalSel').value === 'custom';
+  document.getElementById('vjShuffleCustomRow').style.display = isCustom ? 'flex' : 'none';
+  if(vjShuffleOn) startVjShuffleTimer();   // 换了档就按新的间隔重开
+});
+document.getElementById('vjShuffleCustomSel').addEventListener('change', ()=>{
+  if(vjShuffleOn) startVjShuffleTimer();
+});
+syncVjShuffleBtn();
+
+/* 三层各自注册到「突变时切换」。isArmed 是「开着 + 这一档选的是 change」，
+   fire 就是各自平时定时器里跑的那件事。 */
+SUDDEN_CHANGE_SUBSCRIBERS.push(
+  { isArmed: ()=> micShuffleOn && document.getElementById('micShuffleIntervalSel')?.value === 'change', fire: runMicShuffleTick },
+  { isArmed: ()=> bg3DShuffleOn && document.getElementById('bg3DShuffleIntervalSel')?.value === 'change', fire: randomBg3D },
+  { isArmed: ()=> vjShuffleOn && document.getElementById('vjShuffleIntervalSel')?.value === 'change', fire: randomVjTunnel },
+);
 /* ---------- accessibility: role/aria-haspopup for the dock's menu buttons and dropdowns —
    one-time static pass rather than touching the ~15 scattered open/close functions, since none
    of them need to change behavior, just get labeled correctly for assistive tech ---------- */
@@ -24253,6 +24327,7 @@ let bg3DShuffleOn = false, bg3DShuffleTimer = null;
 function startBg3DShuffleTimer(){
   stopBg3DShuffleTimer();
   const sel = document.getElementById('bg3DShuffleIntervalSel');
+  if(sel?.value === 'change') return;   // 交给 checkSuddenChangeShuffle 从渲染循环里驱动，不设定时器
   let interval;
   if(sel?.value === 'custom'){
     const secs = parseInt(document.getElementById('bg3DShuffleCustomSel')?.value, 10);
@@ -24265,14 +24340,19 @@ function startBg3DShuffleTimer(){
 function stopBg3DShuffleTimer(){
   if(bg3DShuffleTimer){ clearInterval(bg3DShuffleTimer); bg3DShuffleTimer = null; }
 }
-document.getElementById('bg3DShuffleToggle').onclick = ()=>{
-  bg3DShuffleOn = !bg3DShuffleOn;
+function syncBg3DShuffleBtn(){
   const btn = document.getElementById('bg3DShuffleToggle');
+  if(!btn) return;
   btn.textContent = (currentLang==='zh'?'自动轮换：':'Auto-Shuffle: ') + (bg3DShuffleOn ? (currentLang==='zh'?'开':'On') : (currentLang==='zh'?'关':'Off'));
   btn.classList.toggle('active', bg3DShuffleOn);
-  if(bg3DShuffleOn) startBg3DShuffleTimer();
-  else stopBg3DShuffleTimer();
-};
+}
+function setBg3DShuffle(on){
+  bg3DShuffleOn = on;
+  if(on && typeof vjShuffleOn !== 'undefined' && vjShuffleOn) setVjShuffle(false);   // 互斥，见 setVjShuffle 那边的说明
+  if(on) startBg3DShuffleTimer(); else stopBg3DShuffleTimer();
+  syncBg3DShuffleBtn();
+}
+document.getElementById('bg3DShuffleToggle').onclick = ()=> setBg3DShuffle(!bg3DShuffleOn);
 const DIRECTOR_PHASE_NAMES = {
   en:{normal:'Normal',buildup:'Build Up',drop:'Drop!',breakdown:'Breakdown'},
   zh:{normal:'正常',buildup:'爬升中',drop:'炸场！',breakdown:'回落中'}
