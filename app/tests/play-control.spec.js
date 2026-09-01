@@ -35,6 +35,11 @@ test('dock 横向滚动时 Play 按钮仍然钉在最左边，不会被滚出视
     const res = await win.evaluate(() => {
       const dock = document.querySelector('.dock');
       const btn = document.getElementById('playBtn');
+      /* dock 现在默认 flex-wrap:wrap，装不下就换行，正常情况下已经不会横向滚了
+         （见 dock-narrow.spec.js）。但 overflow-x 和这个 sticky 还留着当兜底 ——
+         极端缩放下单个按钮就可能比整条 dock 还宽，那时候换行也救不了。
+         这条测的就是那个兜底：先关掉换行还原出横向滚动，再看 Play 有没有钉住。 */
+      dock.style.flexWrap = 'nowrap';
       // 把 dock 强行压窄，制造出用户窗口不够宽时的那种横向滚动
       dock.style.maxWidth = '320px';
       const scrollable = dock.scrollWidth > dock.clientWidth;

@@ -5,14 +5,14 @@ const { closeApp } = require('./helpers/close-app');
 
 const APP_DIR = path.join(__dirname, '..');
 
-/* 🌀 VJ 菜单：10 个「隧道穿梭」循环视觉。
+/* 🌀 VJ 菜单：45 个「隧道穿梭」循环视觉。
  *
  * 三件事必须成立，缺一个就不是 VJ loop 而是普通 3D 背景：
  *   1) 真的画出东西 —— 每个隧道渲染出来的画面得有亮像素，而且颜色够鲜艳
  *   2) 真的从后面飞到前面 —— 场景里的元素 z 要往 +z（镜头）走，不是原地转
  *   3) 真的能一直循环 —— 跑够一整个循环长度之后画面还在，元素不会飞光
  *
- * 顺带守住接线：10 个都注册进 BG3D_BUILDERS 了，但一个都不许漏进 BG3D_CATALOG
+ * 顺带守住接线：45 个都注册进 BG3D_BUILDERS 了，但一个都不许漏进 BG3D_CATALOG
  * ——漏进去的话 🌌 3D 菜单的列表和它的 ⏭ Next 顺序就被搅乱了。
  */
 
@@ -25,7 +25,15 @@ const KINDS = ['vjLiquidGrid','vjHexPulse','vjNeonRibbon','vjPrismShards','vjWav
                'vjCyborgCorridor','vjRaceTrack','vjSpeedGates','vjHoverCity',
                'vjTentacleTunnel','vjBioMembrane','vjVoidNebula','vjEventHorizon',
                'vjCandyOrbs','vjDataBloom','vjNeonTubeRoom','vjNeonArches',
-               'vjHorizonVoyage','vjLightWell','vjHyperCube','vjCoasterRush'];
+               'vjHorizonVoyage','vjLightWell','vjHyperCube','vjCoasterRush',
+               /* 第三批：LuChrome / SpaceRacing / StillDerelict。
+                  刻意避开前 30 个已经占掉的「同心环往前推」和「线框方管」，
+                  改成帘幕、镜面、碎面、群体、建筑残骸。
+                  StillDerelict 原素材是低饱和工业废墟，这里取结构、换成彩色打光
+                  ——否则会直接撞上下面 vivid > 0.5 那条线。 */
+               'vjChromeDrips','vjMercuryPool','vjFoilCrumple','vjChromeBubbles','vjLiquidSpine',
+               'vjAsteroidSlalom','vjWarpJump','vjRingWorldRun','vjIonTrail','vjSolarFlare',
+               'vjDerelictHall','vjRustPipes','vjShatteredPanes','vjDustShaft','vjCollapsedGrid'];
 
 async function withApp(label, fn) {
   const dir = newUserDataDir(label);
@@ -95,7 +103,7 @@ function harness() {
   };
 }
 
-test('10 个 VJ 隧道都注册好了，而且一个都没漏进 🌌 3D 菜单', async () => {
+test('45 个 VJ 隧道都注册好了，而且一个都没漏进 🌌 3D 菜单', async () => {
   await withApp('vj-wiring', async (win) => {
     const res = await win.evaluate((kinds) => ({
       order: VJ_TUNNEL_KINDS,
@@ -231,7 +239,12 @@ test('每个隧道都画得出鲜艳的画面，而且元素是从后面往镜�
 });
 
 test('跑满一整个循环之后画面还在 —— 元素没有飞光，也没有堆到一处', async () => {
-  test.setTimeout(180_000);
+  /* 45 条隧道 × 450 帧，这套里最重的一条。原本 180 秒的预算只剩三分之一余量，
+     composer 挂上 MSAA render target 之后每帧成本涨了约一成，它就骑到线上了。
+     同一份代码实测跨度 126 秒 ~ 270 秒（差两倍，取决于机器上还有什么在跑），
+     所以按慢的那一端再留余量。断言一条没动 —— 只是把一个早就绷太紧的预算
+     调到实际水位，而不是靠降画质让它跑快、顺带丢掉对默认渲染路径的覆盖。 */
+  test.setTimeout(420_000);
   await withApp('vj-loop', async (win) => {
     await win.evaluate(harness);
     for (const kind of KINDS) {

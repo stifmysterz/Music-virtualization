@@ -42,16 +42,20 @@
   body.ui-scale-xl .preview-overlay-header{
     zoom:1.4;
   }
-  /* at these zoom levels the dock's buttons often don't fit in one row within max-width:94vw —
-     wrap onto a second row instead of relying on the (deliberately scrollbar-less) horizontal scroll */
-  body.ui-scale-large .dock, body.ui-scale-xl .dock{
-    flex-wrap:wrap; justify-content:center;
-  }
+  /* 放大界面时 dock 更容易一排放不下 —— 换行的规则现在写在 .dock 本身，这里不用再重复 */
 
   /* ---------- control dock ---------- */
   .dock{
-    position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:10;
-    display:flex;align-items:center;gap:8px;
+    /* 一排装不下这十几个按钮时换行，而不是靠 overflow-x 那条特意藏起来的横向滚动条：
+       没有滚动提示的横向滚动，效果等同于右边的按钮凭空消失（#playBtn 的 position:sticky
+       就是为这个打的补丁，但它只救得了最左边那一个）。overflow-x 留着当兜底 ——
+       极端缩放下单个按钮就比整条 dock 还宽时，换行也救不了。
+       定位不能用 left:50% + translateX(-50%)：position:fixed 收缩到内容宽度时，
+       「可用宽度」只算视口的右半边，于是 1268px 的窗口会折出三排、整条 dock 只有
+       632px 宽。left/right:0 + margin:0 auto 才让可用宽度是整个视口，max-width:94vw
+       也才真的管用。 */
+    position:fixed;left:0;right:0;margin:0 auto;width:fit-content;bottom:22px;z-index:10;
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;
     background:rgba(8,10,20,.72);backdrop-filter:blur(14px);
     border:1px solid var(--line);border-radius:14px;padding:8px 10px;
     max-width:94vw;overflow-x:auto;-webkit-overflow-scrolling:touch;
@@ -59,7 +63,10 @@
   }
   .dock::-webkit-scrollbar{display:none}
   #liveBar{
-    position:fixed;left:50%;bottom:98px;transform:translateX(-50%);z-index:10;
+    /* dock 换行成两排时会往上长，写死 bottom 就会被压在下面。
+       --dock-h 由 trackDockHeight() 实时写入；98px 是单排时的等效值（22+53+23）。
+       定位跟 .dock 用同一套，理由见上面。 */
+    position:fixed;left:0;right:0;margin:0 auto;width:fit-content;bottom:calc(22px + var(--dock-h, 53px) + 23px);z-index:10;
     display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;
     background:rgba(8,10,20,.72);backdrop-filter:blur(14px);
     border:1px solid var(--line);border-radius:14px;padding:8px 10px;
@@ -591,6 +598,16 @@
       border-radius:0; border-width:0 0 0 1px; border-style:solid; border-color:var(--line);
       padding:16px;
     }
+    /* 侧栏是整屏高的，z-index 25 盖在 dock（10）上面 —— 于是菜单一开，dock 右端
+       那 300px 里的按钮就全点不到了（1176px 宽的窗口上是 💾 Looks / ⏱ Timing /
+       ⚙ Tools 三个）。菜单开着的时候把 dock 让到侧栏左边去。
+       #modeMenu 除外：它在桌面上是从按钮正上方弹出的 drop-up，不是侧栏，
+       跟着挪反而会把它锚着的那个按钮挪走。
+       条件跟 PANEL_SAFE_ZONE 那句用的是同一组选择器，两边要一起改。 */
+    body:has(.dock-dd.show:not(#modeMenu)) .dock,
+    body:has(.mode-panel.show) .dock{
+      right:300px; max-width:calc(94vw - 300px);
+    }
     /* ……但 Mode 例外：它要的是从下面的 menubar 往上弹的 drop-up，锚在按钮正上方。
        其余菜单留在侧栏 —— Background 有四个滑杆、3D 有 120+ 项，侧栏更好用。
        具体的 left/bottom/max-height 由 setupDockDropdown() 按按钮位置逐次算出来。 */
@@ -835,6 +852,16 @@
     <option value="presets">Source: My Presets</option>
   </select>
   <button id="modeDeleteBtn" class="dock-dd-item" style="display:none;margin-top:8px;border-top:1px solid var(--line);padding-top:12px;border-color:rgba(255,80,80,.4);color:#ff8080" title="Remove the currently-focused effect">✕ Remove current effect</button>
+  <select id="modeRandomCountSel" class="dock-dd-select" title="How many effects 🎲 Random picks">
+    <option value="1">Random: 1 effect</option>
+    <option value="2">Random: 2 effects</option>
+    <option value="3">Random: 3 effects</option>
+    <option value="4" selected>Random: 4 effects</option>
+    <option value="5">Random: 5 effects</option>
+    <option value="6">Random: 6 effects</option>
+    <option value="7">Random: 7 effects</option>
+    <option value="8">Random: 8 effects</option>
+  </select>
   <button id="modeRandomQuickBtn" class="dock-dd-item" title="Random mode combo">🎲 Random</button>
   <button id="modeMoreBtn" class="dock-dd-item" title="Search, thumbnails, brightness, favourites, front/back layering">⚙ All mode settings…</button>
 </div>
@@ -915,6 +942,11 @@
     <input type="number" id="vjShuffleCustomSel" min="3" max="3600" step="1" value="16" style="width:70px">
     <span id="vjShuffleCustomUnit">sec</span>
   </div>
+  <select id="vjQualitySel" class="dock-dd-select" title="Render quality for the whole 3D layer (VJ tunnels and 3D backgrounds) — higher tiers add anti-aliasing, real lighting and reflections, at a frame-rate cost">
+    <option value="low">Quality: Low (fastest)</option>
+    <option value="balanced" selected>Quality: Balanced</option>
+    <option value="ultra">Quality: Ultra (reflections)</option>
+  </select>
   <div id="vjMenuHint" style="padding:8px 2px 0;font-size:11px;opacity:.6;cursor:default">💡 Speed, camera and opacity live in the 🌌 3D menu</div>
 </div>
 
@@ -5401,6 +5433,21 @@ const UI_STRINGS = {
     bg3DVjLightWellBtn:"🔆 Light Well",
     bg3DVjHyperCubeBtn:"⬡ Hyper Cube",
     bg3DVjCoasterRushBtn:"🎢 Coaster Rush",
+    bg3DVjChromeDripsBtn:"💧 Chrome Drips",
+    bg3DVjMercuryPoolBtn:"🪞 Mercury Hall",
+    bg3DVjFoilCrumpleBtn:"✨ Foil Crumple",
+    bg3DVjChromeBubblesBtn:"🫧 Chrome Bubbles",
+    bg3DVjLiquidSpineBtn:"🦴 Liquid Spine",
+    bg3DVjAsteroidSlalomBtn:"☄️ Asteroid Slalom",
+    bg3DVjWarpJumpBtn:"🌠 Warp Jump",
+    bg3DVjRingWorldRunBtn:"🪐 Ringworld Run",
+    bg3DVjIonTrailBtn:"🚀 Ion Trails",
+    bg3DVjSolarFlareBtn:"🔥 Solar Flare",
+    bg3DVjDerelictHallBtn:"🏚 Derelict Hall",
+    bg3DVjRustPipesBtn:"🛢 Rust Pipes",
+    bg3DVjShatteredPanesBtn:"🔷 Shattered Panes",
+    bg3DVjDustShaftBtn:"🌫 Dust Shafts",
+    bg3DVjCollapsedGridBtn:"🏗 Collapsed Grid",
     bg3DCatNeon:"🌈 Neon",
     bg3DCatGeometric:"🔺 Geometric",
     bg3DCatArchitecture:"🏛 Architecture",
@@ -5673,6 +5720,21 @@ const UI_STRINGS = {
     bg3DVjLightWellBtn:"🔆 光井",
     bg3DVjHyperCubeBtn:"⬡ 超立方折叠",
     bg3DVjCoasterRushBtn:"🎢 过山车冲刺",
+    bg3DVjChromeDripsBtn:"💧 铬熔滴帘",
+    bg3DVjMercuryPoolBtn:"🪞 水银廊",
+    bg3DVjFoilCrumpleBtn:"✨ 铝箔褶皱",
+    bg3DVjChromeBubblesBtn:"🫧 铬泡群",
+    bg3DVjLiquidSpineBtn:"🦴 液铬脊",
+    bg3DVjAsteroidSlalomBtn:"☄️ 陨石障碍",
+    bg3DVjWarpJumpBtn:"🌠 曲速跃迁",
+    bg3DVjRingWorldRunBtn:"🪐 环带世界",
+    bg3DVjIonTrailBtn:"🚀 离子尾流",
+    bg3DVjSolarFlareBtn:"🔥 恒星耀斑",
+    bg3DVjDerelictHallBtn:"🏚 霓虹废墟长廊",
+    bg3DVjRustPipesBtn:"🛢 锈蚀管廊",
+    bg3DVjShatteredPanesBtn:"🔷 碎窗厅",
+    bg3DVjDustShaftBtn:"🌫 尘光竖井",
+    bg3DVjCollapsedGridBtn:"🏗 塌陷钢架",
     bg3DCatNeon:"🌈 霓虹",
     bg3DCatGeometric:"🔺 几何",
     bg3DCatArchitecture:"🏛 建筑",
@@ -5906,6 +5968,16 @@ const SOURCE_OPTION_NAMES = {
   en:{favorites:'Source: My Favourites',random:'Source: Full Random',presets:'Source: My Presets'},
   zh:{favorites:'来源：我的收藏',random:'来源：完全随机',presets:'来源：我的预设'}
 };
+const VJ_QUALITY_OPTION_NAMES = {
+  en:{low:'Quality: Low (fastest)',balanced:'Quality: Balanced',ultra:'Quality: Ultra (reflections)'},
+  zh:{low:'画质：低（最流畅）',balanced:'画质：均衡',ultra:'画质：极致（真反射）'}
+};
+const RANDOM_COUNT_OPTION_NAMES = {
+  en:{'1':'Random: 1 effect','2':'Random: 2 effects','3':'Random: 3 effects','4':'Random: 4 effects',
+      '5':'Random: 5 effects','6':'Random: 6 effects','7':'Random: 7 effects','8':'Random: 8 effects'},
+  zh:{'1':'随机：1 个特效','2':'随机：2 个特效','3':'随机：3 个特效','4':'随机：4 个特效',
+      '5':'随机：5 个特效','6':'随机：6 个特效','7':'随机：7 个特效','8':'随机：8 个特效'}
+};
 const CAMERA_MOTION_NAMES = {
   en:{off:'🎥 Camera: Off',orbit:'🎥 Camera: Slow Orbit',flythrough:'🎥 Camera: Fly Through',zoomburst:'🎥 Camera: Zoom Burst',shake:'🎥 Camera: Shake Impact',drift:'🎥 Camera: Rotation Drift'},
   zh:{off:'🎥 镜头：关闭',orbit:'🎥 镜头：慢速环绕',flythrough:'🎥 镜头：穿越推进',zoomburst:'🎥 镜头：节拍推近',shake:'🎥 镜头：震动冲击',drift:'🎥 镜头：缓慢漂移'}
@@ -5921,6 +5993,20 @@ function applyShuffleOptionNames(){
   if(srcSel){
     [...srcSel.options].forEach(opt=>{
       const name = (SOURCE_OPTION_NAMES[currentLang] && SOURCE_OPTION_NAMES[currentLang][opt.value]) || SOURCE_OPTION_NAMES.en[opt.value];
+      if(name) opt.textContent = name;
+    });
+  }
+  const vjQSel = document.getElementById('vjQualitySel');
+  if(vjQSel){
+    [...vjQSel.options].forEach(opt=>{
+      const name = (VJ_QUALITY_OPTION_NAMES[currentLang] && VJ_QUALITY_OPTION_NAMES[currentLang][opt.value]) || VJ_QUALITY_OPTION_NAMES.en[opt.value];
+      if(name) opt.textContent = name;
+    });
+  }
+  const rndCountSel = document.getElementById('modeRandomCountSel');
+  if(rndCountSel){
+    [...rndCountSel.options].forEach(opt=>{
+      const name = (RANDOM_COUNT_OPTION_NAMES[currentLang] && RANDOM_COUNT_OPTION_NAMES[currentLang][opt.value]) || RANDOM_COUNT_OPTION_NAMES.en[opt.value];
       if(name) opt.textContent = name;
     });
   }
@@ -6064,13 +6150,45 @@ const STATEFUL_LABELS = {
   titleBounceToggle: ()=> (typeof textBounce!=='undefined' && textBounce.titleDisplay.on) ? t2('animateOn') : t2('animateOff'),
   textABounceToggle: ()=> (typeof textBounce!=='undefined' && textBounce.textADisplay.on) ? t2('animateOn') : t2('animateOff'),
   textBBounceToggle: ()=> (typeof textBounce!=='undefined' && textBounce.textBDisplay.on) ? t2('animateOn') : t2('animateOff'),
+  /* dock 的宽度不该随选了什么效果浮动。这个按钮显示当前效果名，而 241 个 mode 里
+     最长的那个（Glitch Bars: Rainbow Gradient）会把它从 76px 撑到 278px —— 整条 dock
+     跟着从「窗口 ≥1311px」变成「≥1526px」，同一台 1366 的笔记本切个效果就够不着
+     最右边的 ⚙ Tools 了。
+     截的是名字，不是后面的 +N —— 「还叠着另外几个」比看到完整名字重要得多，完整
+     名字在 Mode 菜单和 🎛 Now Playing 里都看得到。
+     按显示宽度算而不是按字符数：中文标签字符少但每个宽将近一倍。 */
   modeBtn: ()=>{
     if(typeof activeModes==='undefined' || !activeModes.length) return t('modeBtn');
     const idx = (typeof focusModeIdx!=='undefined' && focusModeIdx!=null && activeModes.includes(focusModeIdx)) ? focusModeIdx : activeModes[activeModes.length-1];
-    const name = getModeLabel(MODES[Math.floor(idx)]);
-    return activeModes.length>1 ? `${name} +${activeModes.length-1}` : name;
+    const suffix = activeModes.length>1 ? ` +${activeModes.length-1}` : '';
+    return fitModeBtnName(getModeLabel(MODES[Math.floor(idx)]), MODE_BTN_MAX_UNITS - textUnits(suffix)) + suffix;
   }
 };
+/* 半角算 1 个单位，中日韩全角算 1.7（12px 字号下实测约 7.75px vs 12px）。
+   19 个单位 ≈ 147px 文字 + 30px 内边距/描边 = 177px，留了余量给 ui-scale 缩放。 */
+const MODE_BTN_MAX_UNITS = 19;
+function charUnits(ch){
+  const c = ch.codePointAt(0);
+  // 0x3000-0x9fff：中日韩标点 + 汉字；0xff00-0xffef：全角字母数字标点
+  return ((c >= 0x3000 && c <= 0x9fff) || (c >= 0xff00 && c <= 0xffef)) ? 1.7 : 1;
+}
+function textUnits(s){
+  let u = 0;
+  for(const ch of s) u += charUnits(ch);
+  return u;
+}
+function fitModeBtnName(name, budget){
+  if(textUnits(name) <= budget) return name;
+  let u = 0, out = '';
+  for(const ch of name){
+    const w = charUnits(ch);
+    if(u + w > budget - 1) break;   // 留 1 个单位给省略号
+    u += w; out += ch;
+  }
+  // 断在空格或分隔符上时把它去掉，省得出现「Glitch Bars: …」这种尾巴
+  return out.replace(/[ ·:：]+$/, '') + '…';
+}
+
 function refreshStatefulLabels(){
   Object.keys(STATEFUL_LABELS).forEach(id=>{
     const el = document.getElementById(id);
@@ -6714,7 +6832,7 @@ function ensureBg3DComposer(s){
   if(!s) return;
   if(!s.composer){
     // 没挂 composer 的（particles / galaxy 这些走直接 render）：补一个最小的
-    const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+    const composer = bg3DComposer();
     composer.addPass(new THREE.RenderPass(s.scene, s.camera));
     s.composer = composer;
   }
@@ -6723,8 +6841,34 @@ function ensureBg3DComposer(s){
   const passes = s.composer.passes;
   if(!passes.length || !passes[passes.length-1].__bg3dAlpha) s.composer.addPass(makeBg3DAlphaPass());
 }
+/* ---------- 抗锯齿：把被 EffectComposer 吃掉的 MSAA 接回来 ----------
+   WebGLRenderer 是用 antialias:true 建的，但那个设置一直没生效：EffectComposer
+   默认会自己 new 一个不带多重采样的 WebGLRenderTarget，画面先渲进那个离屏缓冲、
+   再贴回屏幕，canvas 自己的 MSAA 根本轮不到。106 个效果全都走这条路，所以整个
+   3D 层的边缘一直是锯齿的 —— 这是「看着粗糙」的主因。
+   这里显式传一个带 samples 的 target 进去。只影响边缘的采样，不碰颜色，
+   现有效果手调过的配色和亮度全部保持原样。
+   samples 挂在画质档上：low 完全走原来的默认路径（零额外成本）。            */
+function bg3DMsaaSamples(){
+  if(vjQuality === 'low') return 0;
+  return vjQuality === 'ultra' ? 4 : 2;
+}
+function bg3DComposer(){
+  const renderer = ensureBg3DRenderer();
+  const samples = bg3DMsaaSamples();
+  if(!samples) return new THREE.EffectComposer(renderer);
+  const size = renderer.getSize(new THREE.Vector2());
+  const pr = renderer.getPixelRatio();
+  /* WebGL1 下 samples 会被忽略（不报错），所以不用额外判断能力 */
+  const rt = new THREE.WebGLRenderTarget(
+    Math.max(1, Math.floor(size.x * pr)),
+    Math.max(1, Math.floor(size.y * pr)),
+    { samples });
+  return new THREE.EffectComposer(renderer, rt);
+}
+
 function createBg3DBloom(scene, camera, strength, radius, threshold){
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), strength, radius, threshold);
   composer.addPass(bloom);
@@ -6822,7 +6966,7 @@ function buildBg3DPrism(){
   scene.add(core);
   const edgeLines = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color:0x7df3ff }));
   scene.add(edgeLines);
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.4, 0.7, 0.15);
   composer.addPass(bloom);
@@ -7105,7 +7249,7 @@ function buildBg3DFestivalBuilding(){
   const bubbles = new THREE.Points(bubbleGeo, bubbleMat);
   scene.add(bubbles);
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.3, 0.8, 0.2);
   composer.addPass(bloom);
@@ -7393,7 +7537,7 @@ function buildBg3DGalaxy(){
     planets.push({ mesh, orbitR: 18+i*9, orbitSpeed: 0.05+Math.random()*0.05, orbitPhase: Math.random()*Math.PI*2, orbitTilt: (Math.random()-0.5)*0.6 });
   }
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.8, 0.15);
   composer.addPass(bloom);
@@ -7451,7 +7595,7 @@ function buildBg3DColorTunnel(){
   const sparks = new THREE.Points(sparkGeo, sparkMat);
   scene.add(sparks);
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.1, 0.7, 0.18);
   composer.addPass(bloom);
@@ -7511,7 +7655,7 @@ function buildBg3DSynthwave(){
     scene.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color:0xff5ea8, transparent:true, opacity:0.35 })));
   }
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.8, 0.15);
   composer.addPass(bloom);
@@ -7564,7 +7708,7 @@ function buildBg3DHelix(){
   helixGroup.add(new THREE.LineSegments(rungGeo, rungMat));
   scene.add(helixGroup);
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.8, 0.15);
   composer.addPass(bloom);
@@ -7619,7 +7763,7 @@ function buildBg3DFireworkSky(){
     slot.age = 0;
   }
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.3, 0.8, 0.15);
   composer.addPass(bloom);
@@ -7664,7 +7808,7 @@ function buildBg3DAurora(){
     ribbons.push({ mesh, basePos: geo.attributes.position.array.slice(), mat, hueBase: r/RIBBON_COUNT, phase: Math.random()*Math.PI*2 });
   }
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.9, 0.2);
   composer.addPass(bloom);
@@ -7710,7 +7854,7 @@ function buildBg3DParticleStorm(){
   const storm = new THREE.Points(geo, new THREE.PointsMaterial({ size:0.7, map:ensureBg3DDotTexture(), vertexColors:true, transparent:true, opacity:0.9, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending }));
   scene.add(storm);
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.3, 0.8, 0.15);
   composer.addPass(bloom);
@@ -7760,7 +7904,7 @@ function buildBg3DParticleWaves(){
   const waves = new THREE.Points(geo, new THREE.PointsMaterial({ size:0.6, map:ensureBg3DDotTexture(), vertexColors:true, transparent:true, opacity:0.9, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending }));
   scene.add(waves);
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.8, 0.15);
   composer.addPass(bloom);
@@ -7806,7 +7950,7 @@ function buildBg3DParticleRings(){
     ringGroups.push({ points, speed:(r%2===0?1:-1)*(0.2+r*0.05), tiltPhase: r*0.5 });
   }
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.8, 0.15);
   composer.addPass(bloom);
@@ -7842,7 +7986,7 @@ function buildBg3DParticleRain(){
   const rain = new THREE.Points(geo, new THREE.PointsMaterial({ size:0.5, map:ensureBg3DDotTexture(), vertexColors:true, transparent:true, opacity:0.85, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending }));
   scene.add(rain);
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.1, 0.8, 0.15);
   composer.addPass(bloom);
@@ -7885,7 +8029,7 @@ function buildBg3DGalaxyMerge(){
   const galaxyA = makeGalaxy(0.55);
   const galaxyB = makeGalaxy(0.9);
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.8, 0.15);
   composer.addPass(bloom);
@@ -7926,7 +8070,7 @@ function buildBg3DParticleVortex(){
   const vortex = new THREE.Points(geo, new THREE.PointsMaterial({ size:0.6, map:ensureBg3DDotTexture(), vertexColors:true, transparent:true, opacity:0.9, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending }));
   scene.add(vortex);
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.8, 0.15);
   composer.addPass(bloom);
@@ -7967,7 +8111,7 @@ function buildBg3DParticleStardust(){
   const dust = new THREE.Points(geo, mat);
   scene.add(dust);
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.0, 0.9, 0.2);
   composer.addPass(bloom);
@@ -8005,7 +8149,7 @@ function buildBg3DParticlePulseOrb(){
   const orb = new THREE.Points(geo, new THREE.PointsMaterial({ size:0.6, map:ensureBg3DDotTexture(), vertexColors:true, transparent:true, opacity:0.9, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending }));
   scene.add(orb);
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.8, 0.15);
   composer.addPass(bloom);
@@ -8046,7 +8190,7 @@ function buildBg3DParticleWaterfall(){
   const fall = new THREE.Points(geo, new THREE.PointsMaterial({ size:0.5, map:ensureBg3DDotTexture(), vertexColors:true, transparent:true, opacity:0.85, sizeAttenuation:true, depthWrite:false, blending:THREE.AdditiveBlending }));
   scene.add(fall);
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.1, 0.8, 0.15);
   composer.addPass(bloom);
@@ -8095,7 +8239,7 @@ function buildBg3DRainbowNebula(){
     cloudLayers.push({ points, mat, phase: Math.random()*Math.PI*2 });
   }
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.1, 0.9, 0.2);
   composer.addPass(bloom);
@@ -8129,7 +8273,7 @@ function buildBg3DCosmicRings(){
     rings.push({ loop, mat, t: r/RING_COUNT });
   }
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.8, 0.15);
   composer.addPass(bloom);
@@ -8177,7 +8321,7 @@ function buildBg3DGalaxySpiral(){
   const core = new THREE.Mesh(new THREE.SphereGeometry(2, 20, 20), coreMat);
   scene.add(core);
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.8, 0.15);
   composer.addPass(bloom);
@@ -8208,7 +8352,7 @@ function buildBg3DRainbowWormhole(){
     rings.push(loop);
   }
 
-  const composer = new THREE.EffectComposer(ensureBg3DRenderer());
+  const composer = bg3DComposer();
   composer.addPass(new THREE.RenderPass(scene, camera));
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.3, 0.8, 0.15);
   composer.addPass(bloom);
@@ -12979,6 +13123,125 @@ function vjDynAttr(count, itemSize){
   return a;
 }
 
+/* ============================================================================
+   共享的材质／灯光／环境／相位基建
+   ----------------------------------------------------------------------------
+   这批隧道原本清一色是不受光的 MeshBasicMaterial + bloom —— 铬、玻璃、金属
+   全靠手写 HSL 把高光「画」上去（见 ChromeFlow 的注释）。那是有天花板的：
+   没有灯就没有真高光，没有环境贴图就没有真反射。下面几个东西是「真材质」的
+   前提，加一次，45 个隧道都能用。
+
+   注意 bg3DScenes[kind] 建好之后永不回收（disableBg3D() 只是把 canvas 藏起来），
+   所以环境贴图必须是模块级单例 —— 每个场景生成一张的话会一直累积下去。
+   ============================================================================ */
+
+/* 渲染质量档。这软件要分发给硬件差别很大的人，所以做成旋钮而不是按开发机写死：
+     low      —— 完全走老路径（不受光 MeshBasicMaterial），一行额外开销都没有
+     balanced —— 受光 MeshStandardMaterial + 灯组，不开环境反射
+     ultra    —— 再加 PMREM 环境贴图，金属／玻璃才有真反射                        */
+let vjQuality = 'balanced';
+
+/* 共享环境贴图。程序化棚灯：天顶冷、地平线一条最亮的窄带、地面压到近黑。
+   金属面上那条能读出来的地平线，是「这是金属」最关键的线索 —— 比任何高光都管用。
+   只生成一次；PMREMGenerator 本身很贵，而且场景从不回收，没有重复生成的道理。 */
+let vjEnvRT = null;
+function vjEnvMap(){
+  if(vjEnvRT) return vjEnvRT.texture;
+  const c = document.createElement('canvas'); c.width = 512; c.height = 256;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0.00, '#7ea8ff');   // 天顶：冷
+  g.addColorStop(0.42, '#dbe7ff');
+  g.addColorStop(0.50, '#ffffff');   // 地平线：最亮的一条
+  g.addColorStop(0.57, '#26314c');   // 陡降 —— 落差越硬，金属面上的分界越利落
+  g.addColorStop(1.00, '#04050b');   // 地面：近黑
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 512, 256);
+  /* 两个柔光箱。表面转动时高光会扫过去 —— 均匀的环境是死的，有明暗块才有「扫光」 */
+  const softbox = (x, y, r, col)=>{
+    const rg = ctx.createRadialGradient(x, y, 0, x, y, r);
+    rg.addColorStop(0, col); rg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rg; ctx.fillRect(x-r, y-r, r*2, r*2);
+  };
+  softbox(118, 66, 92, 'rgba(255,255,255,0.95)');
+  softbox(372, 98, 74, 'rgba(120,190,255,0.72)');
+  const tex = new THREE.CanvasTexture(c);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  const pmrem = new THREE.PMREMGenerator(ensureBg3DRenderer());
+  vjEnvRT = pmrem.fromEquirectangular(tex);
+  pmrem.dispose(); tex.dispose();          // 生成完就丢，只留下 vjEnvRT
+  return vjEnvRT.texture;
+}
+
+/* 三点灯组：key 定形，rim 从背面描一道边把主体从雾里拉出来，hemi 补暗部不至于死黑。
+   返回句柄 —— update() 里可以按音频推强度。灯光跟着音乐动，比几何乱转高级得多。  */
+function vjLightRig(scene, o){
+  o = o || {};
+  /* 强度必须保守。这些几何后面还要过 UnrealBloomPass，灯稍微一热，bloom 就把
+     整片推到纯白 —— 实测 key=2.4 / rim=3.2 时 ultra 档直接全屏过曝。
+     宁可暗一点让 bloom 去提亮，也不要送一张已经削顶的图进后期。            */
+  const key = new THREE.DirectionalLight(o.keyColor===undefined?0xffffff:o.keyColor,
+                                         o.keyI===undefined?1.05:o.keyI);
+  key.position.set(-5, 7, 4);
+  const rim = new THREE.DirectionalLight(o.rimColor===undefined?0x4da6ff:o.rimColor,
+                                         o.rimI===undefined?1.35:o.rimI);
+  rim.position.set(4, -3, -7);
+  const fill = new THREE.HemisphereLight(o.skyColor===undefined?0x2b3a6b:o.skyColor,
+                                         o.groundColor===undefined?0x0a0410:o.groundColor,
+                                         o.fillI===undefined?0.45:o.fillI);
+  scene.add(key, rim, fill);
+  return { key, rim, fill };
+}
+
+/* 受光材质。low 档直接退回老的 vjSolidMat —— 低配机器完全走原来的不受光路径。
+   instanceColor 在 Standard 上照样生效（跟 material.color 相乘），所以现有那些
+   逐实例 setColorAt 的写法不用改。                                            */
+function vjStdMat(o){
+  o = o || {};
+  if(vjQuality === 'low') return vjSolidMat(o.opacity);
+  /* 金属没有漫反射，亮度全靠环境反射 —— 没挂 envMap 的话 metalness=1 会渲染成一团黑。
+     balanced 档没有环境贴图，所以把 metalness 压到 0.55，让它退化成「抛光材质」
+     而不是黑块。ultra 挂上 envMap 之后才放开到调用方要的值。                      */
+  let metal = o.metalness===undefined ? 0.95 : o.metalness;
+  if(vjQuality !== 'ultra') metal = Math.min(metal, 0.55);
+  const m = new THREE.MeshStandardMaterial({
+    color:      o.color===undefined      ? 0xffffff : o.color,
+    metalness:  metal,
+    roughness:  o.roughness===undefined  ? 0.25     : o.roughness,
+    emissive:   o.emissive===undefined   ? 0x000000 : o.emissive,
+    transparent: o.opacity!==undefined && o.opacity < 1,
+    opacity:    o.opacity===undefined    ? 1        : o.opacity,
+    side:       o.side===undefined       ? THREE.FrontSide : o.side,
+  });
+  if(vjQuality === 'ultra'){
+    m.envMap = vjEnvMap();
+    /* 环境反射是叠在灯之上的额外能量，再往下还有 bloom。1.35 实测会把画面推爆，
+       0.55 足够让金属读出环境（那条地平线看得见就够了），又不吃掉颜色。 */
+    m.envMapIntensity = o.envMapIntensity===undefined ? 0.55 : o.envMapIntensity;
+  }
+  return m;
+}
+
+/* 逐实例染色的饱和度，得看这一档到底受不受光：
+     受光时 instanceColor 是「反射染色」（金属的 F0），必须低饱和高亮度，
+       拉满会立刻从金属变成塑料；最终明暗交给灯去塑造。
+     low 档不受光，instanceColor 就是最终像素颜色，必须回到原来的高饱和，
+       否则低配机器看到的是一版灰扑扑的褪色画面。
+   两套值都由调用方给，这里只负责按档选。                                        */
+function vjTint(c, hue, litSat, litLum, rawSat, rawLum){
+  const lit = vjQuality !== 'low';
+  return c.setHSL(hue, lit ? litSat : rawSat, lit ? litLum : rawLum);
+}
+
+/* 归一化 BPM 相位：返回 0..1，走到 1 精确回到 0，所以拿它驱动 sin/cos 的运动
+   首尾一定闭合 —— 这是「无缝循环」跟「无限滚动」的区别。
+   没设 BPM 时退到 120，循环长度仍由时间定义，不受节拍检测抖动影响。
+   st 是每个场景自己的状态对象，互不共享。                                      */
+function vjPhase(st, dt, loopBeats){
+  const bpm = (typeof manualBPM === 'number' && manualBPM > 0) ? manualBPM : 120;
+  st.beats = (st.beats || 0) + (bpm / 60) * (dt * 16.7 / 1000);
+  return (st.beats % loopBeats) / loopBeats;
+}
+
 /* ---------- 1. 液态网格隧道 —— 圆角方管的线框，管壁像液体一样起伏 ---------- */
 function buildBg3DVjLiquidGrid(){
   const scene = new THREE.Scene();
@@ -12995,20 +13258,28 @@ function buildBg3DVjLiquidGrid(){
   /* 体积层：沿网格的交点撒实体小块。WebGL 里 LineBasicMaterial 的 linewidth
      是无效的，线永远只有 1px，所以「加粗」只能靠在同样的位置补实体。 */
   const NODE_RINGS = 24, NODE_PER = 20, NODES = NODE_RINGS*NODE_PER, NODE_SP = VJ_LEN/NODE_RINGS;
-  const nodes = new THREE.InstancedMesh(new THREE.BoxGeometry(1.15,1.15,1.15), vjSolidMat(1), NODES);
+  /* 节点层改成受光的金属珠。线框那层是加色霓虹（LineBasicMaterial 受不了光，
+     那也是它的身份），两层材质拉开对比 —— 一层是光，一层是物 —— 画面才有前后景，
+     不再是一整片同质的发光线。 */
+  const nodes = new THREE.InstancedMesh(new THREE.BoxGeometry(1.15,1.15,1.15),
+    vjStdMat({ metalness:0.62, roughness:0.30, emissive:0x0a1430 }), NODES);
   nodes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(nodes);
+  const rig = vjLightRig(scene, { keyI:1.0, rimColor:0xff5ec8, rimI:1.4, fillI:0.4 });
 
   const P = pos.array, C = col.array, tmp = {x:0,y:0}, c3 = new THREE.Color();
-  let scroll=0, clock=0;
-  // 管壁半径：两层不同频率的波叠起来，怎么走都不重复
+  const st = {};
+  let scroll=0, clock=0, ph=0;
+  /* 管壁半径：两层不同频率的波叠起来。相位改用 vjPhase 的归一化 BPM 相位驱动，
+     32 拍一循环，走到头精确回到起点 —— 以前是一直累加的 clock，波永远回不去。 */
   const radiusAt = (theta, wz, liquid)=>
-    R * (1 + 0.22*liquid*Math.sin(theta*3 + wz*0.055 + clock*1.5)
-           + 0.13*liquid*Math.sin(theta*5 - wz*0.037 + clock*0.95));
+    R * (1 + 0.22*liquid*Math.sin(theta*3 + wz*0.055 + ph)
+           + 0.13*liquid*Math.sin(theta*5 - wz*0.037 + ph*0.633));
 
   const { composer } = createBg3DBloom(scene, camera, 1.7, 0.85, 0.10);
   return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt*0.016;
+    ph = vjPhase(st, dt, 32) * Math.PI * 2;
     scroll += vjSpeed(bass,dt);
     const liquid = 0.55 + mid*1.15 + bass*0.35;
     const light  = 0.52 + high*0.22;
@@ -13051,12 +13322,18 @@ function buildBg3DVjLiquidGrid(){
         vjSuperXY(th, radiusAt(th, nwz, liquid), 4, tmp);
         const idx = i*NODE_PER+j;
         const k = 1 + bass*0.7;
-        vjPut(nodes, idx, tmp.x, tmp.y, nz, 0, 0, th, k, k, k);
-        VJ_C.setHSL(((-nwz*0.0065 + clock*0.16 + th*0.055)%1+1)%1, 1, light);
+        /* 珠子自己翻一点，法线不再整圈一致 —— 灯扫过时高光在珠与珠之间跳 */
+        vjPut(nodes, idx, tmp.x, tmp.y, nz, th*0.5, ph*0.15, th, k, k, k);
+        /* 金属上 instanceColor 是反射染色，压低饱和度才是「有色泽的金属」；
+           拉满会变塑料。霓虹的饱和度交给上面那层线框去扛。 */
+        vjTint(VJ_C, ((-nwz*0.0065 + clock*0.16 + th*0.055)%1+1)%1, 0.90, 0.56, 1, light);
         nodes.setColorAt(idx, VJ_C);
       }
     }
     vjFlush(nodes);
+    /* 灯跟着音乐推，lerp 平滑 —— 不把 analyser 原始值直接怼上去 */
+    rig.key.intensity += ((1.00 + bass*0.75) - rig.key.intensity) * 0.12;
+    rig.rim.intensity += ((1.30 + high*1.00) - rig.rim.intensity) * 0.12;
     camera.fov = 80 + bass*14;
     scene.rotation.z = Math.sin(clock*0.7)*0.10*(0.4+mid);
   }};
@@ -13596,33 +13873,48 @@ function buildBg3DVjChromeFlow(){
   const camera = new THREE.PerspectiveCamera(82, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
 
   const RINGS = 54, PER = 40, N = RINGS*PER, SPACING = VJ_LEN/RINGS, R = 17;
+  /* 倒角方块。真材质下轮廓的倒角边会自己吃到一条高光 —— 这是「金属块」和
+     「彩色方块」最直接的区别，纯 Basic 材质时代做不出来，所以以前只能画高光带。 */
   const geo = new THREE.BoxGeometry(1.5, 1.5, 3.2);
-  const mesh = new THREE.InstancedMesh(geo, vjSolidMat(1), N);
+  /* metalness 不拉满：纯金属没有漫反射，颜色只剩环境反射的灰 —— 物理上对，
+     但这层要的是「阳极氧化 / 糖果漆金属」，既有真高光又吃得住饱和色。
+     0.72 是留一部分漫反射给颜色走的量。 */
+  const mesh = new THREE.InstancedMesh(geo, vjStdMat({ metalness:0.72, roughness:0.18 }), N);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(mesh);
+  const rig = vjLightRig(scene, { keyI:1.15, rimColor:0x66b0ff, rimI:1.5, fillI:0.35 });
 
   const { composer } = createBg3DBloom(scene, camera, 1.15, 0.5, 0.55);
+  const st = {};
   let scroll = 0, clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
     clock += dt*0.016; scroll += vjSpeed(bass, dt);
+    /* 16 拍一循环。管壁的液态起伏改由相位驱动，phase 走到 1 时精确回到 0，
+       所以波形首尾闭合 —— 以前用一直累加的 clock，波永远回不到起点。 */
+    const ph = vjPhase(st, dt, 16) * Math.PI * 2;
     const off = scroll % SPACING;
     for(let i=0;i<RINGS;i++){
       const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
       for(let j=0;j<PER;j++){
         const a = (j/PER)*Math.PI*2 + wz*0.012 + clock*0.35;
         // 管壁厚薄在流动 —— 这是「液态」金属而不是硬管
-        const rr = R * (1 + 0.17*Math.sin(a*2 + wz*0.05 + clock*1.6)*(0.5+mid)
-                          + 0.09*Math.sin(a*5 - wz*0.03 + clock*1.1));
-        // 高光带：沿圆周的一条亮环，随时间转
-        const spec = Math.pow(Math.max(0, Math.cos(a*2 - clock*1.3)), 7);   // 高光带宽一点、柔一点，白区不至于压过彩色
-        const lum = 0.30 + spec*0.62 + bass*0.10;
-        vjPut(mesh, i*PER+j, Math.cos(a)*rr, Math.sin(a)*rr, z, 0, 0, a, 1+spec*1.5, 1+spec*0.6, 1);
-        // 亮处偏冷白（金属反射），暗处才吃色 —— 这就是铬跟塑料的区别
-        VJ_C.setHSL(((0.55 + wz*0.007 + clock*0.05)%1+1)%1, 0.99 - spec*0.26, lum);   // 高光处仍然褪色（金属的特征），但暗部吃满环境色；色相跨度也拉开
+        const rr = R * (1 + 0.17*Math.sin(a*2 + wz*0.05 + ph)*(0.5+mid)
+                          + 0.09*Math.sin(a*5 - wz*0.03 + ph*0.5));
+        /* 块自己绕切向翻一点，法线就不再整圈一致 —— 灯扫过去时高光会在块与块
+           之间跳，而不是整条环一起亮。以前那条手画的高光带就是在模拟这个。 */
+        const tilt = Math.sin(a*2 + ph)*0.25;
+        vjPut(mesh, i*PER+j, Math.cos(a)*rr, Math.sin(a)*rr, z, tilt, 0, a, 1, 1, 1);
+        /* instanceColor 在金属上是反射的染色（F0），不是漆面颜色 —— 所以压低饱和度、
+           保持高亮度，出来是「有色泽的铬」；饱和度拉满会立刻变成塑料。            */
+        vjTint(VJ_C, ((0.55 + wz*0.007 + clock*0.05)%1+1)%1, 0.88, 0.58, 0.95, 0.55);
         mesh.setColorAt(i*PER+j, VJ_C);
       }
     }
     vjFlush(mesh);
+    /* 灯跟着音乐推：低音顶 key（体积感），高音提 rim（边缘闪）。
+       lerp 平滑，不把 analyser 的原始值直接怼上去。 */
+    rig.key.intensity  += ((1.05 + bass*0.85) - rig.key.intensity) * 0.12;
+    rig.rim.intensity  += ((1.30 + high*1.10) - rig.rim.intensity) * 0.12;
     camera.fov = 82 + bass*13;
     scene.rotation.z = Math.sin(clock*0.5)*0.13*(0.4+mid);
   }};
@@ -14104,21 +14396,33 @@ function buildBg3DVjEventHorizon(){
 
   const N = 2600;
   const geo = new THREE.BoxGeometry(1, 1, 1);
+  /* 吸积盘保持不受光的 Basic —— 它是自发光等离子，本来就不该被外部灯照亮。
+     这里硬套金属只会把它压暗、丢掉逐实例的温度渐变。材质要用得有道理，
+     不是所有东西都该变成铬。 */
   const mesh = new THREE.InstancedMesh(geo, vjSolidMat(1), N);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(mesh);
-  // 视界本身：一个纯黑球，把盘的中心挡住
-  const hole = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 18), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+  // 视界本身：一个纯黑球，把盘的中心挡住（纯黑是故意的，负责遮挡）
+  const hole = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), new THREE.MeshBasicMaterial({ color: 0x000000 }));
   scene.add(hole);
+  /* 光子环：贴着视界的一道细亮环。这是「黑洞」和「一个黑圆」之间最关键的一笔 ——
+     没有它，中间那团黑只是个洞。用受光材质 + 强自发光，边缘会有真实的滚落。 */
+  const photon = new THREE.Mesh(new THREE.TorusGeometry(1, 0.030, 12, 96),
+    vjStdMat({ color:0x120800, emissive:0xffc978, metalness:0.2, roughness:0.35 }));
+  scene.add(photon);
+  const rig = vjLightRig(scene, { keyColor:0xffb066, keyI:1.2, rimColor:0x6fa8ff, rimI:1.8, fillI:0.25 });
 
   const d = [];
   for(let i=0;i<N;i++) d.push({ a:Math.random()*Math.PI*2, r:5+Math.pow(Math.random(),0.55)*26,
     z:-Math.random()*VJ_LEN, tilt:(Math.random()-0.5)*0.5, sp:0.5+Math.random()*1.1 });
 
   const { composer } = createBg3DBloom(scene, camera, 1.2, 0.48, 0.52);
+  const st = {};
   let clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
     clock += dt*0.016;
+    // 8 拍一循环，驱动盘的整体进动 —— 走到头精确回到起点
+    const ph = vjPhase(st, dt, 8) * Math.PI * 2;
     const sp = vjSpeed(bass, dt);
     for(let i=0;i<N;i++){
       const o = d[i];
@@ -14129,17 +14433,28 @@ function buildBg3DVjEventHorizon(){
       const x = Math.cos(o.a)*o.r, y = Math.sin(o.a)*o.r*0.34 + o.tilt*o.r*0.3;
       // 内圈又热又亮：从外面的暗红一路烧到中心的白
       const heat = Math.max(0, 1 - (o.r-5)/26);
+      /* 多普勒增亮：朝我们转过来的那半边被压缩、显著更亮，转开的那半边变暗。
+         这是真实黑洞影像里最抢眼的特征，也是这条隧道原本最缺的「不对称」——
+         少了它，盘就是一个左右对称的圆环，看着像装饰图案而不是天体。 */
+      const beam = 0.55 + 0.45*Math.cos(o.a - ph*0.25);
       const k = (0.4 + heat*1.15)*(1 + bass*0.5);
       vjPut(mesh, i, x, y, o.z, 0, 0, o.a, k*1.5, k*0.42, k);
-      VJ_C.setHSL(((0.02 - heat*0.42 + clock*0.03)%1+1)%1, 1 - heat*0.05, 0.28 + heat*0.34 + high*0.12);   // 外圈红 → 内圈蓝紫，内圈不再褪成白
+      VJ_C.setHSL(((0.02 - heat*0.42 + clock*0.03)%1+1)%1, 1 - heat*0.05,
+                  (0.20 + heat*0.30 + high*0.10) * beam);   // 外圈红 → 内圈蓝紫，再乘上多普勒
       mesh.setColorAt(i, VJ_C);
     }
     vjFlush(mesh);
     // 视界跟着最近的那截盘一起推过来
     const hz = ((clock*14) % VJ_LEN) - VJ_LEN*0.55;
-    hole.position.z = hz;
     const hs = 6.5*(1 + bass*0.2);
+    hole.position.z = hz;
     hole.scale.set(hs, hs, hs);
+    /* 光子环贴着视界，略大一圈；盘被压扁到 0.34，环也跟着压，两者才在同一个盘面上 */
+    photon.position.z = hz;
+    photon.scale.set(hs*1.06, hs*1.06, hs*1.06);
+    photon.rotation.set(Math.PI*0.5 - 0.34, 0, ph*0.12);
+    photon.material.emissiveIntensity = 1.4 + bass*1.6 + high*0.8;
+    rig.rim.intensity += ((0.95 + high*0.85) - rig.rim.intensity) * 0.12;
     camera.fov = 80 + bass*14;
   }};
 }
@@ -14589,7 +14904,812 @@ function buildBg3DVjCoasterRush(){
   }};
 }
 
-const BG3D_BUILDERS = { particles: buildBg3DParticles, tunnel: buildBg3DTunnel, prism: buildBg3DPrism, festival: buildBg3DFestivalBuilding, galaxy: buildBg3DGalaxy, colorTunnel: buildBg3DColorTunnel, synthwave: buildBg3DSynthwave, helix: buildBg3DHelix, fireworkSky: buildBg3DFireworkSky, aurora: buildBg3DAurora, particleStorm: buildBg3DParticleStorm, particleWaves: buildBg3DParticleWaves, particleRings: buildBg3DParticleRings, particleRain: buildBg3DParticleRain, galaxyMerge: buildBg3DGalaxyMerge, particleVortex: buildBg3DParticleVortex, particleStardust: buildBg3DParticleStardust, particlePulseOrb: buildBg3DParticlePulseOrb, particleWaterfall: buildBg3DParticleWaterfall, rainbowNebula: buildBg3DRainbowNebula, cosmicRings: buildBg3DCosmicRings, galaxySpiral: buildBg3DGalaxySpiral, rainbowWormhole: buildBg3DRainbowWormhole, fireflyForest: buildBg3DFireflyForest, cherryBlossom: buildBg3DCherryBlossom, glacierAurora: buildBg3DGlacierAurora, dandelionSeeds: buildBg3DDandelionSeeds, duneRipple: buildBg3DDuneRipple, rainforestVines: buildBg3DRainforestVines, coralReef: buildBg3DCoralReef, jellyfishSwarm: buildBg3DJellyfishSwarm, bioluminescentDeep: buildBg3DBioluminescentDeep, tideRippleGrid: buildBg3DTideRippleGrid, oceanVortex: buildBg3DOceanVortex, lightningStorm: buildBg3DLightningStorm, snowfallDrift: buildBg3DSnowfallDrift, sandstorm: buildBg3DSandstorm, foggyMoonlight: buildBg3DFoggyMoonlight, rainbowRain: buildBg3DRainbowRain, vhsCube: buildBg3DVhsCube, vaporwaveSunset: buildBg3DVaporwaveSunset, hologramCity: buildBg3DHologramCity, matrixDataRain: buildBg3DMatrixDataRain, warpSpeedStreaks: buildBg3DWarpSpeedStreaks, pixelGlitchField: buildBg3DPixelGlitchField, blackHoleAccretion: buildBg3DBlackHoleAccretion, supernovaBurst: buildBg3DSupernovaBurst, meteorShower: buildBg3DMeteorShower, cometTrail: buildBg3DCometTrail, pulsarBeacon: buildBg3DPulsarBeacon, kaleidoscope: buildBg3DKaleidoscope, fractalTree: buildBg3DFractalTree, voronoiShatter: buildBg3DVoronoiShatter, waveformRings: buildBg3DWaveformRings, mobiusRibbon: buildBg3DMobiusRibbon, liquidMetalWave: buildBg3DLiquidMetalWave, zenRipplePond: buildBg3DZenRipplePond, floatingOrbs: buildBg3DFloatingOrbs, breathingHalo: buildBg3DBreathingHalo, stardustDrift: buildBg3DStardustDrift, horizonGlow: buildBg3DHorizonGlow, heartbeatPulse: buildBg3DHeartbeatPulse, redAlertScan: buildBg3DRedAlertScan, highVoltageGrid: buildBg3DHighVoltageGrid, chaseLightTrails: buildBg3DChaseLightTrails, dangerScanSweep: buildBg3DDangerScanSweep, ambushBeacon: buildBg3DAmbushBeacon, shockwavePulse: buildBg3DShockwavePulse, impactCraterBurst: buildBg3DImpactCraterBurst, groundCrackRift: buildBg3DGroundCrackRift, glassShatterBurst: buildBg3DGlassShatterBurst, thunderStrikeFlash: buildBg3DThunderStrikeFlash, sonicBoomRing: buildBg3DSonicBoomRing, confettiExplosion: buildBg3DConfettiExplosion, giftRevealBurst: buildBg3DGiftRevealBurst, partyBalloonRise: buildBg3DPartyBalloonRise, surpriseStarburst: buildBg3DSurpriseStarburst, ribbonBloom: buildBg3DRibbonBloom, bubblePopBurst: buildBg3DBubblePopBurst, neonRiot: buildBg3DNeonRiot, chromaExplosion: buildBg3DChromaExplosion, strobeMatrix: buildBg3DStrobeMatrix, kineticSpectrum: buildBg3DKineticSpectrum, speedColorRings: buildBg3DSpeedColorRings, electroPartyFlash: buildBg3DElectroPartyFlash, stageSpotlightSweep: buildBg3DStageSpotlightSweep, laserGridShow: buildBg3DLaserGridShow, flameBurstColumn: buildBg3DFlameBurstColumn, energyCoreOverload: buildBg3DEnergyCoreOverload, edmPulseWall: buildBg3DEdmPulseWall, lightWaveSurge: buildBg3DLightWaveSurge, suspenseFlicker: buildBg3DSuspenseFlicker, popScareBurst: buildBg3DPopScareBurst, emergencySignalPulse: buildBg3DEmergencySignalPulse, climaxFlashBurst: buildBg3DClimaxFlashBurst, electricShockArc: buildBg3DElectricShockArc, surpriseFirecrackerPop: buildBg3DSurpriseFirecrackerPop, tensionCountdownRing: buildBg3DTensionCountdownRing, highEnergyFlashStage: buildBg3DHighEnergyFlashStage, criticalMassBurst: buildBg3DCriticalMassBurst, birthdayCake: buildBg3DBirthdayCake, balloonArch: buildBg3DBalloonArch, confettiCannon: buildBg3DConfettiCannon, partyStreamerSwirl: buildBg3DPartyStreamerSwirl, sprinkleShower: buildBg3DSprinkleShower, weddingRings: buildBg3DWeddingRings, doveFlight: buildBg3DDoveFlight, rosePetalFall: buildBg3DRosePetalFall, fairyLightCanopy: buildBg3DFairyLightCanopy, floatingLanterns: buildBg3DFloatingLanterns, birthdayCombo: buildBg3DBirthdayCombo, weddingCombo: buildBg3DWeddingCombo, neonSpiralTunnel: buildBg3DNeonSpiralTunnel, hologramPortal: buildBg3DHologramPortal, hyperspaceRush: buildBg3DHyperspaceRush, waveformTerrain: buildBg3DWaveformTerrain, beatTunnel: buildBg3DBeatTunnel, particleDNAHelix: buildBg3DParticleDNAHelix, frequencyGalaxy: buildBg3DFrequencyGalaxy, vjLiquidGrid: buildBg3DVjLiquidGrid, vjHexPulse: buildBg3DVjHexPulse, vjNeonRibbon: buildBg3DVjNeonRibbon, vjPrismShards: buildBg3DVjPrismShards, vjWaveCorridor: buildBg3DVjWaveCorridor, vjPlasmaRings: buildBg3DVjPlasmaRings, vjStarLane: buildBg3DVjStarLane, vjKaleido: buildBg3DVjKaleido, vjChromeTube: buildBg3DVjChromeTube, vjCubeMatrix: buildBg3DVjCubeMatrix, vjChromeFlow: buildBg3DVjChromeFlow, vjMetalTwist: buildBg3DVjMetalTwist, vjGridMorph: buildBg3DVjGridMorph, vjFractalWell: buildBg3DVjFractalWell, vjCyborgCorridor: buildBg3DVjCyborgCorridor, vjRaceTrack: buildBg3DVjRaceTrack, vjSpeedGates: buildBg3DVjSpeedGates, vjHoverCity: buildBg3DVjHoverCity, vjTentacleTunnel: buildBg3DVjTentacleTunnel, vjBioMembrane: buildBg3DVjBioMembrane, vjVoidNebula: buildBg3DVjVoidNebula, vjEventHorizon: buildBg3DVjEventHorizon, vjCandyOrbs: buildBg3DVjCandyOrbs, vjDataBloom: buildBg3DVjDataBloom, vjNeonTubeRoom: buildBg3DVjNeonTubeRoom, vjNeonArches: buildBg3DVjNeonArches, vjHorizonVoyage: buildBg3DVjHorizonVoyage, vjLightWell: buildBg3DVjLightWell, vjHyperCube: buildBg3DVjHyperCube, vjCoasterRush: buildBg3DVjCoasterRush };   /* 末尾这三十个是 🌀 VJ 菜单的隧道穿梭 loop —— 引擎共用，但故意不进 BG3D_CATALOG */
+/* ============================================================================
+   VJ LOOP TUNNELS 第三批 —— 15 个，参考 Resolume 的
+   LuChrome / SpaceRacing / StillDerelict 三个素材包。
+
+   跟前两批同一套约定（见 VJ LOOP TUNNELS 那段）。这批刻意避开前 30 个已经占掉的
+   套路：不再做「同心环往前推」和「线框方管」，改成帘幕、镜面、碎面、群体、
+   建筑残骸这几类形态。
+
+   关于 StillDerelict：原素材是低饱和的工业废墟（"ruins of forgotten spaces"），
+   直接照搬会跟这一套「鲜艳」的基调打架。这里取它的「结构」——断柱、塌梁、锈管、
+   碎玻璃、尘光——但打光换成饱和的彩色光束，也就是现场常见的「霓虹废墟」用法。
+   ============================================================================ */
+
+/* 逐个元素各自回收，而不是整排一起平移。
+   整排平移的常见写法（off = scroll % SPACING，z = -i*SPACING + off - SPACING）在
+   段距接近每帧步长时会出事：静音下每帧走 0.9，段距 1.47 的话有 61% 的帧是「整排
+   一起往回跳一格」，看上去就是在后退（实测 fwd=5 / back=15）。
+   逐个回收时每帧只有 1/N 的元素跳回最远端，其余都在前进，方向就永远读得对。
+   段距大于 4 的效果两种写法都行，密排的必须用这个。 */
+function vjLoopZ(scroll, offset){
+  let z = (scroll - offset) % VJ_LEN;
+  if(z < 0) z += VJ_LEN;
+  return z - VJ_LEN + VJ_FRONT;
+}
+
+/* ---------- 31. 铬熔滴帘（LuChrome）——
+     一层层垂下来的液态铬柱，穿过去像穿过融化的金属幕帘。
+     铬的观感全靠一条横向扫过的高光带：带上的偏冷偏白，带外的留住彩色，
+     这样既有金属感又不会整片泛白。 ---------- */
+function buildBg3DVjChromeDrips(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x04060e, 0.0088);
+  const camera = new THREE.PerspectiveCamera(84, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const ROWS = 40, COLS = 26, N = ROWS*COLS, SPACING = VJ_LEN/ROWS, HALF = 24;
+  const mesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.62, 0.3, 1, 8), vjSolidMat(1), N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+  // 滴落的头部：一颗更粗的球，让柱子末端读得出「快滴下来了」
+  const head = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.95, 1), vjSolidMat(1), N);
+  head.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(head);
+
+  const { composer } = createBg3DBloom(scene, camera, 1.45, 0.5, 0.5);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.05;
+    const off = scroll % SPACING;
+    for(let i=0;i<ROWS;i++){
+      const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
+      for(let j=0;j<COLS;j++){
+        const idx = i*COLS + j;
+        const x = -HALF + (j/(COLS-1))*HALF*2;
+        // 柱长随位置和时间起伏 —— 低音一来整排拉长，像被拽下来
+        const L = 5.5 + 4.2*Math.sin(wz*0.085 + j*0.62 + clock*2.1) + bass*5;
+        const top = 13.5;
+        const y = top - L*0.5;
+        const w = 0.75 + mid*0.5;
+        vjPut(mesh, idx, x, y, z, 0, 0, 0, w, L, w);
+        // 高光带：一条沿 x 横扫的窄带，带内去饱和提亮 = 铬的镜面
+        const spec = Math.pow(Math.max(0, Math.cos((x/HALF)*1.7 - clock*0.9)), 8);
+        VJ_C.setHSL((0.54 + j*0.006 + Math.sin(clock*0.21)*0.07)%1, 0.95 - spec*0.72, 0.2 + spec*0.42 + high*0.1);
+        mesh.setColorAt(idx, VJ_C);
+        vjPut(head, idx, x, top - L, z, 0, 0, 0, w, w*1.15, w);
+        VJ_C.setHSL((0.54 + j*0.006 + 0.04)%1, 0.9 - spec*0.6, 0.26 + spec*0.4 + bass*0.12);
+        head.setColorAt(idx, VJ_C);
+      }
+    }
+    vjFlush(mesh); vjFlush(head);
+    camera.fov = 84 + bass*12;
+  }};
+}
+
+/* ---------- 32. 水银廊（LuChrome）——
+     上下两面水银，中间是空的。涟漪从远处推过来，天花板是地板的镜像，
+     所以画面上下对称 —— 这是「镜面」最省事也最像的表达。 ---------- */
+function buildBg3DVjMercuryPool(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x05040c, 0.0082);
+  const camera = new THREE.PerspectiveCamera(82, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const NX = 28, NZ = 42, TILES = NX*NZ, SPACING = VJ_LEN/NZ, HALF = 26;
+  const geo = new THREE.BoxGeometry(1.9, 0.5, 3.4);
+  const floorM = new THREE.InstancedMesh(geo, vjSolidMat(1), TILES);
+  const ceilM  = new THREE.InstancedMesh(geo, vjSolidMat(0.8), TILES);
+  floorM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  ceilM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(floorM); scene.add(ceilM);
+
+  const { composer } = createBg3DBloom(scene, camera, 1.6, 0.52, 0.46);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.15;
+    const off = scroll % SPACING;
+    for(let k=0;k<NZ;k++){
+      const z = -k*SPACING + off - SPACING, wz = k*SPACING - scroll;
+      for(let j=0;j<NX;j++){
+        const idx = k*NX + j;
+        const x = -HALF + (j/(NX-1))*HALF*2;
+        const d = Math.sqrt(x*x*0.06 + wz*wz*0.004);
+        // 两列不同波长的涟漪叠加，避免看出周期
+        const h = Math.sin(d - clock*2.6)*1.5 + Math.sin(wz*0.11 + x*0.07 + clock*1.4)*1.1*(0.5+mid);
+        const lift = h*(1 + bass*1.4);
+        // 波峰朝上 = 迎着光 = 亮，波谷压暗，这就是水银的明暗分层
+        const slope = Math.max(0, Math.cos(d - clock*2.6));
+        const spec = Math.pow(slope, 5);
+        vjPut(floorM, idx, x, -10 + lift, z, 0, 0, 0, 1, 1 + spec*1.6, 1);
+        VJ_C.setHSL((0.58 + h*0.02 + Math.sin(clock*0.18)*0.08)%1, 0.92 - spec*0.66, 0.16 + spec*0.44 + high*0.1);
+        floorM.setColorAt(idx, VJ_C);
+        vjPut(ceilM, idx, x, 10 - lift, z, 0, 0, 0, 1, 1 + spec*1.6, 1);
+        VJ_C.setHSL((0.58 + h*0.02 + Math.sin(clock*0.18)*0.08 + 0.05)%1, 0.92 - spec*0.6, 0.12 + spec*0.36);
+        ceilM.setColorAt(idx, VJ_C);
+      }
+    }
+    vjFlush(floorM); vjFlush(ceilM);
+    camera.fov = 82 + bass*13;
+  }};
+}
+
+/* ---------- 33. 铝箔褶皱（LuChrome）——
+     揉皱的金属箔：每一片小三角朝向都是固定的随机值，光一扫过去，
+     整片会像箔纸一样噼啪地一块块亮起来。碎面感是这一批里独一份的。 ---------- */
+function buildBg3DVjFoilCrumple(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x06050a, 0.0092);
+  const camera = new THREE.PerspectiveCamera(85, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const RINGS = 40, PER = 40, N = RINGS*PER, SPACING = VJ_LEN/RINGS, R = 19;
+  const mesh = new THREE.InstancedMesh(new THREE.TetrahedronGeometry(1.9, 0), vjSolidMat(1), N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+  // 每片的朝向和「法线相位」都是建好就不变的，否则每帧重随机会变成雪花噪点
+  const rot = new Float32Array(N*3), phase = new Float32Array(N);
+  for(let i=0;i<N;i++){
+    rot[i*3] = Math.random()*Math.PI*2; rot[i*3+1] = Math.random()*Math.PI*2; rot[i*3+2] = Math.random()*Math.PI*2;
+    phase[i] = Math.random()*Math.PI*2;
+  }
+
+  const { composer } = createBg3DBloom(scene, camera, 1.35, 0.46, 0.54);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt);
+    const off = scroll % SPACING;
+    for(let i=0;i<RINGS;i++){
+      const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
+      for(let j=0;j<PER;j++){
+        const idx = i*PER + j;
+        const a = (j/PER)*Math.PI*2;
+        const rr = R + Math.sin(wz*0.06 + a*2 + clock*1.3)*2.4;
+        const x = Math.cos(a)*rr, y = Math.sin(a)*rr*0.82;
+        // 光带扫过 + 每片自己的相位 = 一块块随机点亮，而不是整圈一起亮
+        const lit = Math.pow(Math.max(0, Math.sin(a*3 - clock*2.4 + phase[idx])), 6);
+        const s = 1 + lit*1.2 + bass*0.7;
+        vjPut(mesh, idx, x, y, z, rot[idx*3] + clock*0.12, rot[idx*3+1], rot[idx*3+2], s, s, s);
+        VJ_C.setHSL((0.5 + a*0.03 + Math.sin(clock*0.25)*0.1)%1, 0.95 - lit*0.7, 0.14 + lit*0.46 + mid*0.12 + high*0.08);
+        mesh.setColorAt(idx, VJ_C);
+      }
+    }
+    vjFlush(mesh);
+    camera.fov = 85 + bass*14;
+  }};
+}
+
+/* ---------- 34. 铬泡群（LuChrome）——
+     大小不一的镜面泡迎面飘来。近处的泡会大到占掉半个画面，
+     所以这个的节奏跟隧道类完全不同 —— 是「物体经过」而不是「通道穿行」。 ---------- */
+function buildBg3DVjChromeBubbles(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x03040c, 0.0068);
+  const camera = new THREE.PerspectiveCamera(80, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const N = 260;
+  const mesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 2), vjSolidMat(1), N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+  // 高光点：每个泡上贴一颗小亮片，这是「球是镜面的」最直接的线索
+  const spec = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), vjSolidMat(0.9), N);
+  spec.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(spec);
+  const bub = [];
+  for(let i=0;i<N;i++){
+    bub.push({ x:(Math.random()-0.5)*46, y:(Math.random()-0.5)*32, z:-Math.random()*VJ_LEN,
+               r: 0.9 + Math.random()*3.4, ph: Math.random()*Math.PI*2, hue: Math.random() });
+  }
+
+  const { composer } = createBg3DBloom(scene, camera, 1.5, 0.55, 0.48);
+  let clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016;
+    const step = vjSpeed(bass, dt)*1.2;
+    for(let i=0;i<N;i++){
+      const b = bub[i];
+      b.z += step;
+      if(b.z > VJ_FRONT){ b.z -= VJ_LEN; b.x = (Math.random()-0.5)*46; b.y = (Math.random()-0.5)*32; }
+      const wob = Math.sin(clock*1.5 + b.ph)*0.9;
+      const r = b.r*(1 + bass*0.3 + Math.sin(clock*2.2 + b.ph)*0.08);
+      vjPut(mesh, i, b.x + wob, b.y + Math.cos(clock*1.1 + b.ph)*0.7, b.z, 0, 0, 0, r, r, r);
+      // 边缘偏彩、正面偏白：靠 hue 随位置漂 + 中心去饱和来近似
+      VJ_C.setHSL((b.hue*0.35 + 0.48 + Math.sin(clock*0.2)*0.06)%1, 0.88, 0.2 + mid*0.12);
+      mesh.setColorAt(i, VJ_C);
+      const sr = r*0.3;
+      vjPut(spec, i, b.x + wob - r*0.42, b.y + Math.cos(clock*1.1 + b.ph)*0.7 + r*0.42, b.z + r*0.5, 0, 0, 0, sr, sr, sr);
+      VJ_C.setHSL((b.hue*0.35 + 0.52)%1, 0.35, 0.55 + high*0.16);
+      spec.setColorAt(i, VJ_C);
+    }
+    vjFlush(mesh); vjFlush(spec);
+    camera.fov = 80 + bass*15;
+  }};
+}
+
+/* ---------- 35. 液铬脊（LuChrome）——
+     一条金属脊椎从远处游过来、擦着镜头过去。整批里唯一的「单一主体」构图：
+     不铺满屏幕，靠一个巨大的东西经过来制造压迫感。 ---------- */
+function buildBg3DVjLiquidSpine(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x04030e, 0.0072);
+  const camera = new THREE.PerspectiveCamera(84, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const SEGS = 150, SPACING = VJ_LEN/SEGS;
+  const disc = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 0.9, 20), vjSolidMat(1), SEGS);
+  disc.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(disc);
+  // 侧翼的肋，让它读得出是「脊椎」而不是一串圆片
+  const rib = new THREE.InstancedMesh(new THREE.BoxGeometry(1.1, 1.1, 3.4), vjSolidMat(1), SEGS*2);
+  rib.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(rib);
+  /* 光靠一条脊椎只点亮 19.7% 的画面，撑不起「饱满」。补一层跟着它甩出来的
+     镜面碎屑：不抢主体，但把周围的空填上。 */
+  const CHIP = 420;
+  const chip = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), vjSolidMat(1), CHIP);
+  chip.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(chip);
+  const ch = [];
+  for(let i=0;i<CHIP;i++) ch.push({ a: Math.random()*Math.PI*2, r: 6+Math.random()*22, z:-Math.random()*VJ_LEN,
+                                    s: 0.5+Math.random()*1.7, sp: 0.3+Math.random()*0.9, hue: Math.random() });
+
+  const { composer } = createBg3DBloom(scene, camera, 1.7, 0.6, 0.42);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.1;
+    for(let i=0;i<SEGS;i++){
+      // 段距只有 1.47，必须逐个回收 —— 见 vjLoopZ 的说明
+      const z = vjLoopZ(scroll, i*SPACING), wz = i*SPACING - scroll;
+      // 整条脊椎横向蛇形摆动，摆幅随低音变大
+      const cx = Math.sin(wz*0.032 + clock*1.1)*9*(1 + bass*0.5);
+      const cy = Math.cos(wz*0.026 + clock*0.8)*5.5;
+      const rad = 7.2 + Math.sin(wz*0.09 + clock*2.3)*3.4 + bass*2.6;
+      const spec = Math.pow(Math.max(0, Math.sin(wz*0.09 + clock*2.3)), 6);
+      vjPut(disc, i, cx, cy, z, Math.PI/2, 0, wz*0.05 + clock*0.4, rad, 1, rad);
+      VJ_C.setHSL((0.56 + Math.sin(wz*0.02 + clock*0.3)*0.1)%1, 0.94 - spec*0.7, 0.18 + spec*0.44 + high*0.1);
+      disc.setColorAt(i, VJ_C);
+      for(let s=0;s<2;s++){
+        const idx = i*2+s, dir = s? 1 : -1;
+        vjPut(rib, idx, cx + dir*rad*1.35, cy, z, 0, 0, dir*0.5, 1 + mid, 1, 1);
+        VJ_C.setHSL((0.6 + Math.sin(wz*0.02)*0.08)%1, 0.9, 0.16 + spec*0.34);
+        rib.setColorAt(idx, VJ_C);
+      }
+    }
+    const step = vjSpeed(bass, dt)*1.1;
+    for(let i=0;i<CHIP;i++){
+      const c = ch[i];
+      c.z += step; c.a += c.sp*dt*0.01;
+      if(c.z > VJ_FRONT){ c.z -= VJ_LEN; c.r = 6+Math.random()*22; }
+      const sc = c.s*(1 + bass*0.35);
+      vjPut(chip, i, Math.cos(c.a)*c.r, Math.sin(c.a)*c.r*0.8, c.z, c.a, c.a*0.6, 0, sc, sc, sc);
+      VJ_C.setHSL((0.55 + c.hue*0.16)%1, 0.9, 0.15 + mid*0.16 + high*0.1);
+      chip.setColorAt(i, VJ_C);
+    }
+    vjFlush(disc); vjFlush(rib); vjFlush(chip);
+    camera.fov = 84 + bass*13;
+  }};
+}
+
+/* ---------- 36. 陨石障碍（SpaceRacing）——
+     贴着赛道躲石头。翻滚的碎岩本身是暗的，靠一圈边缘光和脚下那条
+     发光赛道把颜色带起来 —— 不然「石头」这个题材很容易灰成一团。 ---------- */
+function buildBg3DVjAsteroidSlalom(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x05030a, 0.0078);
+  const camera = new THREE.PerspectiveCamera(86, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+  camera.position.y = 2;
+
+  const ROCKS = 220;
+  const rock = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), vjSolidMat(1), ROCKS);
+  rock.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(rock);
+  const LANE = 46, laneGeo = new THREE.BoxGeometry(13, 0.4, 2.6);
+  const lane = new THREE.InstancedMesh(laneGeo, vjSolidMat(1), LANE);
+  lane.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(lane);
+  const LSP = VJ_LEN/LANE;
+  const rk = [];
+  for(let i=0;i<ROCKS;i++){
+    rk.push({ x:(Math.random()-0.5)*44, y:(Math.random()-0.4)*26, z:-Math.random()*VJ_LEN,
+              s: 0.8 + Math.random()*2.8, rx:Math.random()*6, ry:Math.random()*6,
+              sx:(Math.random()-0.5)*0.06, sy:(Math.random()-0.5)*0.06, hue: Math.random() });
+  }
+
+  const { composer } = createBg3DBloom(scene, camera, 1.55, 0.52, 0.45);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016;
+    const step = vjSpeed(bass, dt)*1.35;
+    scroll += step;
+    for(let i=0;i<ROCKS;i++){
+      const r = rk[i];
+      r.z += step; r.rx += r.sx*dt*3; r.ry += r.sy*dt*3;
+      if(r.z > VJ_FRONT){ r.z -= VJ_LEN; r.x = (Math.random()-0.5)*44; r.y = (Math.random()-0.4)*26; }
+      const s = r.s*(1 + bass*0.22);
+      vjPut(rock, i, r.x, r.y, r.z, r.rx, r.ry, 0, s, s*0.85, s);
+      // 岩体压暗 + 一侧染色，读起来是被赛道的光照到的
+      VJ_C.setHSL((0.02 + r.hue*0.12 + Math.sin(clock*0.2)*0.05)%1, 0.85, 0.13 + mid*0.14 + (r.hue>0.7 ? 0.14 : 0));
+      rock.setColorAt(i, VJ_C);
+    }
+    const off = scroll % LSP;
+    for(let i=0;i<LANE;i++){
+      const z = -i*LSP + off - LSP, wz = i*LSP - scroll;
+      const glow = 0.35 + 0.65*Math.pow(Math.max(0, Math.sin(wz*0.1 + clock*3.4)), 2);
+      vjPut(lane, i, 0, -11, z, 0, 0, 0, 1, 1 + glow*2.2, 1);
+      VJ_C.setHSL((0.52 + glow*0.1)%1, 1, 0.2 + glow*0.42 + high*0.12);
+      lane.setColorAt(i, VJ_C);
+    }
+    vjFlush(rock); vjFlush(lane);
+    camera.fov = 86 + bass*16;
+  }};
+}
+
+/* ---------- 37. 曲速跃迁（SpaceRacing）——
+     不是一直在飞，而是「蓄力 → 跃迁 → 落回」三段循环：星点先被拉成长条，
+     跃迁瞬间放一圈冲击波，然后收回成点。低音会把蓄力直接推到跃迁。 ---------- */
+function buildBg3DVjWarpJump(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x02030c, 0.0042);
+  const camera = new THREE.PerspectiveCamera(88, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const N = 900;
+  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.34, 0.34, 1), vjSolidMat(1), N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+  const RINGS = 5;
+  const ring = new THREE.InstancedMesh(new THREE.TorusGeometry(1, 0.09, 8, 40), vjSolidMat(0.85), RINGS);
+  ring.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(ring);
+  const st = [];
+  for(let i=0;i<N;i++){
+    const a = Math.random()*Math.PI*2, rr = 2 + Math.pow(Math.random(), 0.6)*30;
+    st.push({ x:Math.cos(a)*rr, y:Math.sin(a)*rr*0.8, z:-Math.random()*VJ_LEN, hue: Math.random() });
+  }
+  const rings = [];
+  for(let i=0;i<RINGS;i++) rings.push({ z: -VJ_LEN, life: 0 });
+
+  const { composer } = createBg3DBloom(scene, camera, 1.8, 0.6, 0.36);
+  let clock = 0, charge = 0, ringAt = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016;
+    // 蓄力：自己慢慢涨，低音把它推快；到 1 就跃迁然后清零
+    charge += (0.16 + bass*1.5)*dt*0.016;
+    let jumped = false;
+    if(charge >= 1){ charge = 0; jumped = true; }
+    const warp = Math.pow(charge, 3);                 // 前期几乎不动，末段猛地拉长
+    const step = vjSpeed(bass, dt)*(1 + warp*14);
+    for(let i=0;i<N;i++){
+      const s = st[i];
+      s.z += step;
+      if(s.z > VJ_FRONT){
+        s.z -= VJ_LEN;
+        const a = Math.random()*Math.PI*2, rr = 2 + Math.pow(Math.random(), 0.6)*30;
+        s.x = Math.cos(a)*rr; s.y = Math.sin(a)*rr*0.8;
+      }
+      const len = 0.8 + warp*46 + bass*3;
+      vjPut(mesh, i, s.x, s.y, s.z, 0, 0, 0, 1 + warp*0.7, 1 + warp*0.7, len);
+      VJ_C.setHSL((0.55 + s.hue*0.28 + warp*0.12)%1, 1, 0.24 + warp*0.3 + high*0.14);
+      mesh.setColorAt(i, VJ_C);
+    }
+    if(jumped){ rings[ringAt] = { z: -8, life: 1 }; ringAt = (ringAt+1)%RINGS; }
+    for(let i=0;i<RINGS;i++){
+      const r = rings[i];
+      if(r.life > 0){ r.life -= dt*0.02; r.z += step*0.5; }
+      const sc = r.life > 0 ? (1 - r.life)*90 + 3 : 0;
+      vjPut(ring, i, 0, 0, r.z, 0, 0, clock, sc, sc, sc);
+      VJ_C.setHSL(0.6, 1, Math.max(0, r.life)*0.5);
+      ring.setColorAt(i, VJ_C);
+    }
+    vjFlush(mesh); vjFlush(ring);
+    camera.fov = 88 + warp*26 + bass*10;
+  }};
+}
+
+/* ---------- 38. 环带世界（SpaceRacing）——
+     贴着行星环飞。上方一道横贯画面的巨大弧线（环本体），
+     周围是被甩出来的碎屑。构图上有明确的「上重下轻」，跟别的都不一样。 ---------- */
+function buildBg3DVjRingWorldRun(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x060312, 0.0058);
+  const camera = new THREE.PerspectiveCamera(84, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  /* 只有 4 条带时整屏才点亮 14.9%，构图是对的但太空。加到 11 条、每条更宽，
+     环本身就成了画面上半部的一整片，而不是一条细线。 */
+  const ARC = 150, BANDS = 11, ARC_N = ARC*BANDS;
+  const arc = new THREE.InstancedMesh(new THREE.BoxGeometry(5.4, 2.2, 4.2), vjSolidMat(1), ARC_N);
+  arc.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(arc);
+  const DEB = 620;
+  const deb = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), vjSolidMat(1), DEB);
+  deb.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(deb);
+  const SP = VJ_LEN/ARC;
+  const dd = [];
+  for(let i=0;i<DEB;i++) dd.push({ x:(Math.random()-0.5)*60, y:(Math.random()-0.25)*40, z:-Math.random()*VJ_LEN, s:0.5+Math.random()*1.9, r:Math.random()*6, hue:Math.random() });
+
+  const { composer } = createBg3DBloom(scene, camera, 1.5, 0.5, 0.46);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016;
+    const step = vjSpeed(bass, dt)*1.25;
+    scroll += step;
+    for(let i=0;i<ARC;i++){
+      // 环分了 150 段，段距 1.47，同样必须逐个回收
+      const z = vjLoopZ(scroll, i*SP), wz = i*SP - scroll;
+      // 环是一条半径极大的圆弧，只取顶上一小段，所以在画面里是近乎水平的弧
+      const R = 150, ang = (wz*0.004);
+      const cy = 26 + Math.cos(ang)*R - R;
+      for(let b=0;b<BANDS;b++){
+        const idx = i*BANDS + b;
+        const bx = (b - (BANDS-1)/2)*5.2;
+        const glow = 0.3 + 0.7*Math.pow(Math.max(0, Math.sin(wz*0.05 + b*0.9 + clock*1.6)), 2);
+        vjPut(arc, idx, bx + Math.sin(ang)*R*0.03, cy + b*0.6, z, 0, 0, ang*0.4, 1, 1 + glow*1.4, 1);
+        VJ_C.setHSL((0.08 + b*0.07 + Math.sin(clock*0.2)*0.05)%1, 0.98, 0.2 + glow*0.36 + high*0.1);
+        arc.setColorAt(idx, VJ_C);
+      }
+    }
+    for(let i=0;i<DEB;i++){
+      const d = dd[i];
+      d.z += step; d.r += dt*0.03;
+      if(d.z > VJ_FRONT){ d.z -= VJ_LEN; d.x = (Math.random()-0.5)*60; d.y = (Math.random()-0.25)*40; }
+      const s = d.s*(1 + bass*0.3);
+      vjPut(deb, i, d.x, d.y, d.z, d.r, d.r*0.7, 0, s, s, s);
+      VJ_C.setHSL((0.1 + d.hue*0.5)%1, 0.92, 0.16 + mid*0.16);
+      deb.setColorAt(i, VJ_C);
+    }
+    vjFlush(arc); vjFlush(deb);
+    camera.fov = 84 + bass*14;
+  }};
+}
+
+/* ---------- 39. 离子尾流（SpaceRacing）——
+     前面几台在跑，你跟在后面吃尾焰。每条尾巴是一串越往后越小越暗的段，
+     所以画面主体是几条会拐弯的光带，不是均匀铺满的场。 ---------- */
+function buildBg3DVjIonTrail(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x03020e, 0.006);
+  const camera = new THREE.PerspectiveCamera(86, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const SHIPS = 9, TAIL = 70, N = SHIPS*TAIL, SP = VJ_LEN/TAIL;
+  const mesh = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 10, 8), vjSolidMat(1), N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+  const ship = new THREE.InstancedMesh(new THREE.ConeGeometry(1.4, 4.2, 10), vjSolidMat(1), SHIPS);
+  ship.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(ship);
+  const sh = [];
+  for(let i=0;i<SHIPS;i++) sh.push({ ph: Math.random()*Math.PI*2, ax: 6+Math.random()*14, ay: 4+Math.random()*9,
+                                     fx: 0.6+Math.random()*0.9, fy: 0.5+Math.random()*0.8, hue: i/SHIPS });
+
+  const { composer } = createBg3DBloom(scene, camera, 1.9, 0.62, 0.34);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.4;
+    for(let s=0;s<SHIPS;s++){
+      const c = sh[s];
+      for(let t=0;t<TAIL;t++){
+        const idx = s*TAIL + t;
+        // 尾巴上第 t 段 = 这台船 t 个「时间单位」之前的位置，所以尾巴会跟着拐
+        const wz = t*SP;
+        const z = vjLoopZ(scroll, wz);
+        const tt = clock - t*0.05;
+        const x = Math.sin(tt*c.fx + c.ph)*c.ax;
+        const y = Math.cos(tt*c.fy + c.ph*1.7)*c.ay;
+        const fade = 1 - t/TAIL;
+        const r = (0.5 + fade*2.4)*(1 + bass*0.5);
+        vjPut(mesh, idx, x, y, z, 0, 0, 0, r, r, r*1.8);
+        VJ_C.setHSL((c.hue*0.55 + 0.5 + fade*0.12)%1, 1, 0.1 + fade*fade*0.42 + high*0.12);
+        mesh.setColorAt(idx, VJ_C);
+      }
+      const x0 = Math.sin(clock*c.fx + c.ph)*c.ax, y0 = Math.cos(clock*c.fy + c.ph*1.7)*c.ay;
+      vjPut(ship, s, x0, y0, (scroll % SP) - SP - 1, -Math.PI/2, 0, 0, 1+mid*0.4, 1, 1+mid*0.4);
+      VJ_C.setHSL((c.hue*0.55 + 0.56)%1, 0.5, 0.5);
+      ship.setColorAt(s, VJ_C);
+    }
+    vjFlush(mesh); vjFlush(ship);
+    camera.fov = 86 + bass*15;
+  }};
+}
+
+/* ---------- 40. 恒星耀斑（SpaceRacing）——
+     擦着恒星表面飞。下面是翻滚的米粒组织，上面是甩出来的等离子拱环。
+     整批里唯一的暖色主调，橙红本身饱和度高，不怕被 bloom 洗白。 ---------- */
+function buildBg3DVjSolarFlare(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x120200, 0.0075);
+  const camera = new THREE.PerspectiveCamera(85, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+  camera.position.y = 4;
+
+  const NX = 26, NZ = 38, CELLS = NX*NZ, SP = VJ_LEN/NZ, HALF = 30;
+  const cell = new THREE.InstancedMesh(new THREE.CylinderGeometry(1.5, 1.5, 0.6, 6), vjSolidMat(1), CELLS);
+  cell.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(cell);
+  const ARCS = 7, APER = 26, ARC_N = ARCS*APER;
+  const arc = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), vjSolidMat(1), ARC_N);
+  arc.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(arc);
+  const av = [];
+  for(let i=0;i<ARCS;i++) av.push({ x:(Math.random()-0.5)*44, z:-Math.random()*VJ_LEN, h: 12+Math.random()*16, w: 6+Math.random()*10, ph:Math.random()*6 });
+
+  const { composer } = createBg3DBloom(scene, camera, 1.6, 0.5, 0.5);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016;
+    const step = vjSpeed(bass, dt)*1.1;
+    scroll += step;
+    const off = scroll % SP;
+    for(let k=0;k<NZ;k++){
+      const z = -k*SP + off - SP, wz = k*SP - scroll;
+      for(let j=0;j<NX;j++){
+        const idx = k*NX + j;
+        const x = -HALF + (j/(NX-1))*HALF*2 + (k%2)*1.6;
+        // 米粒组织：两层不同频率的噪声决定每个胞的亮度和高度
+        const n = Math.sin(x*0.31 + clock*1.3) * Math.cos(wz*0.24 - clock*0.9) * 0.5 + 0.5;
+        const hot = Math.pow(n, 2.2);
+        vjPut(cell, idx, x, -13 + hot*2.6, z, 0, 0, 0, 1, 0.6 + hot*2.2 + bass*1.4, 1);
+        VJ_C.setHSL(0.015 + hot*0.11, 1, 0.16 + hot*0.4 + high*0.1);
+        cell.setColorAt(idx, VJ_C);
+      }
+    }
+    for(let i=0;i<ARCS;i++){
+      const a = av[i];
+      a.z += step;
+      if(a.z > VJ_FRONT){ a.z -= VJ_LEN; a.x = (Math.random()-0.5)*44; }
+      for(let j=0;j<APER;j++){
+        const idx = i*APER + j, t = j/(APER-1), ang = Math.PI*t;
+        const r = (0.55 + Math.sin(t*Math.PI)*1.5)*(1 + bass*0.4);
+        vjPut(arc, idx, a.x - Math.cos(ang)*a.w, -13 + Math.sin(ang)*a.h*(1 + Math.sin(clock*2 + a.ph)*0.12), a.z, 0, 0, 0, r, r, r);
+        VJ_C.setHSL(0.03 + Math.sin(t*Math.PI)*0.09, 1, 0.2 + Math.sin(t*Math.PI)*0.32 + mid*0.12);
+        arc.setColorAt(idx, VJ_C);
+      }
+    }
+    vjFlush(cell); vjFlush(arc);
+    camera.fov = 85 + bass*14;
+  }};
+}
+
+/* ---------- 41. 霓虹废墟长廊（StillDerelict）——
+     两侧是断掉的柱子，头顶是塌下来的梁。柱子按段生成，随机缺几段 = 「断」。
+     原素材是灰暗的，这里改成彩色光束打在残骸上 —— 结构照旧，配色照这一套的规矩。 ---------- */
+function buildBg3DVjDerelictHall(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x07030d, 0.0088);
+  const camera = new THREE.PerspectiveCamera(85, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const BAYS = 30, SEG = 9, N = BAYS*2*SEG, SP = VJ_LEN/BAYS;
+  const col = new THREE.InstancedMesh(new THREE.BoxGeometry(3, 2.4, 3), vjSolidMat(1), N);
+  col.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(col);
+  const beam = new THREE.InstancedMesh(new THREE.BoxGeometry(30, 1.4, 1.6), vjSolidMat(1), BAYS);
+  beam.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(beam);
+  // 哪一段塌了是建好就定死的，每帧重随机会变成闪烁噪点
+  const gone = new Uint8Array(N), tilt = new Float32Array(BAYS);
+  for(let i=0;i<N;i++) gone[i] = Math.random() < 0.22 ? 1 : 0;
+  for(let i=0;i<BAYS;i++) tilt[i] = (Math.random()-0.5)*0.9;
+
+  const { composer } = createBg3DBloom(scene, camera, 1.45, 0.5, 0.48);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt);
+    const off = scroll % SP;
+    for(let i=0;i<BAYS;i++){
+      const z = -i*SP + off - SP, wz = i*SP - scroll;
+      // 一束沿走廊往回扫的彩光，扫到哪一跨哪一跨亮
+      const sweep = Math.pow(Math.max(0, Math.sin(wz*0.055 + clock*1.8)), 3);
+      for(let s=0;s<2;s++){
+        const x = s? 13 : -13;
+        for(let k=0;k<SEG;k++){
+          const idx = (i*2+s)*SEG + k;
+          if(gone[idx]){ vjPut(col, idx, 0, 0, 999, 0, 0, 0, 0.001, 0.001, 0.001); continue; }
+          const y = -12 + k*2.6;
+          vjPut(col, idx, x, y, z, 0, 0, (k>SEG-3 ? tilt[i]*0.5 : 0), 1, 1, 1);
+          VJ_C.setHSL((0.72 + s*0.12 + k*0.012 + Math.sin(clock*0.2)*0.08)%1, 0.9, 0.1 + sweep*0.4 + mid*0.1);
+          col.setColorAt(idx, VJ_C);
+        }
+      }
+      vjPut(beam, i, 0, 11.5, z, 0, 0, tilt[i], 1, 1 + sweep*1.2, 1);
+      VJ_C.setHSL((0.5 + Math.sin(clock*0.25)*0.1)%1, 1, 0.12 + sweep*0.44 + high*0.12 + bass*0.1);
+      beam.setColorAt(i, VJ_C);
+    }
+    vjFlush(col); vjFlush(beam);
+    camera.fov = 85 + bass*13;
+  }};
+}
+
+/* ---------- 42. 锈蚀管廊（StillDerelict）——
+     缠成一团的工业管道从身边刷过去。几股不同半径、不同相位的螺旋管，
+     交错起来就是那种「看不出走向」的废弃机房观感。 ---------- */
+function buildBg3DVjRustPipes(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0b0402, 0.0092);
+  const camera = new THREE.PerspectiveCamera(86, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const STRANDS = 9, SEGS = 90, N = STRANDS*SEGS, SP = VJ_LEN/SEGS;
+  const pipe = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 3.2, 10), vjSolidMat(1), N);
+  pipe.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(pipe);
+  // 法兰盘：每隔几段套一个粗环，管子才像管子而不是面条
+  const FL = STRANDS*18;
+  const flange = new THREE.InstancedMesh(new THREE.CylinderGeometry(1.5, 1.5, 0.8, 12), vjSolidMat(1), FL);
+  flange.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(flange);
+  const sd = [];
+  for(let i=0;i<STRANDS;i++) sd.push({ r: 7 + Math.random()*13, ph: Math.random()*Math.PI*2, tw: 0.02 + Math.random()*0.05,
+                                       th: 0.9 + Math.random()*0.9, hue: Math.random() < 0.55 ? 0.055 : 0.48 });
+
+  const { composer } = createBg3DBloom(scene, camera, 1.4, 0.48, 0.5);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.05;
+    let f = 0;
+    for(let s=0;s<STRANDS;s++){
+      const d = sd[s];
+      for(let k=0;k<SEGS;k++){
+        const idx = s*SEGS + k;
+        const z = vjLoopZ(scroll, k*SP), wz = k*SP - scroll;
+        const a = wz*d.tw + d.ph + clock*0.25;
+        const rr = d.r + Math.sin(wz*0.04 + d.ph)*2.2;
+        const x = Math.cos(a)*rr, y = Math.sin(a)*rr*0.8;
+        const th = d.th*(1 + bass*0.28);
+        vjPut(pipe, idx, x, y, z, Math.PI/2, 0, 0, th, 1, th);
+        // 锈色 / 冷绿两种管路交替，加一点沿长度的斑驳
+        const patina = 0.5 + 0.5*Math.sin(wz*0.19 + s*2.1);
+        VJ_C.setHSL((d.hue + patina*0.04)%1, 0.95, 0.12 + patina*0.26 + mid*0.12 + high*0.06);
+        pipe.setColorAt(idx, VJ_C);
+        if(k % 5 === 0 && f < FL){
+          vjPut(flange, f, x, y, z, Math.PI/2, 0, 0, th*1.35, 1, th*1.35);
+          VJ_C.setHSL((d.hue + 0.02)%1, 0.9, 0.2 + patina*0.3 + bass*0.12);
+          flange.setColorAt(f, VJ_C); f++;
+        }
+      }
+    }
+    for(; f<FL; f++) vjPut(flange, f, 0, 0, 999, 0, 0, 0, 0.001, 0.001, 0.001);
+    vjFlush(pipe); vjFlush(flange);
+    camera.fov = 86 + bass*13;
+  }};
+}
+
+/* ---------- 43. 碎窗厅（StillDerelict）——
+     悬在空中的玻璃碎片。每片朝向固定、缓慢自转，光扫过时按角度一片片闪。
+     半透明叠加出来的层次是这个的看点，跟实体几何的观感完全不同。 ---------- */
+function buildBg3DVjShatteredPanes(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x040610, 0.007);
+  const camera = new THREE.PerspectiveCamera(83, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  const N = 420;
+  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 0.12), vjSolidMat(0.62), N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+  const sh = [];
+  for(let i=0;i<N;i++){
+    sh.push({ x:(Math.random()-0.5)*50, y:(Math.random()-0.5)*34, z:-Math.random()*VJ_LEN,
+              w: 1.5+Math.random()*6, h: 1.5+Math.random()*7,
+              rx:Math.random()*6, ry:Math.random()*6, rz:Math.random()*6,
+              sp:(Math.random()-0.5)*0.02, hue: Math.random() });
+  }
+
+  const { composer } = createBg3DBloom(scene, camera, 1.7, 0.58, 0.4);
+  let clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016;
+    const step = vjSpeed(bass, dt)*1.15;
+    for(let i=0;i<N;i++){
+      const s = sh[i];
+      s.z += step; s.ry += s.sp*dt*2;
+      if(s.z > VJ_FRONT){ s.z -= VJ_LEN; s.x = (Math.random()-0.5)*50; s.y = (Math.random()-0.5)*34; }
+      // 一片玻璃只在转到某个角度时反光，所以用 ry 直接决定它闪不闪
+      const flash = Math.pow(Math.abs(Math.cos(s.ry*1.5 + clock*0.8)), 12);
+      vjPut(mesh, i, s.x, s.y, s.z, s.rx, s.ry, s.rz, s.w*(1+bass*0.2), s.h*(1+bass*0.2), 1);
+      VJ_C.setHSL((0.46 + s.hue*0.3 + Math.sin(clock*0.18)*0.07)%1, 0.98 - flash*0.5, 0.14 + flash*0.42 + mid*0.1 + high*0.1);
+      mesh.setColorAt(i, VJ_C);
+    }
+    vjFlush(mesh);
+    camera.fov = 83 + bass*14;
+  }};
+}
+
+/* ---------- 44. 尘光竖井（StillDerelict）——
+     屋顶破了几个洞，光柱直直插下来，尘埃在光里飘。
+     竖直的光柱在一堆「横向飞过」的效果里是很强的对比。 ---------- */
+function buildBg3DVjDustShaft(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x05040b, 0.0085);
+  const camera = new THREE.PerspectiveCamera(84, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  /* 26 根细光柱只点亮 20.2%。加到 40 根、每根更粗，光柱之间开始互相重叠，
+     整个空间才像是"泡在光里"，而不是几条孤立的光线。 */
+  const SHAFTS = 40, LAYER = 7, N = SHAFTS*LAYER, SP = VJ_LEN/SHAFTS;
+  // 光柱用几层由粗到细的半透明筒叠出来，中间最亮，边缘散开
+  const shaft = new THREE.InstancedMesh(new THREE.CylinderGeometry(1.8, 3.6, 30, 12, 1, true), vjSolidMat(0.2), N);
+  shaft.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(shaft);
+  const DUST = 1100;
+  const dust = new THREE.InstancedMesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), vjSolidMat(1), DUST);
+  dust.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(dust);
+  const sx = new Float32Array(SHAFTS), sw = new Float32Array(SHAFTS);
+  for(let i=0;i<SHAFTS;i++){ sx[i] = (Math.random()-0.5)*44; sw[i] = 0.85 + Math.random()*1.2; }
+  const du = [];
+  for(let i=0;i<DUST;i++) du.push({ x:(Math.random()-0.5)*40, y:(Math.random()-0.5)*24, z:-Math.random()*VJ_LEN, ph:Math.random()*6 });
+
+  const { composer } = createBg3DBloom(scene, camera, 1.75, 0.6, 0.38);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016;
+    const step = vjSpeed(bass, dt);
+    scroll += step;
+    const off = scroll % SP;
+    for(let i=0;i<SHAFTS;i++){
+      const z = -i*SP + off - SP, wz = i*SP - scroll;
+      const glow = 0.35 + 0.65*Math.pow(Math.max(0, Math.sin(wz*0.06 + clock*1.5)), 2);
+      for(let l=0;l<LAYER;l++){
+        const idx = i*LAYER + l, k = (l+1)/LAYER;
+        vjPut(shaft, idx, sx[i], 0, z, 0, 0, 0, sw[i]*k*(1+bass*0.25), 1, sw[i]*k*(1+bass*0.25));
+        VJ_C.setHSL((0.13 + Math.sin(clock*0.16 + i)*0.1)%1, 1, (0.1 + glow*0.4)*(1.15 - k) + high*0.06);
+        shaft.setColorAt(idx, VJ_C);
+      }
+    }
+    for(let i=0;i<DUST;i++){
+      const d = du[i];
+      d.z += step;
+      if(d.z > VJ_FRONT){ d.z -= VJ_LEN; d.x = (Math.random()-0.5)*40; d.y = (Math.random()-0.5)*24; }
+      const y = d.y + Math.sin(clock*0.6 + d.ph)*2.2;
+      const s = 1 + mid*1.6;
+      vjPut(dust, i, d.x, y, d.z, 0, 0, 0, s, s, s);
+      // 飘进光柱里的尘埃才亮，外面的几乎看不见
+      let near = 0;
+      for(let k=0;k<SHAFTS;k++){ const dx = Math.abs(d.x - sx[k]); if(dx < 3){ near = 1 - dx/3; break; } }
+      VJ_C.setHSL(0.13, 1, 0.08 + near*0.5 + high*0.1);
+      dust.setColorAt(i, VJ_C);
+    }
+    vjFlush(shaft); vjFlush(dust);
+    camera.fov = 84 + bass*12;
+  }};
+}
+
+/* ---------- 45. 塌陷钢架（StillDerelict）——
+     一个方管形的钢结构网格，其中一部分梁已经扭了、掉了。
+     跟第一批的「液态网格」是反过来的：那个是完好的管在流动，这个是散架的管在解体。 ---------- */
+function buildBg3DVjCollapsedGrid(){
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x060409, 0.0086);
+  const camera = new THREE.PerspectiveCamera(85, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
+
+  // PER 22 时只点亮 20.6% 的像素，撑不起「饱满」这条线；加密到 32 并把梁加粗
+  const RINGS = 34, PER = 32, N = RINGS*PER, SP = VJ_LEN/RINGS, R = 18;
+  const girder = new THREE.InstancedMesh(new THREE.BoxGeometry(4.2, 1.15, 1.15), vjSolidMat(1), N);
+  girder.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(girder);
+  const rail = new THREE.InstancedMesh(new THREE.BoxGeometry(1.0, 1.0, VJ_LEN/RINGS*1.05), vjSolidMat(1), N);
+  rail.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(rail);
+  // 断裂状态建好就定死：broke=0 完好，>0 表示歪掉/坠落的程度
+  const broke = new Float32Array(N), drop = new Float32Array(N);
+  for(let i=0;i<N;i++){
+    broke[i] = Math.random() < 0.3 ? (0.3 + Math.random()*1.2) : 0;
+    drop[i] = Math.random()*5;
+  }
+  const tmp = new THREE.Vector2();
+
+  const { composer } = createBg3DBloom(scene, camera, 1.5, 0.5, 0.47);
+  let scroll = 0, clock = 0;
+  return { scene, camera, composer, update(bass, mid, high, dt){
+    clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.05;
+    const off = scroll % SP;
+    for(let i=0;i<RINGS;i++){
+      const z = -i*SP + off - SP, wz = i*SP - scroll;
+      const sweep = Math.pow(Math.max(0, Math.sin(wz*0.05 + clock*2)), 3);
+      for(let j=0;j<PER;j++){
+        const idx = i*PER + j;
+        const a = (j/PER)*Math.PI*2;
+        vjSuperXY(a, R, 4, tmp);
+        const bk = broke[idx];
+        const x = tmp.x, y = tmp.y - bk*drop[idx];
+        vjPut(girder, idx, x, y, z, bk*1.1, a + Math.PI/2, bk*0.8, 1, 1 + bass*0.5, 1);
+        // 断掉的梁压暗偏红（锈），完好的走冷色，这样一眼看得出哪里塌了
+        // 断掉的梁原本压到 0.1，低于「算作亮像素」的门槛，整片就白瘦了 —— 抬到 0.17
+        VJ_C.setHSL(bk ? 0.03 : (0.55 + Math.sin(clock*0.2)*0.08), 0.95, (bk ? 0.17 : 0.22) + sweep*(bk?0.22:0.4) + mid*0.1);
+        girder.setColorAt(idx, VJ_C);
+        vjPut(rail, idx, x, y, z, 0, 0, 0, 1, 1, 1);
+        VJ_C.setHSL(bk ? 0.05 : 0.6, 0.9, (bk ? 0.14 : 0.2) + sweep*0.26 + high*0.08);
+        rail.setColorAt(idx, VJ_C);
+      }
+    }
+    vjFlush(girder); vjFlush(rail);
+    camera.fov = 85 + bass*13;
+  }};
+}
+
+const BG3D_BUILDERS = { particles: buildBg3DParticles, tunnel: buildBg3DTunnel, prism: buildBg3DPrism, festival: buildBg3DFestivalBuilding, galaxy: buildBg3DGalaxy, colorTunnel: buildBg3DColorTunnel, synthwave: buildBg3DSynthwave, helix: buildBg3DHelix, fireworkSky: buildBg3DFireworkSky, aurora: buildBg3DAurora, particleStorm: buildBg3DParticleStorm, particleWaves: buildBg3DParticleWaves, particleRings: buildBg3DParticleRings, particleRain: buildBg3DParticleRain, galaxyMerge: buildBg3DGalaxyMerge, particleVortex: buildBg3DParticleVortex, particleStardust: buildBg3DParticleStardust, particlePulseOrb: buildBg3DParticlePulseOrb, particleWaterfall: buildBg3DParticleWaterfall, rainbowNebula: buildBg3DRainbowNebula, cosmicRings: buildBg3DCosmicRings, galaxySpiral: buildBg3DGalaxySpiral, rainbowWormhole: buildBg3DRainbowWormhole, fireflyForest: buildBg3DFireflyForest, cherryBlossom: buildBg3DCherryBlossom, glacierAurora: buildBg3DGlacierAurora, dandelionSeeds: buildBg3DDandelionSeeds, duneRipple: buildBg3DDuneRipple, rainforestVines: buildBg3DRainforestVines, coralReef: buildBg3DCoralReef, jellyfishSwarm: buildBg3DJellyfishSwarm, bioluminescentDeep: buildBg3DBioluminescentDeep, tideRippleGrid: buildBg3DTideRippleGrid, oceanVortex: buildBg3DOceanVortex, lightningStorm: buildBg3DLightningStorm, snowfallDrift: buildBg3DSnowfallDrift, sandstorm: buildBg3DSandstorm, foggyMoonlight: buildBg3DFoggyMoonlight, rainbowRain: buildBg3DRainbowRain, vhsCube: buildBg3DVhsCube, vaporwaveSunset: buildBg3DVaporwaveSunset, hologramCity: buildBg3DHologramCity, matrixDataRain: buildBg3DMatrixDataRain, warpSpeedStreaks: buildBg3DWarpSpeedStreaks, pixelGlitchField: buildBg3DPixelGlitchField, blackHoleAccretion: buildBg3DBlackHoleAccretion, supernovaBurst: buildBg3DSupernovaBurst, meteorShower: buildBg3DMeteorShower, cometTrail: buildBg3DCometTrail, pulsarBeacon: buildBg3DPulsarBeacon, kaleidoscope: buildBg3DKaleidoscope, fractalTree: buildBg3DFractalTree, voronoiShatter: buildBg3DVoronoiShatter, waveformRings: buildBg3DWaveformRings, mobiusRibbon: buildBg3DMobiusRibbon, liquidMetalWave: buildBg3DLiquidMetalWave, zenRipplePond: buildBg3DZenRipplePond, floatingOrbs: buildBg3DFloatingOrbs, breathingHalo: buildBg3DBreathingHalo, stardustDrift: buildBg3DStardustDrift, horizonGlow: buildBg3DHorizonGlow, heartbeatPulse: buildBg3DHeartbeatPulse, redAlertScan: buildBg3DRedAlertScan, highVoltageGrid: buildBg3DHighVoltageGrid, chaseLightTrails: buildBg3DChaseLightTrails, dangerScanSweep: buildBg3DDangerScanSweep, ambushBeacon: buildBg3DAmbushBeacon, shockwavePulse: buildBg3DShockwavePulse, impactCraterBurst: buildBg3DImpactCraterBurst, groundCrackRift: buildBg3DGroundCrackRift, glassShatterBurst: buildBg3DGlassShatterBurst, thunderStrikeFlash: buildBg3DThunderStrikeFlash, sonicBoomRing: buildBg3DSonicBoomRing, confettiExplosion: buildBg3DConfettiExplosion, giftRevealBurst: buildBg3DGiftRevealBurst, partyBalloonRise: buildBg3DPartyBalloonRise, surpriseStarburst: buildBg3DSurpriseStarburst, ribbonBloom: buildBg3DRibbonBloom, bubblePopBurst: buildBg3DBubblePopBurst, neonRiot: buildBg3DNeonRiot, chromaExplosion: buildBg3DChromaExplosion, strobeMatrix: buildBg3DStrobeMatrix, kineticSpectrum: buildBg3DKineticSpectrum, speedColorRings: buildBg3DSpeedColorRings, electroPartyFlash: buildBg3DElectroPartyFlash, stageSpotlightSweep: buildBg3DStageSpotlightSweep, laserGridShow: buildBg3DLaserGridShow, flameBurstColumn: buildBg3DFlameBurstColumn, energyCoreOverload: buildBg3DEnergyCoreOverload, edmPulseWall: buildBg3DEdmPulseWall, lightWaveSurge: buildBg3DLightWaveSurge, suspenseFlicker: buildBg3DSuspenseFlicker, popScareBurst: buildBg3DPopScareBurst, emergencySignalPulse: buildBg3DEmergencySignalPulse, climaxFlashBurst: buildBg3DClimaxFlashBurst, electricShockArc: buildBg3DElectricShockArc, surpriseFirecrackerPop: buildBg3DSurpriseFirecrackerPop, tensionCountdownRing: buildBg3DTensionCountdownRing, highEnergyFlashStage: buildBg3DHighEnergyFlashStage, criticalMassBurst: buildBg3DCriticalMassBurst, birthdayCake: buildBg3DBirthdayCake, balloonArch: buildBg3DBalloonArch, confettiCannon: buildBg3DConfettiCannon, partyStreamerSwirl: buildBg3DPartyStreamerSwirl, sprinkleShower: buildBg3DSprinkleShower, weddingRings: buildBg3DWeddingRings, doveFlight: buildBg3DDoveFlight, rosePetalFall: buildBg3DRosePetalFall, fairyLightCanopy: buildBg3DFairyLightCanopy, floatingLanterns: buildBg3DFloatingLanterns, birthdayCombo: buildBg3DBirthdayCombo, weddingCombo: buildBg3DWeddingCombo, neonSpiralTunnel: buildBg3DNeonSpiralTunnel, hologramPortal: buildBg3DHologramPortal, hyperspaceRush: buildBg3DHyperspaceRush, waveformTerrain: buildBg3DWaveformTerrain, beatTunnel: buildBg3DBeatTunnel, particleDNAHelix: buildBg3DParticleDNAHelix, frequencyGalaxy: buildBg3DFrequencyGalaxy, vjLiquidGrid: buildBg3DVjLiquidGrid, vjHexPulse: buildBg3DVjHexPulse, vjNeonRibbon: buildBg3DVjNeonRibbon, vjPrismShards: buildBg3DVjPrismShards, vjWaveCorridor: buildBg3DVjWaveCorridor, vjPlasmaRings: buildBg3DVjPlasmaRings, vjStarLane: buildBg3DVjStarLane, vjKaleido: buildBg3DVjKaleido, vjChromeTube: buildBg3DVjChromeTube, vjCubeMatrix: buildBg3DVjCubeMatrix, vjChromeFlow: buildBg3DVjChromeFlow, vjMetalTwist: buildBg3DVjMetalTwist, vjGridMorph: buildBg3DVjGridMorph, vjFractalWell: buildBg3DVjFractalWell, vjCyborgCorridor: buildBg3DVjCyborgCorridor, vjRaceTrack: buildBg3DVjRaceTrack, vjSpeedGates: buildBg3DVjSpeedGates, vjHoverCity: buildBg3DVjHoverCity, vjTentacleTunnel: buildBg3DVjTentacleTunnel, vjBioMembrane: buildBg3DVjBioMembrane, vjVoidNebula: buildBg3DVjVoidNebula, vjEventHorizon: buildBg3DVjEventHorizon, vjCandyOrbs: buildBg3DVjCandyOrbs, vjDataBloom: buildBg3DVjDataBloom, vjNeonTubeRoom: buildBg3DVjNeonTubeRoom, vjNeonArches: buildBg3DVjNeonArches, vjHorizonVoyage: buildBg3DVjHorizonVoyage, vjLightWell: buildBg3DVjLightWell, vjHyperCube: buildBg3DVjHyperCube, vjCoasterRush: buildBg3DVjCoasterRush, vjChromeDrips: buildBg3DVjChromeDrips, vjMercuryPool: buildBg3DVjMercuryPool, vjFoilCrumple: buildBg3DVjFoilCrumple, vjChromeBubbles: buildBg3DVjChromeBubbles, vjLiquidSpine: buildBg3DVjLiquidSpine, vjAsteroidSlalom: buildBg3DVjAsteroidSlalom, vjWarpJump: buildBg3DVjWarpJump, vjRingWorldRun: buildBg3DVjRingWorldRun, vjIonTrail: buildBg3DVjIonTrail, vjSolarFlare: buildBg3DVjSolarFlare, vjDerelictHall: buildBg3DVjDerelictHall, vjRustPipes: buildBg3DVjRustPipes, vjShatteredPanes: buildBg3DVjShatteredPanes, vjDustShaft: buildBg3DVjDustShaft, vjCollapsedGrid: buildBg3DVjCollapsedGrid };   /* 末尾这四十五个是 🌀 VJ 菜单的隧道穿梭 loop —— 引擎共用，但故意不进 BG3D_CATALOG */
 
 function resizeBg3D(){
   const availH = Math.max(1, window.innerHeight - DOCK_SAFE_ZONE);   // keep 3D content out of the strip reserved for the dock, same idea as the 2D canvas clip
@@ -22109,17 +23229,20 @@ document.getElementById('exitSaveNameIn').addEventListener('keydown', e=>{
 function randomCombo(idxPool){
   pushUndo();
   startTransition();
-  const count = 2 + Math.floor(Math.random()*6); // 2-7 modes
+  const count = parseInt(document.getElementById('modeRandomCountSel')?.value, 10) || 4;
   const pool = (idxPool && idxPool.length) ? [...idxPool] : MODES.map((_,i)=>i);
   for(let i=pool.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
   activeModes = pool.slice(0, Math.min(count, pool.length));
+  // 只有一个特效时不做随机位移／缩放／旋转 —— 单独一个被推离中心又缩小，看着像没摆正。
+  // 多个才需要错开，那是为了让它们叠在一起有层次。
+  const solo = activeModes.length === 1;
   activeModes.forEach(idx=>{
     const pos = getModePos(idx);
     const span = Math.min(W,H)*0.15;
-    pos.x = (Math.random()*2-1)*span;
-    pos.y = (Math.random()*2-1)*span;
-    pos.scale = 0.7+Math.random()*0.8;
-    pos.rotation = (Math.random()*2-1)*0.5;
+    pos.x = solo ? 0 : (Math.random()*2-1)*span;
+    pos.y = solo ? 0 : (Math.random()*2-1)*span;
+    pos.scale = solo ? 1 : 0.7+Math.random()*0.8;
+    pos.rotation = solo ? 0 : (Math.random()*2-1)*0.5;
     pos.brightness = 0.8+Math.random()*0.6;
   });
   focusModeIdx = activeModes[0];
@@ -23227,7 +24350,8 @@ buildBg3DMenu();
    这十个隧道注册在 BG3D_BUILDERS 里，enableBg3D / 预设 / 随机全部照旧能用；
    但它们不在 BG3D_CATALOG 里，所以 🌌 3D 菜单的列表和它的 ⏭ Next 顺序完全不受影响。 */
 const VJ_TUNNEL_KINDS = ["vjLiquidGrid","vjHexPulse","vjNeonRibbon","vjPrismShards","vjWaveCorridor","vjPlasmaRings","vjStarLane","vjKaleido","vjChromeTube","vjCubeMatrix",
-  "vjChromeFlow","vjMetalTwist","vjGridMorph","vjFractalWell","vjCyborgCorridor","vjRaceTrack","vjSpeedGates","vjHoverCity","vjTentacleTunnel","vjBioMembrane","vjVoidNebula","vjEventHorizon","vjCandyOrbs","vjDataBloom","vjNeonTubeRoom","vjNeonArches","vjHorizonVoyage","vjLightWell","vjHyperCube","vjCoasterRush"];
+  "vjChromeFlow","vjMetalTwist","vjGridMorph","vjFractalWell","vjCyborgCorridor","vjRaceTrack","vjSpeedGates","vjHoverCity","vjTentacleTunnel","vjBioMembrane","vjVoidNebula","vjEventHorizon","vjCandyOrbs","vjDataBloom","vjNeonTubeRoom","vjNeonArches","vjHorizonVoyage","vjLightWell","vjHyperCube","vjCoasterRush",
+  "vjChromeDrips","vjMercuryPool","vjFoilCrumple","vjChromeBubbles","vjLiquidSpine","vjAsteroidSlalom","vjWarpJump","vjRingWorldRun","vjIonTrail","vjSolarFlare","vjDerelictHall","vjRustPipes","vjShatteredPanes","vjDustShaft","vjCollapsedGrid"];
 function buildVjMenu(){
   const list = document.getElementById('vjMenuList');
   if(!list) return;
@@ -23255,6 +24379,33 @@ function randomVjTunnel(){
   const pool = VJ_TUNNEL_KINDS.filter(k=> k !== bg3DKind);
   enableBg3D(pool[Math.floor(Math.random()*pool.length)]);
 }
+
+/* 质量档切换。材质是在 builder 里一次性创建的，所以改档必须把缓存的场景丢掉重建，
+   否则要等到下次首访某条隧道才生效。丢之前先自己回收 —— 这个应用原本没有 dispose
+   路径（场景建好就一直留着），是这里的重建引入了回收需求，就在这里负责干净。 */
+function vjDropCachedScene(kind){
+  const s = bg3DScenes[kind];
+  if(!s) return;
+  s.scene.traverse(o=>{
+    if(o.geometry) o.geometry.dispose();
+    const m = o.material;
+    if(Array.isArray(m)) m.forEach(x=> x && x.dispose());
+    else if(m) m.dispose();
+  });
+  if(s.composer){
+    s.composer.passes?.forEach(p=> p.dispose?.());
+    s.composer.renderTarget1?.dispose?.();
+    s.composer.renderTarget2?.dispose?.();
+  }
+  delete bg3DScenes[kind];
+}
+document.getElementById('vjQualitySel').addEventListener('change', e=>{
+  vjQuality = e.target.value;
+  /* 丢的是全部缓存场景，不只 VJ 那 45 个 —— 抗锯齿的 samples 是在 composer 建的
+     时候定死的，3D 背景那 61 个同样受影响，只丢 VJ 的话它们会停在旧档上。 */
+  Object.keys(bg3DScenes).forEach(vjDropCachedScene);
+  if(bg3DKind) enableBg3D(bg3DKind);
+});
 document.getElementById('vjRandomBtn').onclick = randomVjTunnel;
 
 /* VJ 的自动轮换。跟 🌌 3D 菜单里那个互斥 —— 两边驱动的是同一个 bg3DKind，
@@ -24422,6 +25573,18 @@ function deleteLastInteracted(){
 }
 
 /* ---------- live performance quick bar: hidden by default, toggled from the main dock ---------- */
+/* dock 一换行就往上长，Live Bar 的 bottom 得跟着走，不然两条压在一起。
+   把 dock 的实际高度写成 --dock-h，让 CSS 自己算（见 #liveBar 的 bottom）。 */
+function trackDockHeight(){
+  const dock = document.querySelector('.dock');
+  if(!dock) return;
+  const apply = ()=> document.documentElement.style.setProperty('--dock-h', dock.getBoundingClientRect().height + 'px');
+  apply();
+  if(typeof ResizeObserver !== 'undefined') new ResizeObserver(apply).observe(dock);
+  addEventListener('resize', apply);
+}
+trackDockHeight();
+
 let liveBarOn = false;
 try{ liveBarOn = localStorage.getItem('subremix_livebar') === '1'; }catch(e){}
 function applyLiveBarVisibility(){
