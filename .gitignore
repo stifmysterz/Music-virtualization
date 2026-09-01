@@ -17,6 +17,12 @@ Thumbs.db
 sub-remix-claude-code/
 .claude/settings.local.json
 
+# Skills installed by `npx skills` — the real files live in .agents/skills/ and
+# are tracked there. These are absolute-path symlinks that break on any other
+# machine or checkout path; `npx skills` recreates them on install.
+.claude/skills/hallmark
+.claude/skills/threejs-*
+
 # Node / Electron
 node_modules/
 dist/
