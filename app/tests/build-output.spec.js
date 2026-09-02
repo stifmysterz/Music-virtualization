@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { test, expect, _electron: electron } = require('@playwright/test');
@@ -12,6 +13,13 @@ const EXE_PATH = path.join(UNPACKED_DIR, EXE_NAME);
 // electron-builder's default NSIS artifact name template is "${productName} Setup ${version}.exe"
 const INSTALLER_NAME = `${pkg.build.productName} Setup ${pkg.version}.exe`;
 const INSTALLER_PATH = path.join(DIST, INSTALLER_NAME);
+// app/package.json 的 extraResources 把项目根目录的 61.html 打进 resources/app/61.html
+const SOURCE_HTML = path.join(__dirname, '..', '..', '61.html');
+const PACKED_HTML = path.join(UNPACKED_DIR, 'resources', 'app', '61.html');
+
+function sha256(file) {
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+}
 
 // 这三个测试是构建后校验，只在跑过 `npm run dist` 之后才有意义。
 // dist/ 从不会在构建之间被清理，所以只判断 dist/ 存在是不够的——一次中断/半成品的构建会
@@ -34,6 +42,29 @@ test('打包资源中包含 61.html 与字体', () => {
   const unpacked = path.join(UNPACKED_DIR, 'resources', 'app');
   expect(fs.existsSync(path.join(unpacked, '61.html'))).toBe(true);
   expect(fs.existsSync(path.join(unpacked, 'fonts'))).toBe(true);
+});
+
+/* 上面那条只查文件在不在，体积那条只查 >50MB —— 两条都绕过了内容，所以
+   「dist/ 里是三天前构建的 exe」可以和整套测试全绿同时成立（实际发生过：打进
+   1.1.0 的是 9 月 1 日一份未提交的 61.html，缺了 vjIonTrail 泛白修复和 ACES
+   grade pass，而 155 项测试照样全过）。
+   构建产物是否新鲜，只有比内容才问得出来。 */
+test('打包进去的 61.html 就是当前源码，不是上一次构建留下的旧版', () => {
+  expect(fs.existsSync(PACKED_HTML), `未找到打包产物 ${PACKED_HTML}`).toBe(true);
+
+  const packed = sha256(PACKED_HTML);
+  const source = sha256(SOURCE_HTML);
+
+  expect(
+    packed,
+    `打包产物与源码不一致 —— dist/ 是旧的，重跑 npm run dist
+` +
+      `  源码   ${SOURCE_HTML}
+    ${source}  (${fs.statSync(SOURCE_HTML).size} bytes)
+` +
+      `  打包版 ${PACKED_HTML}
+    ${packed}  (${fs.statSync(PACKED_HTML).size} bytes)`
+  ).toBe(source);
 });
 
 test('打包后的可执行文件能启动并加载正确内容', async () => {
