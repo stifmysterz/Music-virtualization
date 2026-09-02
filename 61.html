@@ -15456,10 +15456,24 @@ function buildBg3DVjIonTrail(){
   ship.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(ship);
   const sh = [];
-  for(let i=0;i<SHIPS;i++) sh.push({ ph: Math.random()*Math.PI*2, ax: 6+Math.random()*14, ay: 4+Math.random()*9,
-                                     fx: 0.6+Math.random()*0.9, fy: 0.5+Math.random()*0.8, hue: i/SHIPS });
+  /* 确定性排布。原来这 45 个参数是 Math.random() 抽的，而场景是按 kind 缓存、整个进程
+     只建一次的，所以每次启动都换一组布局：抽到振幅小、相位相近的那几组时，9 条尾巴会
+     挤在画面中央，bloom 在自己身上叠出白核 —— 实测同一份代码的 vivid 在 34%~89% 之间跳。
+     改成沿黄金角展开相位、把振幅和频率在原区间内均匀分配（两者用不同的次序，免得振幅
+     大的船同时也是频率高的船），船必然铺得开，而且每次启动的画面完全一致。 */
+  const GOLD = Math.PI*(3-Math.sqrt(5));   // 黄金角：9 个相位互不靠拢，也不会整除成对称图案
+  for(let i=0;i<SHIPS;i++){
+    const u = (i+0.5)/SHIPS;                   // 0..1 均匀，取格心避开区间两端
+    const v = ((i*4)%SHIPS+0.5)/SHIPS;         // 同一组值换个次序，让振幅和频率解耦
+    sh.push({ ph: i*GOLD, ax: 6+u*14, ay: 4+v*9,
+              fx: 0.6+v*0.9, fy: 0.5+u*0.8, hue: i/SHIPS });
+  }
 
-  const { composer } = createBg3DBloom(scene, camera, 1.9, 0.62, 0.34);
+  /* 收回同批的量级。原本 1.9/0.34 是 45 条隧道里最激进的一组（strength 并列第一高、
+     threshold 第 11 低，strength/threshold=5.6 对中位数 3.5）：阈值低到尾巴的大半都进
+     bloom，再乘 1.9 加回去，亮部铺满屏幕、颜色被冲淡。1.45/0.44 是这批的中位数附近，
+     光晕还在，白核没了。 */
+  const { composer } = createBg3DBloom(scene, camera, 1.45, 0.62, 0.44);
   let scroll = 0, clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
     clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.4;
@@ -15476,7 +15490,10 @@ function buildBg3DVjIonTrail(){
         const fade = 1 - t/TAIL;
         const r = (0.5 + fade*2.4)*(1 + bass*0.5);
         vjPut(mesh, idx, x, y, z, 0, 0, 0, r, r, r*1.8);
-        VJ_C.setHSL((c.hue*0.55 + 0.5 + fade*0.12)%1, 1, 0.1 + fade*fade*0.42 + high*0.12);
+        /* L 的峰值压到 0.46。原来是 0.1+0.42+high*0.12，尾巴头部在 high=0.3 时就已经
+           L=0.556 —— HSL 过了 0.5 之后本身就朝白色走，高音拉满时更是 0.64，等于在 bloom
+           之前先白一层。0.46 保住了渐变和高音响应，只是不再越过白化点。 */
+        VJ_C.setHSL((c.hue*0.55 + 0.5 + fade*0.12)%1, 1, 0.1 + fade*fade*0.30 + high*0.06);
         mesh.setColorAt(idx, VJ_C);
       }
       const x0 = Math.sin(clock*c.fx + c.ph)*c.ax, y0 = Math.cos(clock*c.fy + c.ph*1.7)*c.ay;
