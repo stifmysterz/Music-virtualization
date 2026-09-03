@@ -57,8 +57,8 @@ function stubAudioAndModes() {
     getByteTimeDomainData(a) { for (let i = 0; i < a.length; i++) a[i] = 128 + Math.round(Math.sin(i * 0.09) * 50); }
   };
   hasBgMedia = true;
-  // radial 从中心向外发散（长度封顶 0.30*min(W,H)），bars 画在底部 —— 左上角必定没有特效像素
-  activeModes = [MODES.indexOf('radial'), MODES.indexOf('bars')];
+  // polarWaveform 是绕圆心一圈的闭合环（半径封顶 0.36*min(W,H)），bars 画在底部 —— 左上角必定没有特效像素
+  activeModes = [MODES.indexOf('polarWaveform'), MODES.indexOf('bars')];
   focusModeIdx = activeModes[0];
 }
 
@@ -129,7 +129,7 @@ test('截图/录像的合成帧仍然包含特效（特效搬层后不能丢）'
       await eval('(' + waiter + ')')(8);
       const c = composeCaptureFrame();
       const ctx = c.getContext('2d');
-      // 中心区域取一块，统计有多少像素是非透明的 —— radial 画在正中，必定有内容
+      // 中心区域取一块，统计有多少像素是非透明的 —— polarWaveform 画在正中，必定有内容
       const box = 60;
       const d = ctx.getImageData(Math.floor(c.width / 2 - box / 2), Math.floor(c.height / 2 - box / 2), box, box).data;
       let opaque = 0;

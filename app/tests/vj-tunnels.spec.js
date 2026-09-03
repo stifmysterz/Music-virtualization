@@ -150,7 +150,9 @@ test('🎲 Random 3D 和 Auto-Shuffle 不会自己切到 VJ 隧道上', async ()
   await withApp('vj-random', async (win) => {
     /* VJ loop 是从 🌀 VJ 菜单主动挑的，不该在 3D 背景轮换时冒出来。
        randomBg3D() 是 🎲 Random 3D、菜单里的 🎲 Random 和 Auto-Shuffle 三者
-       共用的唯一随机来源（Auto-Shuffle 的 setInterval 直接调它），所以测它就够。 */
+       共用的唯一随机来源，所以测它就够 —— Auto-Shuffle 的 setInterval 现在挂的是
+       runBg3DShuffleTick（先按 Source: 收藏/随机 挑池子，再调 randomBg3D），
+       不是 randomBg3D 本体，所以改成认它。 */
     const res = await win.evaluate((kinds) => {
       const seen = new Set();
       for (let i = 0; i < 400; i++) { randomBg3D(); seen.add(bg3DKind); }
@@ -158,13 +160,13 @@ test('🎲 Random 3D 和 Auto-Shuffle 不会自己切到 VJ 隧道上', async ()
         hitVj: [...seen].filter(k => kinds.includes(k)),
         distinct: seen.size,
         allInCatalog: [...seen].every(k => BG3D_ORDER.includes(k)),
-        shuffleUsesRandom: String(startBg3DShuffleTimer).includes('randomBg3D'),
+        shuffleUsesRandom: String(startBg3DShuffleTimer).includes('runBg3DShuffleTick'),
       };
     }, KINDS);
     expect(res.hitVj, '3D 随机切到了 VJ 隧道上').toEqual([]);
     expect(res.allInCatalog, '随机到了 BG3D_CATALOG 之外的东西').toBe(true);
     expect(res.distinct, '400 次只转出这么几个，随机池可能被缩没了').toBeGreaterThan(30);
-    expect(res.shuffleUsesRandom, 'Auto-Shuffle 不再走 randomBg3D 了，这条测试覆盖不到它').toBe(true);
+    expect(res.shuffleUsesRandom, 'Auto-Shuffle 不再走 runBg3DShuffleTick（进而调 randomBg3D）了，这条测试覆盖不到它').toBe(true);
 
     // 反过来：VJ 菜单自己的 🎲 只在 VJ 池里挑
     const vjOnly = await win.evaluate((kinds) => {

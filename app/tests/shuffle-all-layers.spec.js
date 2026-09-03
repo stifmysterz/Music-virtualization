@@ -134,7 +134,9 @@ test('突变检测真的会触发对应那一层，没开的层不受影响', as
 
       const before = bg3DKind;
       let vjFired = 0, modeFired = 0;
-      const realVj = randomVjTunnel, realMode = runMicShuffleTick;
+      // VJ 订阅者现在挂的是 runVjShuffleTick（会按 Source: 收藏/随机 挑池子，再调
+      // randomVjTunnel），不再是 randomVjTunnel 本体 —— 认错函数引用的话这里永远数不到
+      const realVj = runVjShuffleTick, realMode = runMicShuffleTick;
       // 直接数订阅者被调了几次，不去猜画面
       SUDDEN_CHANGE_SUBSCRIBERS.forEach(sub => {
         const f = sub.fire;

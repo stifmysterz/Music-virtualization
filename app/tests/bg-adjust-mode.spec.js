@@ -52,7 +52,7 @@ function setupScene() {
     getByteFrequencyData(a) { for (let i = 0; i < a.length; i++) a[i] = 120 + (i % 80); },
     getByteTimeDomainData(a) { for (let i = 0; i < a.length; i++) a[i] = 128 + Math.round(Math.sin(i * 0.09) * 50); }
   };
-  activeModes = [MODES.indexOf('radial')]; focusModeIdx = activeModes[0];
+  activeModes = [MODES.indexOf('polarWaveform')]; focusModeIdx = activeModes[0];
   return new Promise(res => { let n = 10; const t = () => (--n <= 0 ? res() : requestAnimationFrame(t)); requestAnimationFrame(t); })
     .then(() => {
       const rect = cv.getBoundingClientRect();

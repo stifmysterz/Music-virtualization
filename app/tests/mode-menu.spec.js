@@ -115,7 +115,7 @@ test('点一项就切过去：只留选中的那个，dock 按钮文字跟着变
   await withApp('modemenu-4', async (win) => {
     const res = await win.evaluate(() => {
       // 先叠两个，验证切换会把其他的清掉
-      activeModes = [MODES.indexOf('radial'), MODES.indexOf('bars')];
+      activeModes = [MODES.indexOf('polarWaveform'), MODES.indexOf('bars')];
       focusModeIdx = activeModes[0];
       refreshModePanelActive();
       const before = { active: [...activeModes], label: document.getElementById('modeBtn').textContent };
@@ -158,7 +158,7 @@ test('当前正在用的 mode 在 drop-up 里被标出来', async () => {
       document.querySelector('#modeMenuList [data-mode-key="' + pick + '"]').click();
       document.getElementById('modeBtn').click();   // 重新打开，看标记
       const el = document.querySelector('#modeMenuList [data-mode-key="' + pick + '"]');
-      const other = document.querySelector('#modeMenuList [data-mode-key="radial"]');
+      const other = document.querySelector('#modeMenuList [data-mode-key="bars"]');
       return { picked: el.classList.contains('active'), other: other.classList.contains('active') };
     });
 
@@ -331,7 +331,7 @@ test('「➕ Duplicate」复制出来的特效，在 drop-up 里照样标成正�
       const frames = n => new Promise(r => { let k = n; const t = () => (--k <= 0 ? r() : requestAnimationFrame(t)); requestAnimationFrame(t); });
       const marked = () => [...document.querySelectorAll('#modeMenuList [data-mode-key].active')].map(el => el.dataset.modeKey);
 
-      activeModes = [MODES.indexOf('radial')]; focusModeIdx = activeModes[0];
+      activeModes = [MODES.indexOf('bars')]; focusModeIdx = activeModes[0];
       refreshModePanelActive();
       await frames(2);
       const plain = marked();
@@ -342,7 +342,7 @@ test('「➕ Duplicate」复制出来的特效，在 drop-up 里照样标成正�
       const dupIdx = activeModes.find(m => !Number.isInteger(m));
       const bothPresent = marked();
 
-      // 只留下副本 —— 屏幕上还是 radial 在跑，drop-up 就必须还标着 radial
+      // 只留下副本 —— 屏幕上还是 bars 在跑，drop-up 就必须还标着 bars
       activeModes = [dupIdx]; focusModeIdx = dupIdx;
       refreshModePanelActive();
       await frames(3);
@@ -350,13 +350,13 @@ test('「➕ Duplicate」复制出来的特效，在 drop-up 里照样标成正�
       return { plain, dupIdx, bothPresent, dupOnly: marked(), dockBtn: document.getElementById('modeBtn').textContent };
     });
 
-    expect(res.plain).toEqual(['radial']);
+    expect(res.plain).toEqual(['bars']);
     expect(Number.isInteger(res.dupIdx), '没有产生小数索引的副本').toBe(false);
-    expect(res.bothPresent).toEqual(['radial']);
+    expect(res.bothPresent).toEqual(['bars']);
     // 修之前这里是 []：markActiveModeInMenu 用严格相等比 MODES.indexOf(key)，0.0001 匹配不上，
     // 于是「我要知道现在用着什么 mode」这个 drop-up 的全部意义就没了
-    expect(res.dupOnly, 'drop-up 对复制出来的特效不标记').toEqual(['radial']);
-    expect(res.dockBtn.toLowerCase()).toContain('radial');
+    expect(res.dupOnly, 'drop-up 对复制出来的特效不标记').toEqual(['bars']);
+    expect(res.dockBtn.toLowerCase()).toContain('bars');
   });
 });
 

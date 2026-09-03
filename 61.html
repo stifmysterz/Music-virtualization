@@ -887,6 +887,12 @@
     <input type="number" id="bg3DShuffleCustomSel" min="3" max="3600" step="1" value="32" style="width:70px">
     <span id="bg3DShuffleCustomUnit">sec</span>
   </div>
+  <!-- 「我的预设」这一档在 Mode 那边才有意义（预设存的是一整套 2D 状态组合），
+       3D 风格没有这个概念，所以这里只留 收藏/完全随机 两档，跟 VJ 那边一致。 -->
+  <select id="bg3DShuffleSourceSel" class="dock-dd-select" title="Where Auto-Shuffle picks 3D styles from">
+    <option value="favorites">Source: My Favourites</option>
+    <option value="random">Source: Full Random</option>
+  </select>
   <div class="dock-dd-slider-row" id="bg3DSpeedRow" title="Playback speed of the 3D background animation">
     <span>⏩</span>
     <input type="range" id="bg3DSpeedSel" class="mode-bright-slider" min="20" max="300" value="100" step="5">
@@ -943,12 +949,24 @@
     <input type="number" id="vjShuffleCustomSel" min="3" max="3600" step="1" value="16" style="width:70px">
     <span id="vjShuffleCustomUnit">sec</span>
   </div>
+  <select id="vjShuffleSourceSel" class="dock-dd-select" title="Where Auto-Shuffle picks tunnels from">
+    <option value="favorites">Source: My Favourites</option>
+    <option value="random">Source: Full Random</option>
+  </select>
   <select id="vjQualitySel" class="dock-dd-select" title="Render quality for the whole 3D layer (VJ tunnels and 3D backgrounds) — higher tiers add anti-aliasing, real lighting and reflections, at a frame-rate cost">
     <option value="low">Quality: Low (fastest)</option>
     <option value="balanced" selected>Quality: Balanced</option>
     <option value="ultra">Quality: Ultra (reflections)</option>
   </select>
-  <div id="vjMenuHint" style="padding:8px 2px 0;font-size:11px;opacity:.6;cursor:default">💡 Speed, camera and opacity live in the 🌌 3D menu</div>
+  <!-- 同一个 bg3DSpeed，跟 🌌 3D 菜单里的 bg3DSpeedSel 是同一份状态 —— 隧道穿梭跑的是
+       同一套 three.js 引擎，dt 在 renderBg3D() 里已经乘了 bg3DSpeed，两个滑杆只是
+       两个入口。之前只在 3D 菜单里有，VJ 这边只留一句提示指过去；开着 VJ 菜单调速度
+       还要跳去另一个菜单找，太绕，所以直接在这里也放一个，跟那边双向同步。 -->
+  <div class="dock-dd-slider-row" id="vjSpeedRow" title="Playback speed of the VJ tunnel (same control as the 3D background's speed)">
+    <span>⏩</span>
+    <input type="range" id="vjSpeedSel" class="mode-bright-slider" min="20" max="300" value="100" step="5">
+  </div>
+  <div id="vjMenuHint" style="padding:8px 2px 0;font-size:11px;opacity:.6;cursor:default">💡 Camera and opacity live in the 🌌 3D menu</div>
 </div>
 
 
@@ -5028,7 +5046,7 @@ function hitTestMode(x, y){
 }
 
 const MODES = [
-  'radial','bars','wave','polarWaveform','mirrorSpectrum','ledMatrix','rippleRings','spectrumCurve',
+  'bars','wave','polarWaveform','mirrorSpectrum','ledMatrix','rippleRings','spectrumCurve',
   'neonGrid','laserBeam','particleStorm','neonTunnel','audioBloom','cyberPulse','prismSpectrum','lightTrails','electricArc','cyberTunnel',
   'starfield','wireCube','terrain3d',
   'globe','dnaHelix','polySwarm','isoBars','saturnRings',
@@ -5070,7 +5088,7 @@ const MODES = [
   'glitchBarsRainbowScroll','glitchBarsRainbowGradient','glitchBarsRainbowEnergy','glitchBarsRainbowPulse','glitchBarsRainbowWave'
 ];
 const MODE_LABELS = {
-  radial:'Radial', bars:'Bars', wave:'Wave',
+  bars:'Bars', wave:'Wave',
   polarWaveform:'Polar Waveform', mirrorSpectrum:'Mirror Spectrum', ledMatrix:'LED Matrix',
   rippleRings:'Ripple Rings', spectrumCurve:'Spectrum Curve',
   neonGrid:'Neon Grid', laserBeam:'Laser Beam', particleStorm:'Particle Storm',
@@ -5145,7 +5163,6 @@ const MODE_LABELS = {
 };
 
 const MODE_LABELS_ZH = {
-  radial:'放射光环',
   bars:'音柱',
   wave:'声波',
   polarWaveform:'极坐标声波',
@@ -5391,6 +5408,7 @@ const UI_STRINGS = {
     bg3DGalaxySpiralBtn:"🌀 Galaxy Spiral",
     bg3DRainbowWormholeBtn:"🕳 Rainbow Wormhole",
     bg3DCatFavorites:"★ Favourites",
+    vjCatAllTunnels:"All Tunnels",
     bg3DCatParticles:"✨ Particles",
     bg3DCatGalaxy:"🌌 Galaxy & Space",
     bg3DCatTunnels:"🌀 Tunnels",
@@ -5400,7 +5418,7 @@ const UI_STRINGS = {
     vjMenuTitle:"🌀 VJ Loop Tunnels",
     vjRandomBtn:"🎲 Random Tunnel",
     vjNextBtn:"⏭ Next Tunnel",
-    vjMenuHint:"💡 Speed, camera and opacity live in the 🌌 3D menu",
+    vjMenuHint:"💡 Camera and opacity live in the 🌌 3D menu",
     bg3DVjLiquidGridBtn:"💧 Liquid Grid",
     bg3DVjHexPulseBtn:"⬡ Hex Pulse",
     bg3DVjNeonRibbonBtn:"🎀 Neon Ribbons",
@@ -5678,6 +5696,7 @@ const UI_STRINGS = {
     bg3DGalaxySpiralBtn:"🌀 螺旋星系",
     bg3DRainbowWormholeBtn:"🕳 彩虹虫洞",
     bg3DCatFavorites:"★ 收藏",
+    vjCatAllTunnels:"全部隧道",
     bg3DCatParticles:"✨ 粒子",
     bg3DCatGalaxy:"🌌 星系宇宙",
     bg3DCatTunnels:"🌀 隧道",
@@ -5687,7 +5706,7 @@ const UI_STRINGS = {
     vjMenuTitle:"🌀 VJ 循环隧道",
     vjRandomBtn:"🎲 随机隧道",
     vjNextBtn:"⏭ 下一个隧道",
-    vjMenuHint:"💡 速度、摄影机、透明度在 🌌 3D 菜单里",
+    vjMenuHint:"💡 摄影机、透明度在 🌌 3D 菜单里",
     bg3DVjLiquidGridBtn:"💧 液态网格",
     bg3DVjHexPulseBtn:"⬡ 六角脉冲",
     bg3DVjNeonRibbonBtn:"🎀 霓虹飘带",
@@ -5990,13 +6009,12 @@ function applyShuffleOptionNames(){
       if(name) opt.textContent = name;
     });
   });
-  const srcSel = document.getElementById('micShuffleSourceSel');
-  if(srcSel){
-    [...srcSel.options].forEach(opt=>{
+  document.querySelectorAll('#micShuffleSourceSel, #bg3DShuffleSourceSel, #vjShuffleSourceSel').forEach(sel=>{
+    [...sel.options].forEach(opt=>{
       const name = (SOURCE_OPTION_NAMES[currentLang] && SOURCE_OPTION_NAMES[currentLang][opt.value]) || SOURCE_OPTION_NAMES.en[opt.value];
       if(name) opt.textContent = name;
     });
-  }
+  });
   const vjQSel = document.getElementById('vjQualitySel');
   if(vjQSel){
     [...vjQSel.options].forEach(opt=>{
@@ -6206,6 +6224,7 @@ function applyLanguage(lang){
   applyBounceStyleNames();
   applyShuffleOptionNames();
   buildBg3DMenu();   // rebuilds category headers + item labels, including the id-less Favourites-section duplicates the generic per-id sweep below can't reach
+  if(typeof buildVjMenu==='function') buildVjMenu();   // same reason — VJ's own id-less Favourites-section duplicates
   if(typeof buildModeMenu==='function') buildModeMenu();   // 同理：分类名和 mode 名都是按语言现算的
   populatePresetBg3DSelect();
   const liveBlackoutBtnEl = document.getElementById('liveBlackoutBtn');
@@ -6254,7 +6273,7 @@ const MULTI_BAND_MODES = new Set([
 ]);
 
 const MODE_CATEGORIES = [
-  { name:'Classic Spectrum', keys:['radial','bars','wave','polarWaveform','mirrorSpectrum','ledMatrix','rippleRings','spectrumCurve',
+  { name:'Classic Spectrum', keys:['bars','wave','polarWaveform','mirrorSpectrum','ledMatrix','rippleRings','spectrumCurve',
     'circularBars','barWaterfall','barTower3d','gradientBars','dualMirrorBars',
     'filledWave','dualWave','waveRibbon3d','dottedWave','waveTunnel3d',
     'radialMirror','mirrorWall3d','diagonalMirror','kaleidoMirror','colorSplitMirror',
@@ -14043,7 +14062,7 @@ function buildBg3DVjMetalTwist(){
         const spec = Math.pow(Math.abs(Math.cos(twist)), 6);
         const i = b*SEGS+s;
         vjPut(mesh, i, Math.cos(a)*rr, Math.sin(a)*rr, z, twist, 0, a + Math.PI/2, 1, 1 + spec*2.2 + bass*0.8, 1);
-        VJ_C.setHSL(((b/BANDS + wz*0.0055 + clock*0.09)%1+1)%1, 0.99 - spec*0.24, 0.34 + spec*0.45 + high*0.1);
+        VJ_C.setHSL(((b/BANDS + wz*0.0055 + clock*0.09)%1+1)%1, 0.99 - spec*0.24, Math.min(0.58, 0.34 + spec*0.45 + high*0.1));   // 封顶：高光反光叠上高音本来能冲到 0.89，顶到 1 就发白
         mesh.setColorAt(i, VJ_C);
       }
     }
@@ -14084,7 +14103,7 @@ function buildBg3DVjGridMorph(){
         const k = 1 + wave*1.8 + bass*0.5;
         const idx = i*PER+j;
         vjPut(mesh, idx, tmp.x, tmp.y, z, 0, 0, a, k, k, 1);
-        VJ_C.setHSL(((-wz*0.0062 + a*0.05 + clock*0.14)%1+1)%1, 1, 0.42 + wave*0.9 + high*0.14);
+        VJ_C.setHSL(((-wz*0.0062 + a*0.05 + clock*0.14)%1+1)%1, 1, Math.min(0.58, 0.42 + wave*0.9 + high*0.14));   // 封顶：液面波峰叠高音本来能冲过 1.0，饱和度又是满的，直接一片白
         mesh.setColorAt(idx, VJ_C);
       }
     }
@@ -14128,7 +14147,7 @@ function buildBg3DVjFractalWell(){
           vjSuperXY(a, rad, 4, tmp);
           const k = (1 + bass*0.6) * (1 - L*0.12);
           vjPut(mesh, idx, tmp.x, tmp.y, z, 0, 0, a, k, k, 1);
-          VJ_C.setHSL(((-wz*0.0055 + L*0.16 + clock*0.16)%1+1)%1, 1, 0.40 + (LAYERS-L)*0.06 + high*0.16);
+          VJ_C.setHSL(((-wz*0.0055 + L*0.16 + clock*0.16)%1+1)%1, 1, Math.min(0.58, 0.40 + (LAYERS-L)*0.06 + high*0.16));   // 封顶：最外层叠高音本来能到 0.80
           mesh.setColorAt(idx, VJ_C);
           idx++;
         }
@@ -14369,7 +14388,7 @@ function buildBg3DVjTentacleTunnel(){
         const girth = 2.4 + Math.sin(wz*0.16 + a*0.8 + clock*2.1)*0.55 + bass*0.7;   // clock 项对所有触手同相位，幅度大了整条隧道会一起胀缩
         const i = s*ARMS+a;
         vjPut(mesh, i, Math.cos(ang)*rr, Math.sin(ang)*rr, z, 0, 0, 0, girth, girth, girth*1.35);
-        VJ_C.setHSL(((0.87 + a*0.02 - wz*0.0035 + clock*0.07)%1+1)%1, 0.95, 0.30 + Math.sin(wz*0.16+a+clock*2.1)*0.16 + high*0.16);
+        VJ_C.setHSL(((0.87 + a*0.02 - wz*0.0035 + clock*0.07)%1+1)%1, 0.95, Math.min(0.58, 0.30 + Math.sin(wz*0.16+a+clock*2.1)*0.16 + high*0.16));   // 封顶
         mesh.setColorAt(i, VJ_C);
       }
     }
@@ -14414,7 +14433,7 @@ function buildBg3DVjBioMembrane(){
         VJ_C.setHSL(((0.94 + c*0.006 - wz*0.003 + clock*0.06)%1+1)%1, 1, 0.34 + high*0.16);
         mem.setColorAt(i, VJ_C);
         vjPut(core, i, Math.cos(a)*rr, Math.sin(a)*rr, z, 0, 0, 0, puff*0.34, puff*0.34, puff*0.34);
-        VJ_C.setHSL(((0.12 + c*0.01 + clock*0.09)%1+1)%1, 1, 0.5 + bass*0.2);
+        VJ_C.setHSL(((0.12 + c*0.01 + clock*0.09)%1+1)%1, 1, Math.min(0.58, 0.5 + bass*0.2));   // 封顶：低音一顶能到 0.70
         core.setColorAt(i, VJ_C);
       }
     }
@@ -14468,7 +14487,7 @@ function buildBg3DVjVoidNebula(){
       const tw = 0.55 + 0.45*Math.sin(clock*2.4 + o.ph);   // 星核在闪
       const s = o.s*(1 + bass*0.6)*(0.6 + tw*0.8);
       vjPut(cores, i, Math.cos(o.a)*o.r, Math.sin(o.a)*o.r, o.z, 0, 0, 0, s, s, s);
-      VJ_C.setHSL((o.hue + clock*0.05)%1, 1, 0.45 + tw*0.3 + high*0.15);
+      VJ_C.setHSL((o.hue + clock*0.05)%1, 1, Math.min(0.58, 0.45 + tw*0.3 + high*0.15));   // 封顶：闪烁叠高音本来能到 0.90
       cores.setColorAt(i, VJ_C);
     }
     vjFlush(puffs); vjFlush(cores);
@@ -14582,7 +14601,7 @@ function buildBg3DVjCandyOrbs(){
         const x = Math.cos(a)*rr, y = Math.sin(a)*rr;
         const idx = i*PER+j;
         vjPut(ball, idx, x, y, z, 0, 0, 0, s, s, s);
-        VJ_C.setHSL(((j/PER*0.6 - wz*0.0035 + clock*0.11)%1+1)%1, 1, 0.52 + high*0.14);
+        VJ_C.setHSL(((j/PER*0.6 - wz*0.0035 + clock*0.11)%1+1)%1, 1, Math.min(0.58, 0.52 + high*0.14));   // 封顶：基准本来就有 0.52，高音一叠很容易到 0.66
         ball.setColorAt(idx, VJ_C);
         vjPut(spec, idx, x - s*0.34, y + s*0.36, z - s*0.34, 0, 0, 0, s*0.3, s*0.3, s*0.3);
         VJ_C.setRGB(1, 1, 1);
@@ -14624,7 +14643,7 @@ function buildBg3DVjDataBloom(){
         const s = (0.9 + (1-j/PER)*1.5) * (1 + bass*0.6);
         const idx = L*PER+j;
         vjPut(mesh, idx, Math.cos(a)*rr, Math.sin(a)*rr, z, clock*0.5+j, a, 0, s, s, s);
-        VJ_C.setHSL(((j/PER*0.85 - wz*0.003 + clock*0.13)%1+1)%1, 1, 0.36 + (1-j/PER)*0.14 + high*0.12);
+        VJ_C.setHSL(((j/PER*0.85 - wz*0.003 + clock*0.13)%1+1)%1, 1, Math.min(0.58, 0.36 + (1-j/PER)*0.14 + high*0.12));   // 封顶
         mesh.setColorAt(idx, VJ_C);
       }
     }
@@ -14736,7 +14755,7 @@ function buildBg3DVjNeonArches(){
         const idx = i*PER+j;
         const s = (1 + glow*0.9 + bass*0.5);
         vjPut(mesh, idx, x, y, z, 0, 0, 0, s, s, s);
-        VJ_C.setHSL((HUE_BASE + t*0.1 + Math.sin(clock*0.22)*0.06)%1, 1, 0.28 + glow*0.44 + high*0.13);
+        VJ_C.setHSL((HUE_BASE + t*0.1 + Math.sin(clock*0.22)*0.06)%1, 1, Math.min(0.58, 0.28 + glow*0.44 + high*0.13));   // 封顶：glow 拉满叠高音本来能到 0.85
         mesh.setColorAt(idx, VJ_C);
       }
       vjPut(refl, i, 0, -11.2, z, 0, 0, 0, 1, 1, 1 + glow);
@@ -14832,14 +14851,14 @@ function buildBg3DVjLightWell(){
         const idx = i*PER+j;
         const run = 0.4 + 0.6*Math.pow(Math.max(0, Math.sin(a*3 - wz*0.06 + clock*2.4)), 2);
         vjPut(mesh, idx, Math.cos(a)*rr, Math.sin(a)*rr, z, 0, 0, a, 1 + run*0.8 + bass*0.5, 1 + run*1.2, 1);
-        VJ_C.setHSL(((0.5 + run*0.16 - wz*0.0028 + clock*0.07)%1+1)%1, 1, 0.24 + run*0.44 + high*0.14);
+        VJ_C.setHSL(((0.5 + run*0.16 - wz*0.0028 + clock*0.07)%1+1)%1, 1, Math.min(0.58, 0.24 + run*0.44 + high*0.14));   // 封顶：run 拉满叠高音本来能到 0.82
         mesh.setColorAt(idx, VJ_C);
       }
     }
     vjFlush(mesh);
     const cs = 7 + bass*4 + Math.sin(clock*1.6)*1.2;
     core.scale.set(cs, cs, cs);
-    core.material.color.setHSL(((0.52 + clock*0.05)%1+1)%1, 1, 0.6 + high*0.2);
+    core.material.color.setHSL(((0.52 + clock*0.05)%1+1)%1, 1, Math.min(0.62, 0.6 + high*0.2));   // 封顶稍微留高一点 —— 这是井底那颗光源本体，该比周围壁面亮
     camera.fov = 84 + bass*13;
   }};
 }
@@ -15149,7 +15168,7 @@ function buildBg3DVjFoilCrumple(){
         const lit = Math.pow(Math.max(0, Math.sin(a*3 - clock*2.4 + phase[idx])), 6);
         const s = 1 + lit*1.2 + bass*0.7;
         vjPut(mesh, idx, x, y, z, rot[idx*3] + clock*0.12, rot[idx*3+1], rot[idx*3+2], s, s, s);
-        VJ_C.setHSL((0.5 + a*0.03 + Math.sin(clock*0.25)*0.1)%1, 0.95 - lit*0.7, 0.14 + lit*0.46 + mid*0.12 + high*0.08);
+        VJ_C.setHSL((0.5 + a*0.03 + Math.sin(clock*0.25)*0.1)%1, 0.95 - lit*0.7, Math.min(0.58, 0.14 + lit*0.46 + mid*0.12 + high*0.08));   // 封顶：折面高光叠中高音本来能到 0.80，饱和度这时又几乎归零，等于纯白
         mesh.setColorAt(idx, VJ_C);
       }
     }
@@ -15934,13 +15953,20 @@ let bg3DSpeed = 1;   // global playback-speed multiplier, applies uniformly sinc
    自带包络而不是直接用 beat：beat 每帧 ×0.72，约 67ms 就衰到 0.27，看起来是抖不是砸。 */
 const BG3D_HIT_DECAY = 0.86;   // 每 16.7ms 衰到 86% —— 约 130ms 一粒，粒粒分明又看得清
 const BG3D_HIT_ZOOM  = 0.22;   // 砸下去时额外推近多少
-const BG3D_HIT_FLASH = 0.34;   // 砸下去时额外提亮多少
+const BG3D_HIT_FLASH = 0.34;   // 砸下去时这一路自己能提亮多少（跟跳动风格取较强的那个，见 applyBg3DFilter）
 let bg3DHit = 0;
 
 const BG3D_SWAY_ROLL = 0.10;   // rad，中音拉满时的滚转幅度（约 ±5.7°）
 const BG3D_SWAY_X    = 2.4;    // 场景单位，中音拉满时的横向摆幅
 const BG3D_FLICKER   = 0.30;   // 高音拉满时亮度起伏的上限（只提亮，不压暗）
 const BG3D_HUE       = 46;     // 度，中高音拉满时的色相偏移上限
+/* 跳动/高音闪烁/Director 冲击这三层音频驱动的动态倍率，乘起来再封一个顶 —— 封的是
+   「动态那一截」，不是最终结果：用户自己把亮度滑杆拉到 150% 是明确选择，不该被这里
+   悄悄压回去。上限 1.6 留了足够的「砸感」（Director drop 单独就能打满 1.6），但挡住了
+   跳动 + 高音 + drop 同时叠加时冲出天际、把材质全糊成一片白的情况 —— 默认 Bass Punch
+   风格开着时，实测低音一砸经常直接顶到全白、把颜色全糊掉（vjGridMorph/vjMetalTwist/
+   vjFractalWell 等好几条 VJ 隧道尤其明显）。 */
+const BG3D_DYNAMIC_BRIGHTNESS_MAX = 1.6;
 
 /* #bgThree 的 CSS filter 从这里统一出去。原来有三个写入者互相覆盖 ——
    背景亮度滑杆写一次、Director 每帧写一次、Director 关掉时又清空一次，
@@ -15959,9 +15985,23 @@ function applyBg3DFilter(mid, high, now, bounce){
   const b = bounce || BG3D_NO_BOUNCE;
   // 两个互质频率叠加 —— 单一正弦是「呼吸」，叠起来才是「闪」
   const flick01 = ((Math.sin(now*0.041) + Math.sin(now*0.067)) * 0.25) + 0.5;   // 0..1
-  // 各路亮度是相乘不是相互覆盖：滑杆定的基准 × 跳动 × 高音闪烁 × Director 的冲击
-  const brightness = bg3DBaseBrightness * b.brightness * (1 + high*BG3D_FLICKER*flick01)
-                     * (1 + bg3DHit*BG3D_HIT_FLASH) * (1 + dirDropPunch*0.6);
+  /* 这一拍要提亮多少，有两路各自算出一个数：跳动风格自己的公式（比如 Bass Punch
+     的 brightness），和这里独立于风格的每拍冲击（bg3DHit）。两路经常在同一个 beat
+     上一起触发 —— 以前是相乘，Bass Punch 默认开着时亮度经常被两层一起顶到全白。
+     改成取较强的那一路而不是相乘：既保住「不管什么跳动风格、甚至跳动整个关掉，
+     每一拍都看得到亮度闪」这个设计意图（bg3DHit 这一路的下限，见 bass-per-hit.spec.js），
+     又不会在 Bass Punch 这种自己也算亮度的风格上把同一拍算两次。
+     只对「提亮」的那一半这么处理 —— 暗角脉冲那类靠 brightness<1 压暗画面的风格，
+     跟 bg3DHit 完全是两码事，不该被这条 Math.max 拿 0 把压暗吃掉（改之前直接测出暗角
+     脉冲在 3D 上量出 brightness=1，等于没压暗）。把 b.brightness-1 拆成压暗（恒定保留）
+     和提亮（跟 hit-flash 取较强）两截，再合回去。 */
+  const dim = Math.min(0, b.brightness - 1);
+  const brighten = Math.max(0, b.brightness - 1);
+  const beatPop = dim + Math.max(brighten, bg3DHit*BG3D_HIT_FLASH);
+  // 跳动/高音闪烁/Director 的冲击相乘，封顶之后才乘上滑杆基准
+  const dynamicMul = Math.min(BG3D_DYNAMIC_BRIGHTNESS_MAX,
+    (1 + beatPop) * (1 + high*BG3D_FLICKER*flick01) * (1 + dirDropPunch*0.6));
+  const brightness = bg3DBaseBrightness * dynamicMul;
   const saturate = bg3DBaseSaturate * b.saturate;
   // 色相：随中高音能量给一个稳定偏移，再叠一层慢漂移，才是「在变色」而不是「换了个色」
   const hue = (mid*0.35 + high*0.65) * (BG3D_HUE*0.65 + BG3D_HUE*0.35*Math.sin(now*0.0011));   // 稳定项占大头，慢漂移只是让它一直在变，不会在谷底几乎归零
@@ -16408,7 +16448,6 @@ function draw(now){
 
 /* every mode's dispatch, in one place — reused by the main render and the preview window */
 function dispatchModeDraw(m, lastBass, lastMid, lastHigh, now, dt){
-  if(m==='radial')          drawRadial(lastBass);
   if(m==='bars')            drawBars();
   if(m==='wave')            drawWave();
   if(m==='polarWaveform')   drawPolarWave();
@@ -17620,35 +17659,6 @@ function drawPreviewFrame(now, dt){
 
 function drawIdle(now){
   drawAllLogosIdle(now);
-}
-
-/* --- mode: radial bloom (signature) --- */
-function drawRadial(bass){
-  const N = 180, base = Math.min(W,H)*0.19*(1+bass*0.25);
-  g2.save(); g2.translate(CX+fxOffX,CY+fxOffY); g2.rotate(rot);
-  g2.globalCompositeOperation='lighter';
-  for(let i=0;i<N;i++){
-    const v = freq[Math.floor(i/N*420)]/255;
-    const a = (i/N)*Math.PI*2;
-    const len = v*v*Math.min(W,H)*0.30 + 2;
-    const hue = 175 + v*205;               // cyan → magenta
-    g2.strokeStyle = `hsla(${hue},95%,${55+v*20}%,${0.25+v*0.7})`;
-    g2.lineWidth = (1.1+v*2.4)*DPR;
-    const x1=Math.cos(a)*base, y1=Math.sin(a)*base;
-    const x2=Math.cos(a)*(base+len), y2=Math.sin(a)*(base+len);
-    g2.beginPath(); g2.moveTo(x1,y1); g2.lineTo(x2,y2); g2.stroke();
-    // mirrored inner petal
-    const x3=Math.cos(a)*(base-len*0.35), y3=Math.sin(a)*(base-len*0.35);
-    g2.globalAlpha=0.5; g2.beginPath(); g2.moveTo(x1,y1); g2.lineTo(x3,y3); g2.stroke(); g2.globalAlpha=1;
-  }
-  // core
-  const cr = base*0.32*(1+bass*0.8);
-  const grd = g2.createRadialGradient(0,0,0,0,0,cr);
-  grd.addColorStop(0,`hsla(${175+bass*205},100%,75%,${0.5+bass*0.5})`);
-  grd.addColorStop(1,'transparent');
-  g2.fillStyle=grd; g2.beginPath(); g2.arc(0,0,cr,0,7); g2.fill();
-  g2.restore();
-  g2.globalCompositeOperation='source-over';
 }
 
 /* --- mode: bars --- */
@@ -23009,7 +23019,6 @@ function starterPreset(modeKeys){
   };
 }
 const STARTER_PRESETS = {
-  'Clean Radial':    ()=> starterPreset(['radial']),
   'Cosmic Journey':  ()=> starterPreset(['nebula','starfield','galaxy']),
   'Neon Rave':       ()=> starterPreset(['neonGrid','laserBeam','particleStorm']),
   'Rainbow Pulse':   ()=> starterPreset(['kaleidoscope','colorVortex'])
@@ -24460,20 +24469,64 @@ buildBg3DMenu();
 const VJ_TUNNEL_KINDS = ["vjLiquidGrid","vjHexPulse","vjNeonRibbon","vjPrismShards","vjWaveCorridor","vjPlasmaRings","vjStarLane","vjKaleido","vjChromeTube","vjCubeMatrix",
   "vjChromeFlow","vjMetalTwist","vjGridMorph","vjFractalWell","vjCyborgCorridor","vjRaceTrack","vjSpeedGates","vjHoverCity","vjTentacleTunnel","vjBioMembrane","vjVoidNebula","vjEventHorizon","vjCandyOrbs","vjDataBloom","vjNeonTubeRoom","vjNeonArches","vjHorizonVoyage","vjLightWell","vjHyperCube","vjCoasterRush",
   "vjChromeDrips","vjMercuryPool","vjFoilCrumple","vjChromeBubbles","vjLiquidSpine","vjAsteroidSlalom","vjWarpJump","vjRingWorldRun","vjIonTrail","vjSolarFlare","vjDerelictHall","vjRustPipes","vjShatteredPanes","vjDustShaft","vjCollapsedGrid"];
+/* VJ 自己的收藏 —— 45 条隧道之前完全没有这个概念，照 bg3DFavorites 那一套原样建一份。
+   跟 🌌 3D 的收藏是两个独立的 Set：隧道和 3D 风格是两个不同的池子，收藏也该分开。 */
+let vjFavorites = new Set();
+try{ vjFavorites = new Set(JSON.parse(localStorage.getItem('subremix_vj_favorites')||'[]')); }catch(e){}
+function saveVjFavorites(){
+  try{ localStorage.setItem('subremix_vj_favorites', JSON.stringify([...vjFavorites])); }catch(e){}
+}
+function createVjItemBtn(kind, skipId){
+  const row = document.createElement('div');
+  row.className = 'bg3d-item-row';
+
+  const fav = document.createElement('button');
+  fav.className = 'mode-fav-btn' + (vjFavorites.has(kind) ? ' faved' : '');
+  fav.title = 'Favourite — pins this to the top of the list';
+  fav.textContent = vjFavorites.has(kind) ? '★' : '☆';
+  fav.onclick = (e)=>{
+    e.stopPropagation();
+    vjFavorites.has(kind) ? vjFavorites.delete(kind) : vjFavorites.add(kind);
+    saveVjFavorites();
+    buildVjMenu();
+  };
+  row.appendChild(fav);
+
+  const btn = document.createElement('button');
+  if(!skipId) btn.id = bg3DIdFor(kind);   // 收藏区的副本跳过 id，不跟本体列表里那个重名
+  btn.className = 'dock-dd-item';
+  btn.dataset.kind = kind;
+  btn.setAttribute('role','menuitem');
+  btn.textContent = bg3DText(bg3DIdFor(kind));
+  btn.onclick = ()=>{ pushUndo(); enableBg3D(kind); };
+  row.appendChild(btn);
+  return row;
+}
 function buildVjMenu(){
   const list = document.getElementById('vjMenuList');
   if(!list) return;
   list.innerHTML = '';
-  VJ_TUNNEL_KINDS.forEach(kind=>{
-    const btn = document.createElement('button');
-    btn.id = bg3DIdFor(kind);          // 跟 3D 菜单同一套 id 规则，applyLanguage() 的按 id 扫描就能顺手翻译它
-    btn.className = 'dock-dd-item';
-    btn.dataset.kind = kind;
-    btn.setAttribute('role','menuitem');
-    btn.textContent = bg3DText(btn.id);
-    btn.onclick = ()=>{ pushUndo(); enableBg3D(kind); };
-    list.appendChild(btn);
-  });
+  /* 收藏区钉在最上面，不走 🌌 3D/Mode 那种默认收起的分类折叠 —— VJ 列表本来就是
+     一路铺开、不折叠的，收藏区跟着一路铺开更一致，也用不着再管一份展开状态。
+     没收藏任何一条时干脆不出这个区，免得空标题占地方。 */
+  const favKinds = VJ_TUNNEL_KINDS.filter(k=>vjFavorites.has(k));
+  if(favKinds.length){
+    // 不给这两个标题设 id：applyLanguage() 按 id 的通用扫描一次只认得到一个同 id 元素，
+    // 🌌 3D 菜单自己那份「★ Favourites」标题已经占着 bg3DCatFavorites 这个 id 了。
+    // 这里跟 bg3D 收藏区里那些跳过 id 的按钮一样，靠 applyLanguage() 显式重调
+    // buildVjMenu() 来跟着换语言，而不是指望通用扫描找到它。
+    const favHeader = document.createElement('div');
+    favHeader.className = 'mode-cat-header expanded';
+    favHeader.textContent = bg3DText('bg3DCatFavorites');   // 复用 🌌 3D 那句「★ Favourites」的翻译文本，不复用它的 id
+    list.appendChild(favHeader);
+    favKinds.forEach(kind=> list.appendChild(createVjItemBtn(kind, true)));
+
+    const allHeader = document.createElement('div');
+    allHeader.className = 'mode-cat-header expanded';
+    allHeader.textContent = bg3DText('vjCatAllTunnels');
+    list.appendChild(allHeader);
+  }
+  VJ_TUNNEL_KINDS.forEach(kind=> list.appendChild(createVjItemBtn(kind, false)));
 }
 buildVjMenu();
 setupDockDropdown('vjMenuBtn', 'vjMenu');
@@ -24482,10 +24535,20 @@ document.getElementById('vjNextBtn').onclick = ()=>{
   const i = VJ_TUNNEL_KINDS.indexOf(bg3DKind);   // 当前不是 VJ 隧道时 i=-1，(-1+1)=0 刚好从第一个开始
   enableBg3D(VJ_TUNNEL_KINDS[(i+1) % VJ_TUNNEL_KINDS.length]);
 };
-function randomVjTunnel(){
+function randomVjTunnel(restrictTo){
   pushUndo();
-  const pool = VJ_TUNNEL_KINDS.filter(k=> k !== bg3DKind);
+  let pool = VJ_TUNNEL_KINDS.filter(k=> k !== bg3DKind);
+  // restrictTo 是 Source:「我的收藏」传进来的收藏池，手动点 🎲 Random Tunnel 不传，行为不变；
+  // 收藏池跟当前隧道之外的池子没有交集时（比如就收藏了当前这一条），落回未收窄的 pool
+  if(restrictTo && restrictTo.length){
+    const narrowed = pool.filter(k=>restrictTo.includes(k));
+    if(narrowed.length) pool = narrowed;
+  }
   enableBg3D(pool[Math.floor(Math.random()*pool.length)]);
+}
+function runVjShuffleTick(){
+  const source = document.getElementById('vjShuffleSourceSel')?.value || 'favorites';
+  randomVjTunnel(source==='favorites' ? [...vjFavorites] : null);
 }
 
 /* 质量档切换。材质是在 builder 里一次性创建的，所以改档必须把缓存的场景丢掉重建，
@@ -24524,7 +24587,7 @@ document.getElementById('vjQualitySel').addEventListener('change', e=>{
   Object.keys(bg3DScenes).forEach(vjDropCachedScene);
   if(bg3DKind) enableBg3D(bg3DKind);
 });
-document.getElementById('vjRandomBtn').onclick = randomVjTunnel;
+document.getElementById('vjRandomBtn').onclick = ()=> randomVjTunnel();   // 显式不传参 —— 直接把函数当 handler 挂上去的话，点击事件对象会被当成 restrictTo 收藏池传进去
 
 /* VJ 的自动轮换。跟 🌌 3D 菜单里那个互斥 —— 两边驱动的是同一个 bg3DKind，
    同一时刻只能显示一个，同时开着的话两个定时器会互相抢画面。
@@ -24541,7 +24604,7 @@ function startVjShuffleTimer(){
   }else{
     interval = parseInt(sel?.value, 10) || 16000;
   }
-  vjShuffleTimer = setInterval(randomVjTunnel, interval);
+  vjShuffleTimer = setInterval(runVjShuffleTick, interval);
 }
 function stopVjShuffleTimer(){
   if(vjShuffleTimer){ clearInterval(vjShuffleTimer); vjShuffleTimer = null; }
@@ -24688,8 +24751,8 @@ document.addEventListener('click', ()=> setTimeout(syncNowPlayingTimer, 0));
    fire 就是各自平时定时器里跑的那件事。 */
 SUDDEN_CHANGE_SUBSCRIBERS.push(
   { isArmed: ()=> micShuffleOn && document.getElementById('micShuffleIntervalSel')?.value === 'change', fire: runMicShuffleTick },
-  { isArmed: ()=> bg3DShuffleOn && document.getElementById('bg3DShuffleIntervalSel')?.value === 'change', fire: randomBg3D },
-  { isArmed: ()=> vjShuffleOn && document.getElementById('vjShuffleIntervalSel')?.value === 'change', fire: randomVjTunnel },
+  { isArmed: ()=> bg3DShuffleOn && document.getElementById('bg3DShuffleIntervalSel')?.value === 'change', fire: runBg3DShuffleTick },
+  { isArmed: ()=> vjShuffleOn && document.getElementById('vjShuffleIntervalSel')?.value === 'change', fire: runVjShuffleTick },
 );
 /* ---------- accessibility: role/aria-haspopup for the dock's menu buttons and dropdowns —
    one-time static pass rather than touching the ~15 scattered open/close functions, since none
@@ -25426,9 +25489,17 @@ document.getElementById('bgOpacitySel').addEventListener('input', e=>{
   bg3DBaseBrightness = parseFloat(pct)/100;
   bg3DBaseSaturate = 1.15;
 });
-document.getElementById('bg3DSpeedSel').addEventListener('input', e=>{
-  bg3DSpeed = parseFloat(e.target.value)/100;
-});
+/* bg3DSpeedSel（🌌 3D 菜单）和 vjSpeedSel（🌀 VJ 菜单）是同一个 bg3DSpeed 的两个入口 ——
+   动一个另一个的滑块位置要跟着挪，不然开着 VJ 菜单调完、切去 3D 菜单会看到一个没动过
+   的滑杆，像是没生效。 */
+function setBg3DSpeed(pct){
+  bg3DSpeed = parseFloat(pct)/100;
+  const a = document.getElementById('bg3DSpeedSel'), b = document.getElementById('vjSpeedSel');
+  if(a) a.value = pct;
+  if(b) b.value = pct;
+}
+document.getElementById('bg3DSpeedSel').addEventListener('input', e=> setBg3DSpeed(e.target.value));
+document.getElementById('vjSpeedSel').addEventListener('input', e=> setBg3DSpeed(e.target.value));
 document.getElementById('bg3DOpacitySel').addEventListener('input', e=>{
   bgThreeCanvas.style.opacity = String(parseFloat(e.target.value)/100);
 });
@@ -25728,7 +25799,7 @@ document.getElementById('liveNextBtn').onclick = ()=> document.getElementById('n
 document.getElementById('liveMicBtn').onclick = ()=> document.getElementById('micBtn').click();
 document.getElementById('liveShuffleBtn').onclick = ()=> document.getElementById('micShuffleToggle').click();
 document.getElementById('liveRandomBtn').onclick = ()=> randomCombo();
-function randomBg3D(){
+function randomBg3D(restrictTo){
   pushUndo();
   // prefer a different category than the current style, not just a different exact style —
   // otherwise Random can keep landing on near-identical neighbors (two particle variants back to back, etc.)
@@ -25741,13 +25812,24 @@ function randomBg3D(){
   let pool = BG3D_ORDER.filter(k => !currentCat || !currentCat.kinds.includes(k));
   if(!pool.length) pool = BG3D_ORDER.filter(k=>k!==bg3DKind);
   if(!pool.length) pool = BG3D_ORDER;
+  /* restrictTo 是 Auto-Shuffle 的 Source:「我的收藏」传进来的收藏池 —— 手动点 🎲 Random
+     不传这个参数，永远是完全随机，行为不变。收藏池收窄之后如果跟上面算出的 pool 没有
+     交集（比如收藏的就只有当前这一个），落回没收窄的 pool，而不是卡住不切。 */
+  if(restrictTo && restrictTo.length){
+    const narrowed = pool.filter(k=>restrictTo.includes(k));
+    if(narrowed.length) pool = narrowed;
+  }
   enableBg3D(pool[Math.floor(Math.random()*pool.length)]);
+}
+function runBg3DShuffleTick(){
+  const source = document.getElementById('bg3DShuffleSourceSel')?.value || 'favorites';
+  randomBg3D(source==='favorites' ? [...bg3DFavorites] : null);
 }
 document.getElementById('liveRandom3DBtn').onclick = ()=>{
   document.querySelectorAll('.dock-dd.show').forEach(m=>m.classList.remove('show'));
   randomBg3D();
 };
-document.getElementById('bg3DRandomBtn').onclick = randomBg3D;
+document.getElementById('bg3DRandomBtn').onclick = ()=> randomBg3D();   // 显式不传参，理由同 vjRandomBtn 那行
 let bg3DShuffleOn = false, bg3DShuffleTimer = null;
 function startBg3DShuffleTimer(){
   stopBg3DShuffleTimer();
@@ -25760,7 +25842,7 @@ function startBg3DShuffleTimer(){
   }else{
     interval = parseInt(sel?.value, 10) || 32000;
   }
-  bg3DShuffleTimer = setInterval(randomBg3D, interval);
+  bg3DShuffleTimer = setInterval(runBg3DShuffleTick, interval);
 }
 function stopBg3DShuffleTimer(){
   if(bg3DShuffleTimer){ clearInterval(bg3DShuffleTimer); bg3DShuffleTimer = null; }

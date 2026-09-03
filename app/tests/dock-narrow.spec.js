@@ -13,7 +13,7 @@ const APP_DIR = path.join(__dirname, '..');
  * 救得了最左边那一个。
  *
  * 更麻烦的是 dock 宽度不是固定的：Mode 按钮显示当前效果名，
- *   「Radial」                          →  76px  ⇒ 窗口 ≥ 1311px
+ *   「Bars」                            →  76px  ⇒ 窗口 ≥ 1311px
  *   「Glitch Bars: Rainbow Gradient +2」 → 278px  ⇒ 窗口 ≥ 1526px
  * 同一台 1366×768 的笔记本，切个效果就从「刚好够」变成「够不着」。
  *
@@ -58,13 +58,13 @@ test('Mode 按钮再长的效果名也不撑宽 dock，但叠了几层的计数�
     const r = await win.evaluate((LONG) => {
       const btn = document.getElementById('modeBtn');
       const w = () => Math.round(btn.getBoundingClientRect().width);
-      activeModes = [MODES.indexOf('radial')];
+      activeModes = [MODES.indexOf('bars')];
       focusModeIdx = activeModes[0];
       refreshStatefulLabels();
       const short = { w: w(), txt: btn.textContent };
 
       const longKey = MODES.find(k => getModeLabel(k) === LONG);
-      activeModes = [MODES.indexOf('radial'), MODES.indexOf('wave'), MODES.indexOf(longKey)];
+      activeModes = [MODES.indexOf('bars'), MODES.indexOf('wave'), MODES.indexOf(longKey)];
       focusModeIdx = MODES.indexOf(longKey);
       refreshStatefulLabels();
       const long = { w: w(), txt: btn.textContent, full: getModeLabel(longKey) };
@@ -72,7 +72,7 @@ test('Mode 按钮再长的效果名也不撑宽 dock，但叠了几层的计数�
     }, LONG_LABEL);
 
     console.log(`  「${r.short.txt}」 ${r.short.w}px  →  「${r.long.txt}」 ${r.long.w}px`);
-    expect(r.short.txt, '短名不该被截').toBe('Radial');
+    expect(r.short.txt, '短名不该被截').toBe('Bars');
     expect(r.long.w, 'Mode 按钮被最长的效果名撑爆了，dock 会跟着变宽').toBeLessThanOrEqual(180);
     // 截掉的是名字，不是计数 —— 「还叠着另外 2 个」这件事比看到完整名字重要
     expect(r.long.txt, '截断之后没有留下叠加计数 +2').toMatch(/\+2$/);
@@ -87,7 +87,7 @@ test('窄窗口 dock 换行成两排，不靠那条藏起来的横向滚动条',
     // 先撑到最坏情况：最长的效果名 + 叠加计数
     await win.evaluate((LONG) => {
       const longKey = MODES.find(k => getModeLabel(k) === LONG);
-      activeModes = [MODES.indexOf('radial'), MODES.indexOf('wave'), MODES.indexOf(longKey)];
+      activeModes = [MODES.indexOf('bars'), MODES.indexOf('wave'), MODES.indexOf(longKey)];
       focusModeIdx = MODES.indexOf(longKey);
       refreshStatefulLabels();
     }, LONG_LABEL);
@@ -112,7 +112,7 @@ test('宽窗口仍然是一排，不要没事找事换行', async () => {
   test.setTimeout(180_000);
   await withApp('dock-wide', async (win, resize) => {
     await win.evaluate(() => {
-      activeModes = [MODES.indexOf('radial')];
+      activeModes = [MODES.indexOf('bars')];
       focusModeIdx = activeModes[0];
       refreshStatefulLabels();
     });
@@ -129,7 +129,7 @@ test('dock 变两排时，Live Bar 跟着往上让，不压在一起', async () 
   await withApp('dock-livebar', async (win, resize) => {
     await win.evaluate((LONG) => {
       const longKey = MODES.find(k => getModeLabel(k) === LONG);
-      activeModes = [MODES.indexOf('radial'), MODES.indexOf('wave'), MODES.indexOf(longKey)];
+      activeModes = [MODES.indexOf('bars'), MODES.indexOf('wave'), MODES.indexOf(longKey)];
       focusModeIdx = MODES.indexOf(longKey);
       refreshStatefulLabels();
       liveBarOn = true; applyLiveBarVisibility();

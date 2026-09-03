@@ -61,7 +61,7 @@ test('从 Mode drop-up 打开后，特效真的会自动轮换（不需要播放
       document.getElementById('micShuffleCustomSel').dispatchEvent(new Event('input', { bubbles: true }));
       document.getElementById('micShuffleSourceSel').value = 'random';
 
-      activeModes = [MODES.indexOf('radial')]; focusModeIdx = activeModes[0];
+      activeModes = [MODES.indexOf('bars')]; focusModeIdx = activeModes[0];
       const before = [...activeModes];
 
       document.getElementById('micShuffleToggle').click();

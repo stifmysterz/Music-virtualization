@@ -76,7 +76,7 @@ test('叠多个特效时，每一个都还有自己的图层（回收不能误�
       eval('(' + prime + ')')();
       const frames = n => new Promise(r => { let k = n; const t = () => (--k <= 0 ? r() : requestAnimationFrame(t)); requestAnimationFrame(t); });
 
-      activeModes = [MODES.indexOf('radial'), MODES.indexOf('bars'), MODES.indexOf('starfield'), MODES.indexOf('neonGrid')];
+      activeModes = [MODES.indexOf('polarWaveform'), MODES.indexOf('bars'), MODES.indexOf('starfield'), MODES.indexOf('neonGrid')];
       focusModeIdx = activeModes[0];
       await frames(4);
 
@@ -106,7 +106,7 @@ test('点击命中测试仍然正常（它读的就是这些图层）', async ()
 
       // 先换过一大堆特效，把回收逻辑充分触发
       for (let i = 0; i < 40; i++) { activeModes = [i]; focusModeIdx = i; await frames(1); }
-      activeModes = [MODES.indexOf('radial')]; focusModeIdx = activeModes[0];
+      activeModes = [MODES.indexOf('polarWaveform')]; focusModeIdx = activeModes[0];
       await frames(4);
 
       const L = layerCanvases[activeModes[0]];
@@ -133,7 +133,7 @@ test('复制出来的特效实例（小数索引）也有自己的图层，不�
       eval('(' + prime + ')')();
       const frames = n => new Promise(r => { let k = n; const t = () => (--k <= 0 ? r() : requestAnimationFrame(t)); requestAnimationFrame(t); });
 
-      activeModes = [MODES.indexOf('radial')]; focusModeIdx = activeModes[0];
+      activeModes = [MODES.indexOf('polarWaveform')]; focusModeIdx = activeModes[0];
       await frames(3);
       // 「➕ Duplicate」会加一个小数索引的独立副本（3 → 3.1），走的是同一条图层缓存
       document.getElementById('modeDuplicateBtn').click();

@@ -167,7 +167,7 @@ test('退出浮层是模态的：只认 Esc，其余快捷键一律吞掉', asyn
   await withApp('exitsave-6', async (win) => {
     const res = await win.evaluate(async () => {
       document.getElementById('intro')?.classList.add('hidden');
-      activeModes = [MODES.indexOf('radial'), MODES.indexOf('bars')];
+      activeModes = [MODES.indexOf('polarWaveform'), MODES.indexOf('bars')];
       focusModeIdx = activeModes[0];
       refreshModePanelActive();
       setLastInteracted('mode');

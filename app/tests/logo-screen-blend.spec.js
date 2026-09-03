@@ -50,7 +50,7 @@ function setupBlackLogoScene() {
     getByteFrequencyData(a) { for (let i = 0; i < a.length; i++) a[i] = 140 + (i % 80); },
     getByteTimeDomainData(a) { for (let i = 0; i < a.length; i++) a[i] = 128 + Math.round(Math.sin(i * 0.09) * 50); }
   };
-  activeModes = [MODES.indexOf('radial')]; focusModeIdx = activeModes[0];
+  activeModes = [MODES.indexOf('polarWaveform')]; focusModeIdx = activeModes[0];
 
   const L = document.createElement('canvas'); L.width = L.height = 256;
   const lx = L.getContext('2d');

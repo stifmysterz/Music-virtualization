@@ -117,12 +117,12 @@ test('glitchBars 家族改成半透明，不再糊死整屏', async () => {
 test('其余特效不受影响，该多不透明还是多不透明', async () => {
   await withApp('fxvis-4', async (win) => {
     const res = await win.evaluate(({ fn, keys }) => eval('(' + fn + ')')(keys),
-      { fn: opaqueCoverage.toString(), keys: ['bars', 'filledWave', 'radial'] });
+      { fn: opaqueCoverage.toString(), keys: ['bars', 'filledWave', 'polarWaveform'] });
 
     // 这几个本来就只盖住部分屏幕（20-45%），背景在其余地方看得见，不该动它们
     expect(res.bars.opaquePct).toBeGreaterThan(10);
     expect(res.filledWave.opaquePct).toBeGreaterThan(20);
-    expect(res.radial.opaquePct).toBeGreaterThan(5);
+    expect(res.polarWaveform.opaquePct).toBeGreaterThan(5);
   });
 });
 

@@ -42,7 +42,7 @@ test('列出正在跑的 2D 效果，最上层排最前，当前焦点有标记'
   test.setTimeout(180_000);
   await withApp('np-list', async (win) => {
     await win.evaluate(() => {
-      activeModes = [MODES.indexOf('radial'), MODES.indexOf('wave'), MODES.indexOf('nebula')];
+      activeModes = [MODES.indexOf('bars'), MODES.indexOf('wave'), MODES.indexOf('nebula')];
       focusModeIdx = MODES.indexOf('wave');
       disableBg3D();
     });
@@ -56,7 +56,7 @@ test('列出正在跑的 2D 效果，最上层排最前，当前焦点有标记'
     expect(r.groups, '三层的分组标题不齐').toEqual(['2D Effects (3)', '3D Background', 'VJ Tunnel']);
     // activeModes 后面的画在上面，所以列表要倒过来 —— 最上层排最前，跟眼睛看到的一致
     // 显示的是 getModeLabel() 给的人类可读名，不是 MODES 里的 key（nebula → Nebula Cloud）
-    expect(r.rows.map(t => t.replace('⊕ ', ''))).toEqual(['Nebula Cloud', 'Wave', 'Radial']);
+    expect(r.rows.map(t => t.replace('⊕ ', ''))).toEqual(['Nebula Cloud', 'Wave', 'Bars']);
     expect(r.focused, '当前焦点没有标出来').toEqual(['⊕ Wave']);
     expect(r.empties, '3D 和 VJ 都没开，应该各显示一行「无」').toBe(2);
   });
@@ -66,17 +66,17 @@ test('双击 2D 行把它设成手势的作用对象', async () => {
   test.setTimeout(180_000);
   await withApp('np-focus', async (win) => {
     await win.evaluate(() => {
-      activeModes = [MODES.indexOf('radial'), MODES.indexOf('wave')];
+      activeModes = [MODES.indexOf('bars'), MODES.indexOf('wave')];
       focusModeIdx = MODES.indexOf('wave');
     });
     await openPanel(win);
-    // 列表是倒序的，最后一行是 activeModes[0] = radial
+    // 列表是倒序的，最后一行是 activeModes[0] = bars
     await win.locator('#nowPlayingList .np-name').last().dblclick();
-    expect(await win.evaluate(() => MODES[focusModeIdx]), '双击没有改变焦点').toBe('radial');
+    expect(await win.evaluate(() => MODES[focusModeIdx]), '双击没有改变焦点').toBe('bars');
     // 标记也要跟着挪
     const focused = await win.evaluate(() =>
       [...document.querySelectorAll('#nowPlayingList .np-name.focused')].map(b => b.textContent));
-    expect(focused).toEqual(['⊕ Radial']);
+    expect(focused).toEqual(['⊕ Bars']);
   });
 });
 
@@ -84,7 +84,7 @@ test('✕ 只移除那一个 2D 效果，焦点落到还剩的上面', async () 
   test.setTimeout(180_000);
   await withApp('np-remove', async (win) => {
     await win.evaluate(() => {
-      activeModes = [MODES.indexOf('radial'), MODES.indexOf('wave'), MODES.indexOf('nebula')];
+      activeModes = [MODES.indexOf('bars'), MODES.indexOf('wave'), MODES.indexOf('nebula')];
       focusModeIdx = MODES.indexOf('nebula');
     });
     await openPanel(win);
@@ -95,9 +95,9 @@ test('✕ 只移除那一个 2D 效果，焦点落到还剩的上面', async () 
       focus: focusModeIdx == null ? null : MODES[focusModeIdx],
       rows: [...document.querySelectorAll('#nowPlayingList .np-name')].map(b => b.textContent.replace('⊕ ', '')),
     }));
-    expect(r.modes, '应该只移除被点的那一个').toEqual(['Radial', 'Wave'].map(x => x.toLowerCase()));
+    expect(r.modes, '应该只移除被点的那一个').toEqual(['Bars', 'Wave'].map(x => x.toLowerCase()));
     expect(r.focus, '移除的正是焦点，焦点该落到还剩的上面').toBe('wave');
-    expect(r.rows, '列表没跟着更新').toEqual(['Wave', 'Radial']);
+    expect(r.rows, '列表没跟着更新').toEqual(['Wave', 'Bars']);
   });
 });
 
@@ -151,7 +151,7 @@ test('每层标题标出这一层的轮换状态 —— 不然选中的东西会
   test.setTimeout(180_000);
   await withApp('np-shuffle', async (win) => {
     await win.evaluate(() => {
-      activeModes = [MODES.indexOf('radial')];
+      activeModes = [MODES.indexOf('bars')];
       enableBg3D('vjLiquidGrid');
       micShuffleOn = false;
       document.getElementById('vjShuffleIntervalSel').value = 'change';
@@ -212,7 +212,7 @@ test('关掉面板就停掉刷新定时器，不在后台白烧 CPU', async () =
 test('切语言时分组标题和轮换状态都跟着变', async () => {
   test.setTimeout(180_000);
   await withApp('np-i18n', async (win) => {
-    await win.evaluate(() => { activeModes = [MODES.indexOf('radial')]; disableBg3D(); });
+    await win.evaluate(() => { activeModes = [MODES.indexOf('bars')]; disableBg3D(); });
     await openPanel(win);
     const r = await win.evaluate(() => {
       applyLanguage('zh');
