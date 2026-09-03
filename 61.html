@@ -4808,15 +4808,19 @@ function togglePresetAutoCycle(){
   mainBtn.classList.toggle('active', micShuffleOn);
   syncPresetAutoCycleBtn();
 }
-document.getElementById('micShuffleToggle').onclick = ()=>{
-  micShuffleOn = !micShuffleOn;
+/* 拆成命名函数，跟 setBg3DShuffle()/setVjShuffle() 一个模子 —— Now Playing 面板的
+   ✕ 需要「关掉这一层就顺手把它的 Auto-Shuffle 也关掉」，得有个能直接传 on/off 的
+   入口，而不是只能靠点按钮切换（那样在已经是关的时候点会变成打开）。 */
+function setMicShuffle(on){
+  micShuffleOn = on;
   const btn = document.getElementById('micShuffleToggle');
   btn.textContent = STATEFUL_LABELS.micShuffleToggle();
   btn.classList.toggle('active', micShuffleOn);
   if(micShuffleOn) startMicShuffleTimer();
   else stopMicShuffleTimer();
   syncPresetAutoCycleBtn();
-};
+}
+document.getElementById('micShuffleToggle').onclick = ()=> setMicShuffle(!micShuffleOn);
 document.getElementById('micShuffleSourceSel').addEventListener('change', syncPresetAutoCycleBtn);
 document.getElementById('presetAutoCycleBtn').onclick = togglePresetAutoCycle;
 function syncIntervalControls(){
@@ -24711,6 +24715,9 @@ function renderNowPlaying(){
         if(at > -1) activeModes.splice(at, 1);
         if(focusModeIdx === idx) focusModeIdx = activeModes.length ? activeModes[activeModes.length-1] : null;
         refreshModePanelActive();
+        // 关掉这一层就把它的 Auto-Shuffle 也关掉，不然过一个间隔又被轮换填回来，
+        // 看起来像是「关不掉」
+        if(micShuffleOn) setMicShuffle(false);
       },
     }));
   });
@@ -24722,7 +24729,14 @@ function renderNowPlaying(){
     focused: false,
     title: zh ? '双击打开它的菜单去改（背景没有手势操作）' : 'Double-click to open its menu (backgrounds have no on-screen gestures)',
     onActivate: ()=>{ document.getElementById(menuBtnId).click(); },
-    onRemove: ()=> disableBg3D(),
+    onRemove: ()=>{
+      disableBg3D();
+      // 同上：关掉这一层顺手把它自己的 Auto-Shuffle 也关掉，不然下一次 tick 又开回来。
+      // 3D 和 VJ 驱动的是同一个 bg3DKind，但 Auto-Shuffle 开关是分开的两个，
+      // 按 menuBtnId 认清楚是哪一行被关的，只关它自己那个
+      if(menuBtnId==='bg3DMenuBtn' && bg3DShuffleOn) setBg3DShuffle(false);
+      if(menuBtnId==='vjMenuBtn' && vjShuffleOn) setVjShuffle(false);
+    },
   });
 
   list.appendChild(makeNowPlayingGroup(zh ? '3D 背景' : '3D Background', bg3DShuffleOn, 'bg3DShuffleIntervalSel'));

@@ -147,6 +147,48 @@ test('✕ 掉背景那一行就是关掉 3D 背景', async () => {
   });
 });
 
+test('✕ 关掉一层的同时把这一层自己的 Auto-Shuffle 也关掉 —— 不然过一个间隔又被轮换填回来', async () => {
+  test.setTimeout(180_000);
+  await withApp('np-remove-shuffle', async (win) => {
+    await win.evaluate(() => { activeModes = [MODES.indexOf('bars')]; setMicShuffle(true); });
+    await openPanel(win);   // 面板开着之后不再重新点 nowPlayingBtn —— 再点一次是关，不是刷新
+
+    // --- 2D ---
+    await win.locator('#nowPlayingList .np-del').first().click();
+    let r = await win.evaluate(() => ({ on: micShuffleOn, timer: micShuffleTimer !== null }));
+    expect(r.on, '2D 关掉之后 Auto-Shuffle 还开着').toBe(false);
+    expect(r.timer, '2D 的定时器还在跑').toBe(false);
+
+    // --- 3D ---
+    await win.evaluate(() => { enableBg3D('synthwave'); setBg3DShuffle(true); renderNowPlaying(); });
+    await win.locator('#nowPlayingList .np-del').first().click();
+    r = await win.evaluate(() => ({ on: bg3DShuffleOn, timer: bg3DShuffleTimer !== null }));
+    expect(r.on, '3D 关掉之后 Auto-Shuffle 还开着').toBe(false);
+    expect(r.timer, '3D 的定时器还在跑').toBe(false);
+
+    // --- VJ ---
+    await win.evaluate(() => { enableBg3D('vjGridMorph'); setVjShuffle(true); renderNowPlaying(); });
+    await win.locator('#nowPlayingList .np-del').first().click();
+    r = await win.evaluate(() => ({ on: vjShuffleOn, timer: vjShuffleTimer !== null }));
+    expect(r.on, 'VJ 关掉之后 Auto-Shuffle 还开着').toBe(false);
+    expect(r.timer, 'VJ 的定时器还在跑').toBe(false);
+  });
+});
+
+test('✕ 掉的时候那一层 Auto-Shuffle 本来就是关的，不该被顺手打开', async () => {
+  test.setTimeout(180_000);
+  await withApp('np-remove-noshuffle', async (win) => {
+    await win.evaluate(() => {
+      activeModes = [MODES.indexOf('bars')];
+      setMicShuffle(false); setBg3DShuffle(false); setVjShuffle(false);
+    });
+    await openPanel(win);
+    await win.locator('#nowPlayingList .np-del').first().click();
+    const r = await win.evaluate(() => ({ mic: micShuffleOn, bg3d: bg3DShuffleOn, vj: vjShuffleOn }));
+    expect(r).toEqual({ mic: false, bg3d: false, vj: false });
+  });
+});
+
 test('每层标题标出这一层的轮换状态 —— 不然选中的东西会被 shuffle 换掉还以为是 bug', async () => {
   test.setTimeout(180_000);
   await withApp('np-shuffle', async (win) => {
