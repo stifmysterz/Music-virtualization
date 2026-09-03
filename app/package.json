@@ -1,7 +1,7 @@
 {
   "name": "sub-remix",
   "productName": "SUB REMIX",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "SUB REMIX — Music Visualizer",
   "main": "main.js",
   "scripts": {
