@@ -4980,11 +4980,63 @@ function syncCanvasLayers(cssW, cssH, availW, cssOnly){
 }
 addEventListener('resize', resize); resize();
 
-/* 截图和录像都只能对着「一个」canvas 取内容，而画面现在分在三层上。
-   这里把三层按屏幕上的实际叠放顺序合成到一张离屏画布：
-     cvBack → cvFx（screen 混合，和 CSS 上的 mix-blend-mode 对齐）→ cv
-   和改动前一样，导出内容不包含 DOM 上的背景图/视频/3D —— 那部分本来就抓不到，行为不变。 */
+/* 截图和录像都只能对着「一个」canvas 取内容，而屏幕画面分散在 DOM 背景、WebGL 和
+   三张 2D canvas 上。captureStream() 不会替我们做浏览器的 DOM 合成，所以这里必须严格
+   按屏幕的实际叠放顺序重画完整一帧：
+     页面底色 → 图片/视频 Background → 3D/VJ → cvBack → cvFx → cv
+
+   背景元素还可能有 object-fit:cover、拖移/缩放/旋转、亮度/饱和度和 bounce filter；
+   drawCaptureElement() 把它们的 CSS 几何映射到录制 canvas，不能只 drawImage(source,0,0)。 */
 let captureCanvas = null, captureCtx = null;
+function captureObjectFitSource(el, boxW, boxH){
+  const sw = el.videoWidth || el.naturalWidth || el.width;
+  const sh = el.videoHeight || el.naturalHeight || el.height;
+  if(!sw || !sh || !boxW || !boxH) return null;
+  const fit = getComputedStyle(el).objectFit;
+  if(fit !== 'cover') return {sx:0, sy:0, sw, sh};
+  const sourceAspect = sw/sh, boxAspect = boxW/boxH;
+  if(sourceAspect > boxAspect){
+    const cropW = sh*boxAspect;
+    return {sx:(sw-cropW)/2, sy:0, sw:cropW, sh};
+  }
+  const cropH = sw/boxAspect;
+  return {sx:0, sy:(sh-cropH)/2, sw, sh:cropH};
+}
+function drawCaptureElement(el, targetRect, replacedElement){
+  if(!el) return;
+  const cs = getComputedStyle(el);
+  if(cs.display==='none' || cs.visibility==='hidden' || parseFloat(cs.opacity)===0) return;
+  const boxW = el.offsetWidth, boxH = el.offsetHeight;
+  if(!boxW || !boxH || !targetRect.width || !targetRect.height) return;
+
+  const sx = captureCanvas.width/targetRect.width;
+  const sy = captureCanvas.height/targetRect.height;
+  const origin = cs.transformOrigin.split(/\s+/).map(parseFloat);
+  const ox = Number.isFinite(origin[0]) ? origin[0] : boxW/2;
+  const oy = Number.isFinite(origin[1]) ? origin[1] : boxH/2;
+  const matrix = cs.transform && cs.transform!=='none' ? new DOMMatrix(cs.transform) : new DOMMatrix();
+
+  captureCtx.save();
+  // viewport CSS coordinates -> the visible #cv rectangle -> recording pixels
+  captureCtx.setTransform(sx, 0, 0, sy, -targetRect.left*sx, -targetRect.top*sy);
+  captureCtx.translate(el.offsetLeft + ox, el.offsetTop + oy);
+  captureCtx.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
+  captureCtx.translate(-ox, -oy);
+  captureCtx.globalAlpha = parseFloat(cs.opacity) || 1;
+  captureCtx.filter = cs.filter==='none' ? 'none' : cs.filter;
+  try{
+    if(replacedElement){
+      const src = captureObjectFitSource(el, boxW, boxH);
+      if(src) captureCtx.drawImage(el, src.sx, src.sy, src.sw, src.sh, 0, 0, boxW, boxH);
+    }else{
+      captureCtx.drawImage(el, 0, 0, el.width, el.height, 0, 0, boxW, boxH);
+    }
+  }catch(e){
+    // A video can be between readyState transitions for one frame. Keep recording the other layers;
+    // the next animation frame will retry rather than aborting the recording loop.
+  }
+  captureCtx.restore();
+}
 function composeCaptureFrame(){
   if(!captureCanvas){
     captureCanvas = document.createElement('canvas');
@@ -4994,7 +5046,17 @@ function composeCaptureFrame(){
     captureCanvas.width = cv.width; captureCanvas.height = cv.height;
   }
   captureCtx.globalCompositeOperation = 'source-over';
-  captureCtx.clearRect(0,0,captureCanvas.width,captureCanvas.height);
+  // The page itself is opaque. Filling it first also prevents transparent WebM frames when no
+  // user background is selected, matching html/body background:var(--bg).
+  captureCtx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#05060e';
+  captureCtx.fillRect(0,0,captureCanvas.width,captureCanvas.height);
+  const targetRect = cv.getBoundingClientRect();
+  if(hasBgMedia && bgVisible){
+    drawCaptureElement(hasBgVideo ? bgVideoEl : bgImageEl, targetRect, true);
+  }
+  if(hasBg3D && bg3DVisible){
+    drawCaptureElement(bgThreeCanvas, targetRect, false);
+  }
   captureCtx.drawImage(cvBack, 0, 0);
   // fxBlendOn 关掉时 #cvFx 也是普通混合，合成帧要跟着走，否则导出和屏幕不一致
   captureCtx.globalCompositeOperation = fxBlendOn ? 'screen' : 'source-over';
