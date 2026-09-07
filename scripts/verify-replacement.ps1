@@ -19,10 +19,8 @@ if (-not $PackageRoot) {
 $PackageRoot = $PSCmdlet.GetUnresolvedProviderPathFromPSPath($PackageRoot)
 $source = Join-Path $PackageRoot '61.html'
 $replacement = Join-Path $PackageRoot 'replacement\61.html'
+$hashManifest = Join-Path $PackageRoot 'replacement.sha256'
 
-if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
-    throw "Missing source of truth: $source"
-}
 if (-not (Test-Path -LiteralPath $replacement -PathType Leaf)) {
     throw "Missing replacement payload: $replacement"
 }
@@ -43,16 +41,32 @@ function Get-Sha256([string]$Path) {
     }
 }
 
-$sourceHash = Get-Sha256 $source
 $replacementHash = Get-Sha256 $replacement
 
-if ($sourceHash -ne $replacementHash) {
+$expectedHash = $null
+$expectedLabel = $null
+if (Test-Path -LiteralPath $source -PathType Leaf) {
+    $expectedHash = Get-Sha256 $source
+    $expectedLabel = $source
+}
+elseif (Test-Path -LiteralPath $hashManifest -PathType Leaf) {
+    $expectedHash = ([IO.File]::ReadAllText($hashManifest)).Trim().ToUpperInvariant()
+    if ($expectedHash -notmatch '^[0-9A-F]{64}$') {
+        throw "Invalid replacement SHA-256 manifest: $hashManifest"
+    }
+    $expectedLabel = $hashManifest
+}
+else {
+    throw "Cannot verify replacement payload: missing both $source and $hashManifest"
+}
+
+if ($expectedHash -ne $replacementHash) {
     throw @"
-STALE REPLACEMENT: replacement/61.html does not match root 61.html.
-  Source:      $sourceHash  $source
+STALE REPLACEMENT: replacement/61.html does not match its source of truth.
+  Expected:    $expectedHash  $expectedLabel
   Replacement: $replacementHash  $replacement
 Synchronize replacement/61.html before building or installing the Replace Pack.
 "@
 }
 
-Write-Host "PASS: replacement/61.html matches root 61.html. (SHA256 $sourceHash)"
+Write-Host "PASS: replacement/61.html is fresh. (SHA256 $expectedHash)"

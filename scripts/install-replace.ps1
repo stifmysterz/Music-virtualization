@@ -32,6 +32,11 @@ if (-not (Test-Path -LiteralPath $targetRoot -PathType Container)) {
     throw "Target project directory does not exist: $targetRoot"
 }
 
+# Windows may hand us an 8.3 short path (for example CONCEP~1) while GetFullPath()
+# expands the destination to its long form. Canonicalize the existing directory first so the
+# containment comparison below does not reject two spellings of the same target directory.
+$targetRoot = (Get-Item -LiteralPath $targetRoot).FullName
+
 # Echo the resolved root before touching anything, so a mis-resolved -Target is
 # visible in the -WhatIf preview instead of only after the overwrite.
 Write-Host "Target project: $targetRoot"

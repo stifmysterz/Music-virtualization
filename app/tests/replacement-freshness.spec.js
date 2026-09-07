@@ -27,7 +27,7 @@ test('replacement/61.html 与根目录 source of truth 完全一致', () => {
 
   const result = verify(ROOT);
   expect(result.status, result.stderr || result.stdout).toBe(0);
-  expect(result.stdout).toContain('PASS: replacement/61.html matches root 61.html');
+  expect(result.stdout).toContain('PASS: replacement/61.html is fresh');
 });
 
 test('freshness verifier 会拒绝陈旧 replacement', () => {
@@ -59,4 +59,3 @@ test('freshness verifier 接受内容相同的 replacement', () => {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
-

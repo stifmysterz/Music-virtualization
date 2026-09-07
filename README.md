@@ -72,6 +72,22 @@ Copy-Item -LiteralPath "$proj\61.html" `
 这一个文件里。安装脚本会用本包的版本覆盖目标项目根目录的同名文件;**覆盖不可撤销,
 脚本也不会自动留副本**,所以上一节的时间戳备份是必须的。
 
+## 生成最新 Replace ZIP
+
+不要手工压缩 `replacement/`，也不要复用旧 ZIP。在 `app/` 目录运行：
+
+```powershell
+npm run build:replace-zip
+```
+
+生成脚本会直接读取根目录最新的 `61.html`，在临时目录组装 payload，写入 SHA-256
+清单，生成 `Music-Visualisation-Claude-Code-Replace.zip`，再从 ZIP 内重新读取并核对哈希。
+只有验证通过后才会替换原 ZIP。可随时单独检查现有 ZIP：
+
+```powershell
+npm run verify:replace-zip
+```
+
 ## 安装脚本的作用范围
 
 - 只写入 `replacement/` 下实际存在的文件,不新增、不修改、不删除其他任何文件。
