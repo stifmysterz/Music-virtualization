@@ -34,6 +34,16 @@
    powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\verify-protected-paths.ps1"
    ```
 
+   并确认 Replace payload 与根目录事实源一致：
+
+   ```powershell
+   cd app
+   npm run verify:replacement
+   ```
+
+   SHA-256 不一致时，安装和 Electron 构建都会直接失败，避免旧的
+   `replacement/61.html` 覆盖最新源码。
+
 4. 任何实际替换内容只能放在 `replacement/` 下;安装脚本会拒绝受保护路径。
 5. **带时间戳备份目标项目根目录现有的 `61.html`** —— 安装会直接覆盖它,见下一节。
 6. 先用 `scripts\install-replace.ps1 -Target <项目目录绝对路径> -WhatIf` 预览,再去掉

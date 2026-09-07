@@ -26,6 +26,7 @@ if (-not [IO.Path]::IsPathRooted($targetRoot)) {
 $protected = @('source', 'assets', 'shaders')
 
 & (Join-Path $PSScriptRoot 'verify-protected-paths.ps1') -PackageRoot $packageRoot
+& (Join-Path $PSScriptRoot 'verify-replacement.ps1') -PackageRoot $packageRoot
 
 if (-not (Test-Path -LiteralPath $targetRoot -PathType Container)) {
     throw "Target project directory does not exist: $targetRoot"

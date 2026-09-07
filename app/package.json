@@ -7,6 +7,8 @@
   "scripts": {
     "start": "electron .",
     "test": "playwright test",
+    "verify:replacement": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/verify-replacement.ps1",
+    "predist": "npm run verify:replacement",
     "dist": "electron-builder --win",
     "postinstall": "patch-package",
     "icon": "node scripts/build-icon.js"
