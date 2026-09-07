@@ -1,0 +1,1 @@
+Design and implement a premium seamless VJ loop with deliberate choreography and audio/BPM response where appropriate.

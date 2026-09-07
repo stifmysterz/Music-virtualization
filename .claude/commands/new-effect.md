@@ -1,0 +1,1 @@
+Plan and implement one premium effect using existing reusable systems; test it without breaking the effect library.

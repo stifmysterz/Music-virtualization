@@ -1,0 +1,10 @@
+{
+  "name": "Music-Visualisation-Claude-Code-Replace",
+  "formatVersion": 1,
+  "mode": "safe-incremental-replace",
+  "protectedTopLevelDirectories": ["source", "assets", "shaders"],
+  "requiredCapabilities": ["2D Visualizer", "61+ 3D Effects", "VJ Loops"],
+  "replacementRoot": "replacement",
+  "defaultInstallMode": "preview"
+}
+

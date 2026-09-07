@@ -1,0 +1,1 @@
+Profile the visualizer, identify bottlenecks, optimize, and re-test.

@@ -1,0 +1,1 @@
+Use normalized, smoothed envelopes and map bass/mid/high/energy intentionally.

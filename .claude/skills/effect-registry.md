@@ -1,0 +1,1 @@
+Treat the 61+ existing 3D effects as a protected reusable library and maintain effect metadata consistently.

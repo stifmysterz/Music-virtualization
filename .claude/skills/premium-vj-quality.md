@@ -1,0 +1,1 @@
+Apply the project's premium VJ/motion-graphics quality bar. Reject generic demo aesthetics.

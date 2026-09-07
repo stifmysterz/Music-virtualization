@@ -1,0 +1,1 @@
+Design loops around deterministic periodic state and verify start/end compatibility.

@@ -1,0 +1,1 @@
+Run the project's visual, loop, audio, WebGL, resize, switching and performance checks.
