@@ -1,7 +1,7 @@
 {
   "name": "sub-remix",
   "productName": "SUB REMIX",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "description": "SUB REMIX — Music Visualizer",
   "main": "main.js",
   "scripts": {
@@ -10,7 +10,8 @@
     "verify:replacement": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/verify-replacement.ps1",
     "verify:replace-zip": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/verify-replace-zip.ps1",
     "build:replace-zip": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/generate-replace.ps1",
-    "predist": "npm run verify:replacement",
+    "verify:version": "node scripts/verify-version.js",
+    "predist": "npm run verify:version && npm run verify:replacement",
     "dist": "electron-builder --win",
     "postinstall": "patch-package",
     "icon": "node scripts/build-icon.js"
