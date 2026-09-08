@@ -32,7 +32,11 @@ test('VJ 注册区块被手改后同步校验失败', () => {
   try {
     fs.mkdirSync(path.join(tempRoot, 'src', 'vj'), { recursive: true });
     fs.copyFileSync(SOURCE, path.join(tempRoot, 'src', 'vj', 'tunnel-registry.json'));
-    fs.writeFileSync(path.join(tempRoot, '61.html'), fs.readFileSync(TARGET, 'utf8').replace('"vjLiquidGrid"', '"vjBroken"'));
+    const current = fs.readFileSync(TARGET, 'utf8');
+    const registryStart = current.indexOf('/* VJ_TUNNEL_REGISTRY:START */');
+    const registryEnd = current.indexOf('/* VJ_TUNNEL_REGISTRY:END */');
+    const registry = current.slice(registryStart, registryEnd).replace('"vjLiquidGrid"', '"vjBroken"');
+    fs.writeFileSync(path.join(tempRoot, '61.html'), current.slice(0, registryStart) + registry + current.slice(registryEnd));
     const stale = verify(tempRoot);
     expect(stale.status).not.toBe(0);
     expect(stale.stderr + stale.stdout).toContain('61.html is stale');

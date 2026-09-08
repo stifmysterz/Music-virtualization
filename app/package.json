@@ -25,10 +25,12 @@
     "sync:vj-loop-contract": "node scripts/sync-vj-loop-contract.js --write",
     "verify:vj-premium-meta": "node scripts/sync-vj-premium-meta.js",
     "sync:vj-premium-meta": "node scripts/sync-vj-premium-meta.js --write",
+    "verify:bg3d-builders": "node scripts/sync-bg3d-builders.js",
+    "sync:bg3d-builders": "node scripts/sync-bg3d-builders.js --write",
     "verify:release": "node scripts/release-integrity.js verify",
     "release:manifest": "node scripts/release-integrity.js generate",
     "release": "node scripts/release.js",
-    "predist": "npm run verify:version && npm run verify:mode-quality && npm run verify:music-state && npm run verify:scene-cache && npm run verify:vj-registry && npm run verify:bg3d-catalog && npm run verify:vj-loop-contract && npm run verify:vj-premium-meta && npm run verify:replacement",
+    "predist": "npm run verify:version && npm run verify:mode-quality && npm run verify:music-state && npm run verify:scene-cache && npm run verify:vj-registry && npm run verify:bg3d-catalog && npm run verify:vj-loop-contract && npm run verify:vj-premium-meta && npm run verify:bg3d-builders && npm run verify:replacement",
     "dist": "electron-builder --win",
     "postinstall": "patch-package",
     "icon": "node scripts/build-icon.js"
