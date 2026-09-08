@@ -24770,9 +24770,20 @@ buildBg3DMenu();
 /* ---------- 🌀 VJ 菜单 ----------
    这四十五个隧道注册在 BG3D_BUILDERS 里，enableBg3D / 预设 / 随机全部照旧能用；
    但它们不在 BG3D_CATALOG 里，所以 🌌 3D 菜单的列表和它的 ⏭ Next 顺序完全不受影响。 */
-const VJ_TUNNEL_KINDS = ["vjLiquidGrid","vjHexPulse","vjNeonRibbon","vjPrismShards","vjWaveCorridor","vjPlasmaRings","vjStarLane","vjKaleido","vjChromeTube","vjCubeMatrix",
-  "vjChromeFlow","vjMetalTwist","vjGridMorph","vjFractalWell","vjCyborgCorridor","vjRaceTrack","vjSpeedGates","vjHoverCity","vjTentacleTunnel","vjBioMembrane","vjVoidNebula","vjEventHorizon","vjCandyOrbs","vjDataBloom","vjNeonTubeRoom","vjNeonArches","vjHorizonVoyage","vjLightWell","vjHyperCube","vjCoasterRush",
-  "vjChromeDrips","vjMercuryPool","vjFoilCrumple","vjChromeBubbles","vjLiquidSpine","vjAsteroidSlalom","vjWarpJump","vjRingWorldRun","vjIonTrail","vjSolarFlare","vjDerelictHall","vjRustPipes","vjShatteredPanes","vjDustShaft","vjCollapsedGrid"];
+/* VJ_TUNNEL_REGISTRY:START */
+/* Generated from src/vj/tunnel-registry.json. Do not edit this block by hand. */
+const VJ_TUNNEL_KINDS = Object.freeze([
+  "vjLiquidGrid","vjHexPulse","vjNeonRibbon","vjPrismShards","vjWaveCorridor",
+  "vjPlasmaRings","vjStarLane","vjKaleido","vjChromeTube","vjCubeMatrix",
+  "vjChromeFlow","vjMetalTwist","vjGridMorph","vjFractalWell","vjCyborgCorridor",
+  "vjRaceTrack","vjSpeedGates","vjHoverCity","vjTentacleTunnel","vjBioMembrane",
+  "vjVoidNebula","vjEventHorizon","vjCandyOrbs","vjDataBloom","vjNeonTubeRoom",
+  "vjNeonArches","vjHorizonVoyage","vjLightWell","vjHyperCube","vjCoasterRush",
+  "vjChromeDrips","vjMercuryPool","vjFoilCrumple","vjChromeBubbles","vjLiquidSpine",
+  "vjAsteroidSlalom","vjWarpJump","vjRingWorldRun","vjIonTrail","vjSolarFlare",
+  "vjDerelictHall","vjRustPipes","vjShatteredPanes","vjDustShaft","vjCollapsedGrid"
+]);
+/* VJ_TUNNEL_REGISTRY:END */
 /* Machine-readable loop contract for every VJ. The geometry scroll can run forever, while
    recycled elements must return to their original seeded lane instead of changing identity. */
 const VJ_LOOP_META = Object.freeze(Object.fromEntries(VJ_TUNNEL_KINDS.map(kind => [kind, Object.freeze({

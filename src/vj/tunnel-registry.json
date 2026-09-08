@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "kinds": [
+    "vjLiquidGrid", "vjHexPulse", "vjNeonRibbon", "vjPrismShards", "vjWaveCorridor",
+    "vjPlasmaRings", "vjStarLane", "vjKaleido", "vjChromeTube", "vjCubeMatrix",
+    "vjChromeFlow", "vjMetalTwist", "vjGridMorph", "vjFractalWell", "vjCyborgCorridor",
+    "vjRaceTrack", "vjSpeedGates", "vjHoverCity", "vjTentacleTunnel", "vjBioMembrane",
+    "vjVoidNebula", "vjEventHorizon", "vjCandyOrbs", "vjDataBloom", "vjNeonTubeRoom",
+    "vjNeonArches", "vjHorizonVoyage", "vjLightWell", "vjHyperCube", "vjCoasterRush",
+    "vjChromeDrips", "vjMercuryPool", "vjFoilCrumple", "vjChromeBubbles", "vjLiquidSpine",
+    "vjAsteroidSlalom", "vjWarpJump", "vjRingWorldRun", "vjIonTrail", "vjSolarFlare",
+    "vjDerelictHall", "vjRustPipes", "vjShatteredPanes", "vjDustShaft", "vjCollapsedGrid"
+  ]
+}
