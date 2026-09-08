@@ -4519,6 +4519,12 @@ three/build/three.module.js:
 /* ================= audio core ================= */
 let ctx, analyser, master, analyserFeed, freq, wave;
 let hasBg3D = false, bg3DKind = null, bg3DRenderer = null, bg3DScenes = {};   // declared early so resize()'s first call (before the rest of the bg-3D code below runs) can safely reference them
+/* Scene builders allocate geometry, materials and two full-size composer render targets. Keeping
+   every visited 3D/VJ scene forever makes a long shuffle session retain the whole catalogue on
+   the GPU. Keep the active scene plus seven recent scenes; revisits rebuild normally. */
+const BG3D_SCENE_CACHE_LIMIT = 8;
+let bg3DSceneUseClock = 0;
+const bg3DSceneLastUsed = Object.create(null);
 let source = null;          // current node feeding analyser (synth gain / media)
 let mediaEl = null;
 let playing = false, synthOn = false;
@@ -16198,6 +16204,24 @@ function renderBg3D(bass, mid, high, dt){
   else bg3DRenderer.render(s.scene, s.camera);
   if(bg3DDirectorOn) dirDropPunch *= 0.9;   // 它的亮度冲击由 applyBg3DFilter 一并合成，不再单独改写 filter
 }
+const BG3D_PERFORMANCE_BUDGET = Object.freeze({
+  balanced: Object.freeze({maxCachedScenes:BG3D_SCENE_CACHE_LIMIT, maxDrawCalls:80, maxTriangles:1500000}),
+  ultra:    Object.freeze({maxCachedScenes:BG3D_SCENE_CACHE_LIMIT, maxDrawCalls:80, maxTriangles:1500000})
+});
+function bg3DPerformanceSnapshot(){
+  if(!bg3DRenderer) return null;
+  const info=bg3DRenderer.info, size=bg3DRenderer.getDrawingBufferSize(new THREE.Vector2());
+  return {kind:bg3DKind, quality:vjQuality, cachedScenes:Object.keys(bg3DScenes).length,
+    width:size.x, height:size.y, pixelRatio:bg3DRenderer.getPixelRatio(),
+    calls:info.render.calls, triangles:info.render.triangles, points:info.render.points, lines:info.render.lines,
+    geometries:info.memory.geometries, textures:info.memory.textures};
+}
+function pruneBg3DSceneCache(activeKind){
+  const kinds=Object.keys(bg3DScenes);
+  if(kinds.length<=BG3D_SCENE_CACHE_LIMIT) return;
+  kinds.filter(k=>k!==activeKind).sort((a,b)=>(bg3DSceneLastUsed[a]||0)-(bg3DSceneLastUsed[b]||0))
+    .slice(0, kinds.length-BG3D_SCENE_CACHE_LIMIT).forEach(vjDropCachedScene);
+}
 let bg3DVisible = true;
 function enableBg3D(kind){
   try{
@@ -16208,6 +16232,8 @@ function enableBg3D(kind){
     bgThreeCanvas.style.display = bg3DVisible ? 'block' : 'none';
     bg3DKind = kind;
     hasBg3D = true;
+    bg3DSceneLastUsed[kind]=++bg3DSceneUseClock;
+    pruneBg3DSceneCache(kind);
   }catch(e){
     console.error('3D background unavailable:', e);
     alert('This device/browser cannot run the 3D background (WebGL unavailable).');
@@ -24729,10 +24755,13 @@ function vjDropCachedScene(kind){
         if(i > -1) arr.splice(i, 1);
       }
     });
-    s.composer.renderTarget1?.dispose?.();
-    s.composer.renderTarget2?.dispose?.();
+    /* EffectComposer.dispose also releases its copy pass; disposing only the targets leaves that
+       fullscreen material/geometry resident after every cache eviction. */
+    s.composer.dispose?.();
   }
   delete bg3DScenes[kind];
+  delete bg3DSceneLastUsed[kind];
+  bg3DRenderer?.renderLists?.dispose?.();
 }
 document.getElementById('vjQualitySel').addEventListener('change', e=>{
   vjQuality = e.target.value;
