@@ -4524,12 +4524,39 @@ three/build/three.module.js:
 /* ================= audio core ================= */
 let ctx, analyser, master, analyserFeed, freq, wave;
 let hasBg3D = false, bg3DKind = null, bg3DRenderer = null, bg3DScenes = {};   // declared early so resize()'s first call (before the rest of the bg-3D code below runs) can safely reference them
-/* Scene builders allocate geometry, materials and two full-size composer render targets. Keeping
-   every visited 3D/VJ scene forever makes a long shuffle session retain the whole catalogue on
-   the GPU. Keep the active scene plus seven recent scenes; revisits rebuild normally. */
-const BG3D_SCENE_CACHE_LIMIT = 8;
-let bg3DSceneUseClock = 0;
-const bg3DSceneLastUsed = Object.create(null);
+/* Scene builders allocate geometry, materials and full-size composer render targets. The shared
+   LRU below bounds regular 3D backgrounds and VJ loops through the same lifecycle policy. */
+/* THREE_SCENE_CACHE:START */
+/* Generated from src/three/scene-cache.js. Do not edit this block by hand. */
+/* Shared LRU index for regular 3D backgrounds and VJ scenes. */
+function createSceneCacheIndex(limit) {
+  const lastUsed = Object.create(null);
+  let clock = 0;
+
+  function touch(kind) {
+    lastUsed[kind] = ++clock;
+  }
+
+  function forget(kind) {
+    delete lastUsed[kind];
+  }
+
+  function evictionCandidates(kinds, activeKind) {
+    const overflow = Math.max(0, kinds.length - limit);
+    if (!overflow) return [];
+    return kinds
+      .filter(kind => kind !== activeKind)
+      .sort((a, b) => (lastUsed[a] || 0) - (lastUsed[b] || 0))
+      .slice(0, overflow);
+  }
+
+  return { limit, lastUsed, touch, forget, evictionCandidates };
+}
+
+const bg3DSceneCacheIndex = createSceneCacheIndex(8);
+const BG3D_SCENE_CACHE_LIMIT = bg3DSceneCacheIndex.limit;
+const bg3DSceneLastUsed = bg3DSceneCacheIndex.lastUsed;
+/* THREE_SCENE_CACHE:END */
 let source = null;          // current node feeding analyser (synth gain / media)
 let mediaEl = null;
 let playing = false, synthOn = false;
@@ -16316,9 +16343,7 @@ function bg3DPerformanceSnapshot(){
 }
 function pruneBg3DSceneCache(activeKind){
   const kinds=Object.keys(bg3DScenes);
-  if(kinds.length<=BG3D_SCENE_CACHE_LIMIT) return;
-  kinds.filter(k=>k!==activeKind).sort((a,b)=>(bg3DSceneLastUsed[a]||0)-(bg3DSceneLastUsed[b]||0))
-    .slice(0, kinds.length-BG3D_SCENE_CACHE_LIMIT).forEach(vjDropCachedScene);
+  bg3DSceneCacheIndex.evictionCandidates(kinds, activeKind).forEach(vjDropCachedScene);
 }
 let bg3DVisible = true;
 function enableBg3D(kind){
@@ -16330,7 +16355,7 @@ function enableBg3D(kind){
     bgThreeCanvas.style.display = bg3DVisible ? 'block' : 'none';
     bg3DKind = kind;
     hasBg3D = true;
-    bg3DSceneLastUsed[kind]=++bg3DSceneUseClock;
+    bg3DSceneCacheIndex.touch(kind);
     pruneBg3DSceneCache(kind);
   }catch(e){
     console.error('3D background unavailable:', e);
@@ -24868,7 +24893,7 @@ function vjDropCachedScene(kind){
     s.composer.dispose?.();
   }
   delete bg3DScenes[kind];
-  delete bg3DSceneLastUsed[kind];
+  bg3DSceneCacheIndex.forget(kind);
   bg3DRenderer?.renderLists?.dispose?.();
 }
 document.getElementById('vjQualitySel').addEventListener('change', e=>{
