@@ -415,6 +415,11 @@
   .np-del:hover{background:rgba(255,80,80,.16)}
   .np-empty{padding:5px 8px;font-size:12px;opacity:.45;cursor:default}
   #modeMenuList{display:flex;flex-direction:column;gap:5px}
+  .mode-quality-badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;margin-left:7px;padding:1px 5px;border:1px solid var(--line);border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.04em;line-height:16px;color:var(--muted)}
+  .mode-quality-s{color:#ffe39a;border-color:rgba(255,207,85,.56);background:rgba(255,190,50,.13)}
+  .mode-quality-a{color:#a8dcff;border-color:rgba(103,194,255,.48);background:rgba(61,150,255,.11)}
+  .mode-quality-b{color:var(--muted)}
+  .mode-quality-legacy{color:#cbb9ff;border-color:rgba(178,140,255,.42);background:rgba(130,90,255,.10)}
   #bg3DMenuList .mode-cat-header, #modeMenuList .mode-cat-header{cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;margin:4px 0 0}
   #bg3DMenuList .mode-cat-header:hover, #modeMenuList .mode-cat-header:hover{opacity:1}
   .bg3d-item-row{display:flex;align-items:stretch;gap:5px}
@@ -5399,6 +5404,7 @@ const MODE_LABELS_ZH = {
 };
 
 const CATEGORY_NAMES_ZH = {
+  '★ S Tier — Premium Picks':'★ S级精选',
   'Classic Spectrum':'经典频谱',
   'Glitch Bars':'故障竖条',
   'Neon / Club':'霓虹夜店',
@@ -6344,7 +6350,36 @@ const MULTI_BAND_MODES = new Set([
   'filledSpectrumCurve','spectrumRibbon3d','dualSpectrumCurve','circularSpectrumCurve','spectrumCurveGlow'
 ]);
 
+/* Quality ranking is curation, not a feature gate: every mode remains available in its original
+   family and random/favourites. These badges only surface the strongest layered compositions. */
+const MODE_S_TIER = Object.freeze([
+  'laserBeam','particleStorm','audioBloom','lightTrails','electricArc','cyberTunnel',
+  'blackHole','solarFlare','plasmaStorm','pulsar','prismShards','kaleidoscope',
+  'rainbowRibbon3d','lineBurst3d','kineticRings','fractalTree','crystalLattice',
+  'vortexRingTunnel','particleBloom','laserBloom'
+]);
+const MODE_A_TIER = Object.freeze([
+  'neonGrid','neonTunnel','cyberPulse','wireCube','dnaHelix','saturnRings','nebula',
+  'galaxy','wormholes','meteorStormDense','speedTunnel','nitroBoost','ringStack','orbitPulse',
+  'orbCluster','spectrumWaves','rainbowCoil','chromaGrid','caveSpikes','mobiusLoop','geodeBurst',
+  'tesseract','soundTube','kraken','coralReef','tornado','solarSystem','bassImpact','dropEnergy',
+  'neonMatrix','cyberMatrix'
+]);
+const MODE_LEGACY_TIER = Object.freeze(['bars','wave','polarWaveform','mirrorSpectrum','ledMatrix','rippleRings','spectrumCurve']);
+const MODE_QUALITY_TIER = Object.freeze(Object.fromEntries(MODES.map(key => [key,
+  MODE_S_TIER.includes(key) ? 'S' : MODE_A_TIER.includes(key) ? 'A' : MODE_LEGACY_TIER.includes(key) ? 'Legacy' : 'B'
+])));
+function getModeQualityTier(key){ return MODE_QUALITY_TIER[key] || 'B'; }
+function makeModeQualityBadge(key){
+  const tier=getModeQualityTier(key), badge=document.createElement('span');
+  badge.className='mode-quality-badge mode-quality-'+tier.toLowerCase();
+  badge.textContent=tier;
+  badge.title=tier==='S' ? 'S Tier — Premium pick' : tier==='A' ? 'A Tier — Polished pick' : tier==='Legacy' ? 'Classic / legacy style' : 'B Tier — standard library';
+  return badge;
+}
+
 const MODE_CATEGORIES = [
+  { name:'★ S Tier — Premium Picks', keys:MODE_S_TIER },
   { name:'Classic Spectrum', keys:['bars','wave','polarWaveform','mirrorSpectrum','ledMatrix','rippleRings','spectrumCurve',
     'circularBars','barWaterfall','barTower3d','gradientBars','dualMirrorBars',
     'filledWave','dualWave','waveRibbon3d','dottedWave','waveTunnel3d',
@@ -22741,6 +22776,7 @@ function createModeRow(key, idx){
   bLabel.className = 'mode-item-label';
   bLabel.textContent = getModeLabel(key) + (dupCount>1 ? ' ×'+dupCount : '');
   b.appendChild(bLabel);
+  b.appendChild(makeModeQualityBadge(key));
   const bThumb = document.createElement('img');
   bThumb.className = 'mode-thumb';
   bThumb.alt = '';
@@ -23983,7 +24019,10 @@ function buildModeMenu(){
       btn.className = 'dock-dd-item';
       btn.dataset.modeCat = group.name;
       btn.dataset.modeKey = key;
-      btn.textContent = getModeLabel(key);
+      const label=document.createElement('span');
+      label.textContent=getModeLabel(key);
+      btn.appendChild(label);
+      btn.appendChild(makeModeQualityBadge(key));
       btn.style.display = expandedModeCats.has(group.name) ? '' : 'none';
       btn.onclick = ()=> selectSingleMode(key);
       list.appendChild(btn);
