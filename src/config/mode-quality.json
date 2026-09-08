@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "tiers": {
+    "S": [
+      "laserBeam", "particleStorm", "audioBloom", "lightTrails", "electricArc", "cyberTunnel",
+      "blackHole", "solarFlare", "plasmaStorm", "pulsar", "prismShards", "kaleidoscope",
+      "rainbowRibbon3d", "lineBurst3d", "kineticRings", "fractalTree", "crystalLattice",
+      "vortexRingTunnel", "particleBloom", "laserBloom"
+    ],
+    "A": [
+      "neonGrid", "neonTunnel", "cyberPulse", "wireCube", "dnaHelix", "saturnRings", "nebula",
+      "galaxy", "wormholes", "meteorStormDense", "speedTunnel", "nitroBoost", "ringStack", "orbitPulse",
+      "orbCluster", "spectrumWaves", "rainbowCoil", "chromaGrid", "caveSpikes", "mobiusLoop", "geodeBurst",
+      "tesseract", "soundTube", "kraken", "coralReef", "tornado", "solarSystem", "bassImpact", "dropEnergy",
+      "neonMatrix", "cyberMatrix"
+    ],
+    "Legacy": [
+      "bars", "wave", "polarWaveform", "mirrorSpectrum", "ledMatrix", "rippleRings", "spectrumCurve"
+    ]
+  }
+}

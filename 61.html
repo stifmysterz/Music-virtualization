@@ -6350,22 +6350,19 @@ const MULTI_BAND_MODES = new Set([
   'filledSpectrumCurve','spectrumRibbon3d','dualSpectrumCurve','circularSpectrumCurve','spectrumCurveGlow'
 ]);
 
+/* MODE_QUALITY_DATA:START */
+/* Generated from src/config/mode-quality.json. Do not edit this block by hand. */
 /* Quality ranking is curation, not a feature gate: every mode remains available in its original
    family and random/favourites. These badges only surface the strongest layered compositions. */
 const MODE_S_TIER = Object.freeze([
-  'laserBeam','particleStorm','audioBloom','lightTrails','electricArc','cyberTunnel',
-  'blackHole','solarFlare','plasmaStorm','pulsar','prismShards','kaleidoscope',
-  'rainbowRibbon3d','lineBurst3d','kineticRings','fractalTree','crystalLattice',
-  'vortexRingTunnel','particleBloom','laserBloom'
+  'laserBeam','particleStorm','audioBloom','lightTrails','electricArc','cyberTunnel','blackHole','solarFlare','plasmaStorm','pulsar','prismShards','kaleidoscope','rainbowRibbon3d','lineBurst3d','kineticRings','fractalTree','crystalLattice','vortexRingTunnel','particleBloom','laserBloom'
 ]);
 const MODE_A_TIER = Object.freeze([
-  'neonGrid','neonTunnel','cyberPulse','wireCube','dnaHelix','saturnRings','nebula',
-  'galaxy','wormholes','meteorStormDense','speedTunnel','nitroBoost','ringStack','orbitPulse',
-  'orbCluster','spectrumWaves','rainbowCoil','chromaGrid','caveSpikes','mobiusLoop','geodeBurst',
-  'tesseract','soundTube','kraken','coralReef','tornado','solarSystem','bassImpact','dropEnergy',
-  'neonMatrix','cyberMatrix'
+  'neonGrid','neonTunnel','cyberPulse','wireCube','dnaHelix','saturnRings','nebula','galaxy','wormholes','meteorStormDense','speedTunnel','nitroBoost','ringStack','orbitPulse','orbCluster','spectrumWaves','rainbowCoil','chromaGrid','caveSpikes','mobiusLoop','geodeBurst','tesseract','soundTube','kraken','coralReef','tornado','solarSystem','bassImpact','dropEnergy','neonMatrix','cyberMatrix'
 ]);
-const MODE_LEGACY_TIER = Object.freeze(['bars','wave','polarWaveform','mirrorSpectrum','ledMatrix','rippleRings','spectrumCurve']);
+const MODE_LEGACY_TIER = Object.freeze([
+  'bars','wave','polarWaveform','mirrorSpectrum','ledMatrix','rippleRings','spectrumCurve'
+]);
 const MODE_QUALITY_TIER = Object.freeze(Object.fromEntries(MODES.map(key => [key,
   MODE_S_TIER.includes(key) ? 'S' : MODE_A_TIER.includes(key) ? 'A' : MODE_LEGACY_TIER.includes(key) ? 'Legacy' : 'B'
 ])));
@@ -6377,6 +6374,7 @@ function makeModeQualityBadge(key){
   badge.title=tier==='S' ? 'S Tier — Premium pick' : tier==='A' ? 'A Tier — Polished pick' : tier==='Legacy' ? 'Classic / legacy style' : 'B Tier — standard library';
   return badge;
 }
+/* MODE_QUALITY_DATA:END */
 
 const MODE_CATEGORIES = [
   { name:'★ S Tier — Premium Picks', keys:MODE_S_TIER },
