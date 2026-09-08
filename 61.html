@@ -24766,13 +24766,21 @@ const VJ_TUNNEL_KINDS = Object.freeze([
 /* VJ_TUNNEL_REGISTRY:END */
 /* Machine-readable loop contract for every VJ. The geometry scroll can run forever, while
    recycled elements must return to their original seeded lane instead of changing identity. */
-const VJ_LOOP_META = Object.freeze(Object.fromEntries(VJ_TUNNEL_KINDS.map(kind => [kind, Object.freeze({
-  loopBeats: VJ_PREMIUM_META[kind]?.loopBeats || 16,
-  wrapDistance: VJ_LEN,
-  seamlessStrategy: 'deterministic-depth-wrap',
-  deterministicRecycle: true,
-  qualityTier: VJ_PREMIUM_META[kind] ? 'premium' : 'standard'
-})])));
+/* VJ_LOOP_CONTRACT:START */
+/* Generated from src/vj/loop-contract.js. Do not edit this block by hand. */
+/* Shared machine-readable loop contract for every registered VJ tunnel. */
+function createVjLoopMeta(kinds, premiumMeta, wrapDistance) {
+  return Object.freeze(Object.fromEntries(kinds.map(kind => [kind, Object.freeze({
+    loopBeats: premiumMeta[kind]?.loopBeats || 16,
+    wrapDistance,
+    seamlessStrategy: 'deterministic-depth-wrap',
+    deterministicRecycle: true,
+    qualityTier: premiumMeta[kind] ? 'premium' : 'standard'
+  })])));
+}
+
+const VJ_LOOP_META = createVjLoopMeta(VJ_TUNNEL_KINDS, VJ_PREMIUM_META, VJ_LEN);
+/* VJ_LOOP_CONTRACT:END */
 /* VJ 自己的收藏 —— 45 条隧道之前完全没有这个概念，照 bg3DFavorites 那一套原样建一份。
    跟 🌌 3D 的收藏是两个独立的 Set：隧道和 3D 风格是两个不同的池子，收藏也该分开。 */
 let vjFavorites = new Set();
