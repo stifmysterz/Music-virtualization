@@ -6458,6 +6458,7 @@ function resetBeatDetector(){
   lastBeatAt = -1e9;
   prevBeatEnergy = 0;
   beatPrevNow = null;
+  resetMusicState();
 }
 function detectBeat(now){
   let e = 0;
@@ -6514,6 +6515,57 @@ function computeMidHigh(){
   for(let i=midHi;i<highHi;i++){ highSum+=freq[i]; highN++; }
   lastMid = midN ? (midSum/midN)/255 : 0;
   lastHigh = highN ? (highSum/highN)/255 : 0;
+}
+
+/* ---------- Shared Music State Bus -------------------------------------------------
+   The analyser is sampled once, then every visual system consumes this one coherent frame.
+   Legacy lastBass/lastMid/lastHigh remain compatibility aliases below; new 2D/3D/VJ work should
+   read musicState so BPM phase, envelopes and onset cannot drift between subsystems. */
+const musicState = {
+  bass:0, mid:0, high:0,
+  bassEnvelope:0, midEnvelope:0, highEnvelope:0,
+  energy:0, energyEnvelope:0,
+  beat:0, onset:false, bpm:120, bpmSource:'fallback',
+  beatPhase:0, barPhase:0, phrasePhase:0, dropProbability:0,
+  now:0, deltaMs:16.7, frame:0
+};
+let musicStateBeats=0, musicStatePrevNow=null, musicStatePrevBeat=0;
+function resetMusicState(){
+  musicState.bass=musicState.mid=musicState.high=0;
+  musicState.bassEnvelope=musicState.midEnvelope=musicState.highEnvelope=0;
+  musicState.energy=musicState.energyEnvelope=musicState.beat=musicState.dropProbability=0;
+  musicState.onset=false; musicState.beatPhase=musicState.barPhase=musicState.phrasePhase=0;
+  musicStateBeats=0; musicStatePrevNow=null; musicStatePrevBeat=0;
+}
+function updateMusicState(now, bass, mid, high, beatValue, hasAudio){
+  const t=Number.isFinite(now)?now:performance.now();
+  const deltaMs=musicStatePrevNow==null ? 16.7 : Math.min(100,Math.max(0,t-musicStatePrevNow));
+  musicStatePrevNow=t;
+  const b=hasAudio?Math.max(0,Math.min(1,bass||0)):0;
+  const m=hasAudio?Math.max(0,Math.min(1,mid||0)):0;
+  const h=hasAudio?Math.max(0,Math.min(1,high||0)):0;
+  const bpm=(typeof manualBPM==='number' && manualBPM>0)?manualBPM:120;
+  const onset=hasAudio && beatValue>=0.999 && musicStatePrevBeat<0.999;
+  musicStatePrevBeat=hasAudio?beatValue:0;
+  musicStateBeats += deltaMs*bpm/60000;
+  if(onset) musicStateBeats=Math.round(musicStateBeats);
+  const follow=(current,target,ms)=>current+(target-current)*(1-Math.exp(-deltaMs/ms));
+  musicState.bass=b; musicState.mid=m; musicState.high=h;
+  musicState.bassEnvelope=follow(musicState.bassEnvelope,b,90);
+  musicState.midEnvelope=follow(musicState.midEnvelope,m,135);
+  musicState.highEnvelope=follow(musicState.highEnvelope,h,65);
+  musicState.energy=b*0.45+m*0.35+h*0.20;
+  const previousEnergyEnvelope=musicState.energyEnvelope;
+  musicState.energyEnvelope=follow(previousEnergyEnvelope,musicState.energy,180);
+  musicState.beat=hasAudio?Math.max(0,Math.min(1,beatValue||0)):0;
+  musicState.onset=onset; musicState.bpm=bpm; musicState.bpmSource=manualBPM?'manual':'fallback';
+  musicState.beatPhase=((musicStateBeats%1)+1)%1;
+  musicState.barPhase=((musicStateBeats%4)+4)%4/4;
+  musicState.phrasePhase=((musicStateBeats%16)+16)%16/16;
+  const rise=Math.max(0,musicState.energy-previousEnergyEnvelope);
+  musicState.dropProbability=Math.min(1,rise*2.4+(onset?0.35:0)+musicState.bassEnvelope*0.2);
+  musicState.now=t; musicState.deltaMs=deltaMs; musicState.frame++;
+  return musicState;
 }
 
 /* neon light particles */
@@ -16500,7 +16552,12 @@ function draw(now){
     lastHigh = Math.min(1, lastHigh * reactivityMultiplier);
   }
 
-  renderBg3D(analyser?lastBass:0, analyser?lastMid:0, analyser?lastHigh:0, dt);
+  updateMusicState(now, lastBass, lastMid, lastHigh, beat, !!analyser);
+  /* compatibility aliases: existing effects receive the bus values without changing their
+     draw/update signatures; new effects can consume musicState directly. */
+  lastBass=musicState.bass; lastMid=musicState.mid; lastHigh=musicState.high; beat=musicState.beat;
+
+  renderBg3D(musicState.bass, musicState.mid, musicState.high, dt);
 
   const bg3dDebugEl = bg3dDebugOn ? document.getElementById('bg3dDebug') : null;   // 关掉时连字符串拼接都省了
   if(bg3dDebugEl){
@@ -16510,7 +16567,8 @@ function draw(now){
       zoomLine = '\nzoom='+cam.zoom.toFixed(4)+'  camMotion='+bg3DCameraMotion+'  composer='+!!bg3DScenes[bg3DKind].composer;
     }
     bg3dDebugEl.textContent =
-      'bass='+lastBass.toFixed(3)+'  mid='+lastMid.toFixed(3)+'  high='+lastHigh.toFixed(3)+'  beat='+beat.toFixed(3)+
+      'bass='+musicState.bass.toFixed(3)+'  mid='+musicState.mid.toFixed(3)+'  high='+musicState.high.toFixed(3)+'  beat='+musicState.beat.toFixed(3)+
+      '  bpm='+musicState.bpm.toFixed(1)+'  phase='+musicState.beatPhase.toFixed(3)+
       '\nhasBg3D='+hasBg3D+'  bg3DKind='+bg3DKind+'  scenesOK='+!!(bg3DKind && bg3DScenes[bg3DKind]) + zoomLine;
   }
 
