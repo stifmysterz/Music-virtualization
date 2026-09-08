@@ -13767,7 +13767,7 @@ function buildBg3DVjPrismShards(){
     for(let i=0;i<N;i++){
       const s=sh[i];
       s.z += sp*(0.75 + (i%7)*0.09);
-      if(s.z > VJ_FRONT){ s.z -= VJ_LEN; s.hue = Math.random(); s.a = Math.random()*Math.PI*2; }
+      if(s.z > VJ_FRONT) s.z -= VJ_LEN;   // keep seeded orbit/hue: recycling must not pop at the seam
       s.rot += s.spin*dt*(1+mid*2);
       const rr = s.r*(1 + 0.16*Math.sin(s.z*0.05 + clock*1.6)*(0.5+mid));
       v.set(Math.cos(s.a)*rr, Math.sin(s.a)*rr, s.z);
@@ -13909,7 +13909,7 @@ function buildBg3DVjStarLane(){
     for(let i=0;i<N;i++){
       const s=st[i];
       s.z += sp*s.v;
-      if(s.z > VJ_FRONT){ s.z -= VJ_LEN; s.hue = Math.random(); s.a = Math.random()*Math.PI*2; }
+      if(s.z > VJ_FRONT) s.z -= VJ_LEN;
       const tail = (6 + bass*30 + mid*8) * s.v;   // 越猛拖得越长 —— 速度感全在这，短了就成一地碎点
       const spin = clock*0.25*(1+mid);
       const x=Math.cos(s.a+spin)*s.r, y=Math.sin(s.a+spin)*s.r;
@@ -14621,7 +14621,7 @@ function buildBg3DVjVoidNebula(){
     const sp = vjSpeed(bass, dt)*0.75;   // 虚空是慢的
     for(let i=0;i<PUFFS;i++){
       const o = p[i];
-      o.z += sp; if(o.z > VJ_FRONT){ o.z -= VJ_LEN; o.a = Math.random()*Math.PI*2; }
+      o.z += sp; if(o.z > VJ_FRONT) o.z -= VJ_LEN;
       o.a += o.spin*dt*(1+mid);
       const s = o.s*(1 + bass*0.28 + Math.sin(clock*0.7 + i)*0.1);
       vjPut(puffs, i, Math.cos(o.a)*o.r, Math.sin(o.a)*o.r, o.z, 0, 0, 0, s, s*0.85, s);
@@ -14630,7 +14630,7 @@ function buildBg3DVjVoidNebula(){
     }
     for(let i=0;i<CORES;i++){
       const o = c[i];
-      o.z += sp*1.1; if(o.z > VJ_FRONT){ o.z -= VJ_LEN; o.hue = Math.random(); }
+      o.z += sp*1.1; if(o.z > VJ_FRONT) o.z -= VJ_LEN;
       const tw = 0.55 + 0.45*Math.sin(clock*2.4 + o.ph);   // 星核在闪
       const s = o.s*(1 + bass*0.6)*(0.6 + tw*0.8);
       vjPut(cores, i, Math.cos(o.a)*o.r, Math.sin(o.a)*o.r, o.z, 0, 0, 0, s, s, s);
@@ -14683,7 +14683,7 @@ function buildBg3DVjEventHorizon(){
     const sp = vjSpeed(bass, dt);
     for(let i=0;i<N;i++){
       const o = d[i];
-      o.z += sp; if(o.z > VJ_FRONT){ o.z -= VJ_LEN; o.r = 5+Math.pow(Math.random(),0.55)*26; }
+      o.z += sp; if(o.z > VJ_FRONT) o.z -= VJ_LEN;
 
       // 越靠内转得越快 —— 开普勒式的剪切，盘会被拉出旋臂
       o.a += (0.028/Math.max(2, o.r*0.16)) * dt * (1 + mid*2.2) * o.sp;
@@ -15148,7 +15148,7 @@ function buildBg3DVjCoasterRush(){
     const sp = vjSpeed(bass, dt)*1.3;
     for(let i=0;i<FAIR;i++){
       const o = f[i];
-      o.z += sp; if(o.z > VJ_FRONT){ o.z -= VJ_LEN; o.hue = Math.random(); }
+      o.z += sp; if(o.z > VJ_FRONT) o.z -= VJ_LEN;
       const tw = 0.4 + 0.6*Math.sin(clock*3.4 + o.ph);
       const s = o.s*(0.6 + tw*0.9)*(1 + bass*0.4);
       vjPut(fair, i, Math.cos(o.a)*o.r, Math.sin(o.a)*o.r*0.7 - 2, o.z, 0, 0, 0, s, s, s);
@@ -15354,7 +15354,7 @@ function buildBg3DVjChromeBubbles(){
     for(let i=0;i<N;i++){
       const b = bub[i];
       b.z += step;
-      if(b.z > VJ_FRONT){ b.z -= VJ_LEN; b.x = (Math.random()-0.5)*46; b.y = (Math.random()-0.5)*32; }
+      if(b.z > VJ_FRONT) b.z -= VJ_LEN;
       const wob = Math.sin(clock*1.5 + b.ph)*0.9;
       const r = b.r*(1 + bass*0.3 + Math.sin(clock*2.2 + b.ph)*0.08);
       vjPut(mesh, i, b.x + wob, b.y + Math.cos(clock*1.1 + b.ph)*0.7, b.z, 0, 0, 0, r, r, r);
@@ -15423,7 +15423,7 @@ function buildBg3DVjLiquidSpine(){
     for(let i=0;i<CHIP;i++){
       const c = ch[i];
       c.z += step; c.a += c.sp*dt*0.01;
-      if(c.z > VJ_FRONT){ c.z -= VJ_LEN; c.r = 6+Math.random()*22; }
+      if(c.z > VJ_FRONT) c.z -= VJ_LEN;
       const sc = c.s*(1 + bass*0.35);
       vjPut(chip, i, Math.cos(c.a)*c.r, Math.sin(c.a)*c.r*0.8, c.z, c.a, c.a*0.6, 0, sc, sc, sc);
       VJ_C.setHSL((0.55 + c.hue*0.16)%1, 0.9, 0.15 + mid*0.16 + high*0.1);
@@ -15468,7 +15468,7 @@ function buildBg3DVjAsteroidSlalom(){
     for(let i=0;i<ROCKS;i++){
       const r = rk[i];
       r.z += step; r.rx += r.sx*dt*3; r.ry += r.sy*dt*3;
-      if(r.z > VJ_FRONT){ r.z -= VJ_LEN; r.x = (Math.random()-0.5)*44; r.y = (Math.random()-0.4)*26; }
+      if(r.z > VJ_FRONT) r.z -= VJ_LEN;
       const s = r.s*(1 + bass*0.22);
       vjPut(rock, i, r.x, r.y, r.z, r.rx, r.ry, 0, s, s*0.85, s);
       // 岩体压暗 + 一侧染色，读起来是被赛道的光照到的
@@ -15525,11 +15525,7 @@ function buildBg3DVjWarpJump(){
     for(let i=0;i<N;i++){
       const s = st[i];
       s.z += step;
-      if(s.z > VJ_FRONT){
-        s.z -= VJ_LEN;
-        const a = Math.random()*Math.PI*2, rr = 2 + Math.pow(Math.random(), 0.6)*30;
-        s.x = Math.cos(a)*rr; s.y = Math.sin(a)*rr*0.8;
-      }
+      if(s.z > VJ_FRONT) s.z -= VJ_LEN;
       const len = 0.8 + warp*46 + bass*3;
       vjPut(mesh, i, s.x, s.y, s.z, 0, 0, 0, 1 + warp*0.7, 1 + warp*0.7, len);
       VJ_C.setHSL((0.55 + s.hue*0.28 + warp*0.12)%1, 1, 0.24 + warp*0.3 + high*0.14);
@@ -15595,7 +15591,7 @@ function buildBg3DVjRingWorldRun(){
     for(let i=0;i<DEB;i++){
       const d = dd[i];
       d.z += step; d.r += dt*0.03;
-      if(d.z > VJ_FRONT){ d.z -= VJ_LEN; d.x = (Math.random()-0.5)*60; d.y = (Math.random()-0.25)*40; }
+      if(d.z > VJ_FRONT) d.z -= VJ_LEN;
       const s = d.s*(1 + bass*0.3);
       vjPut(deb, i, d.x, d.y, d.z, d.r, d.r*0.7, 0, s, s, s);
       VJ_C.setHSL((0.1 + d.hue*0.5)%1, 0.92, 0.16 + mid*0.16);
@@ -15715,7 +15711,7 @@ function buildBg3DVjSolarFlare(){
     for(let i=0;i<ARCS;i++){
       const a = av[i];
       a.z += step;
-      if(a.z > VJ_FRONT){ a.z -= VJ_LEN; a.x = (Math.random()-0.5)*44; }
+      if(a.z > VJ_FRONT) a.z -= VJ_LEN;
       for(let j=0;j<APER;j++){
         const idx = i*APER + j, t = j/(APER-1), ang = Math.PI*t;
         const r = (0.55 + Math.sin(t*Math.PI)*1.5)*(1 + bass*0.4);
@@ -15859,7 +15855,7 @@ function buildBg3DVjShatteredPanes(){
     for(let i=0;i<N;i++){
       const s = sh[i];
       s.z += step; s.ry += s.sp*dt*2;
-      if(s.z > VJ_FRONT){ s.z -= VJ_LEN; s.x = (Math.random()-0.5)*50; s.y = (Math.random()-0.5)*34; }
+      if(s.z > VJ_FRONT) s.z -= VJ_LEN;
       // 一片玻璃只在转到某个角度时反光，所以用 ry 直接决定它闪不闪
       const flash = Math.pow(Math.abs(Math.cos(s.ry*1.5 + clock*0.8)), 12);
       vjPut(mesh, i, s.x, s.y, s.z, s.rx, s.ry, s.rz, s.w*(1+bass*0.2), s.h*(1+bass*0.2), 1);
@@ -15915,7 +15911,7 @@ function buildBg3DVjDustShaft(){
     for(let i=0;i<DUST;i++){
       const d = du[i];
       d.z += step;
-      if(d.z > VJ_FRONT){ d.z -= VJ_LEN; d.x = (Math.random()-0.5)*40; d.y = (Math.random()-0.5)*24; }
+      if(d.z > VJ_FRONT) d.z -= VJ_LEN;
       const y = d.y + Math.sin(clock*0.6 + d.ph)*2.2;
       const s = 1 + mid*1.6;
       vjPut(dust, i, d.x, y, d.z, 0, 0, 0, s, s, s);
@@ -24618,6 +24614,15 @@ buildBg3DMenu();
 const VJ_TUNNEL_KINDS = ["vjLiquidGrid","vjHexPulse","vjNeonRibbon","vjPrismShards","vjWaveCorridor","vjPlasmaRings","vjStarLane","vjKaleido","vjChromeTube","vjCubeMatrix",
   "vjChromeFlow","vjMetalTwist","vjGridMorph","vjFractalWell","vjCyborgCorridor","vjRaceTrack","vjSpeedGates","vjHoverCity","vjTentacleTunnel","vjBioMembrane","vjVoidNebula","vjEventHorizon","vjCandyOrbs","vjDataBloom","vjNeonTubeRoom","vjNeonArches","vjHorizonVoyage","vjLightWell","vjHyperCube","vjCoasterRush",
   "vjChromeDrips","vjMercuryPool","vjFoilCrumple","vjChromeBubbles","vjLiquidSpine","vjAsteroidSlalom","vjWarpJump","vjRingWorldRun","vjIonTrail","vjSolarFlare","vjDerelictHall","vjRustPipes","vjShatteredPanes","vjDustShaft","vjCollapsedGrid"];
+/* Machine-readable loop contract for every VJ. The geometry scroll can run forever, while
+   recycled elements must return to their original seeded lane instead of changing identity. */
+const VJ_LOOP_META = Object.freeze(Object.fromEntries(VJ_TUNNEL_KINDS.map(kind => [kind, Object.freeze({
+  loopBeats: VJ_PREMIUM_META[kind]?.loopBeats || 16,
+  wrapDistance: VJ_LEN,
+  seamlessStrategy: 'deterministic-depth-wrap',
+  deterministicRecycle: true,
+  qualityTier: VJ_PREMIUM_META[kind] ? 'premium' : 'standard'
+})])));
 /* VJ 自己的收藏 —— 45 条隧道之前完全没有这个概念，照 bg3DFavorites 那一套原样建一份。
    跟 🌌 3D 的收藏是两个独立的 Set：隧道和 3D 风格是两个不同的池子，收藏也该分开。 */
 let vjFavorites = new Set();
