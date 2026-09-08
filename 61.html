@@ -187,6 +187,24 @@
     opacity:0;transition:opacity .25s;
   }
   #gestureHud.show{opacity:1}
+  /* Recording feedback is UI-only. The export compositor explicitly draws Background/3D/canvas
+     layers, so this HUD stays visible to the operator without being burned into the video. */
+  #recordingHud{
+    position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:99998;
+    display:none;align-items:center;gap:9px;min-width:260px;padding:8px 11px;
+    border:1px solid rgba(255,72,88,.72);border-radius:10px;
+    background:rgba(20,4,8,.9);box-shadow:0 8px 26px rgba(0,0,0,.38),0 0 18px rgba(255,52,74,.16);
+    color:#fff;font:700 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;
+    letter-spacing:.08em;pointer-events:none;font-variant-numeric:tabular-nums;
+  }
+  #recordingHud.show{display:flex}
+  .recording-dot{width:9px;height:9px;border-radius:50%;background:#ff344a;box-shadow:0 0 9px #ff344a;animation:recordDot 1s ease-in-out infinite}
+  #recordingElapsed{min-width:43px;text-align:right;color:#ffb7bf}
+  .recording-track{position:relative;flex:1;height:4px;overflow:hidden;border-radius:999px;background:rgba(255,255,255,.14)}
+  .recording-sweep{position:absolute;top:0;bottom:0;left:-42%;width:42%;border-radius:inherit;background:linear-gradient(90deg,transparent,#ff344a 60%,#fff)}
+  #recordingHud.show .recording-sweep{animation:recordSweep 1.35s linear infinite}
+  @keyframes recordDot{0%,100%{opacity:.42;transform:scale(.82)}50%{opacity:1;transform:scale(1)}}
+  @keyframes recordSweep{to{left:100%}}
   .dock-dd-val{font-size:11px;color:var(--ink-dim);flex:0 0 46px;text-align:right;font-variant-numeric:tabular-nums}
   .dock input[type=text]{
     appearance:none;border:1px solid var(--line);background:transparent;color:#fff;
@@ -644,6 +662,13 @@
   <div id="fpsHudNum" style="font-size:19px;letter-spacing:.02em">– –</div>
   <div id="fpsHudRes" style="font-size:11px;opacity:.65;font-weight:400"></div>
   <div id="fpsHudTip" style="font-size:11px;font-weight:400;margin-top:3px;max-width:190px;white-space:normal;display:none"></div>
+</div>
+
+<div id="recordingHud" role="status" aria-live="polite" aria-label="Recording in progress">
+  <span class="recording-dot"></span>
+  <span id="recordingHudLabel">REC</span>
+  <span id="recordingElapsed">00:00</span>
+  <span class="recording-track" aria-hidden="true"><span class="recording-sweep"></span></span>
 </div>
 
 <header>
@@ -6263,7 +6288,7 @@ const T2 = {
       shuffleOff:'🔀 Auto-Shuffle: Off',shuffleOn:'🔀 Auto-Shuffle: On',
       blackout:'⬛ Blackout (B)',blackoutRestore:'⬛ Restore (B)',
       free:'▭ Free Shape',portrait:'📱 Portrait',square:'⬛ Square',landscape:'🖥 Landscape',
-      sound:'🔊 Sound',muted:'🔇 Muted',record:'⏺ Record',stop:'⏹ Stop',
+      sound:'🔊 Sound',muted:'🔇 Muted',record:'⏺ Record',stop:'⏹ Stop',recordingNow:'REC',recordingAria:'Recording in progress',
       uiNormal:'🔍 Interface: Normal',uiLarge:'🔍 Interface: Large',uiXl:'🔍 Interface: Extra Large',
       dockBlack:'🌗 Dock: Black',dockWhite:'🌗 Dock: White',
       animateOn:'Animate: On',animateOff:'Animate: Off',
@@ -6301,7 +6326,7 @@ const T2 = {
       shuffleOff:'🔀 自动轮换：关',shuffleOn:'🔀 自动轮换：开',
       blackout:'⬛ 黑屏 (B)',blackoutRestore:'⬛ 恢复 (B)',
       free:'▭ 自由比例',portrait:'📱 竖屏',square:'⬛ 方形',landscape:'🖥 横屏',
-      sound:'🔊 声音',muted:'🔇 已静音',record:'⏺ 录制',stop:'⏹ 停止',
+      sound:'🔊 声音',muted:'🔇 已静音',record:'⏺ 录制',stop:'⏹ 停止',recordingNow:'录制中',recordingAria:'正在录制',
       uiNormal:'🔍 界面：正常',uiLarge:'🔍 界面：大',uiXl:'🔍 界面：特大',
       dockBlack:'🌗 控制栏：黑',dockWhite:'🌗 控制栏：白',
       animateOn:'动画：开',animateOff:'动画：关',
@@ -6412,6 +6437,7 @@ function refreshStatefulLabels(){
 function applyLanguage(lang){
   currentLang = lang;
   try{ localStorage.setItem('subremix_lang', lang); }catch(e){}
+  if(typeof syncRecordingHudLanguage==='function') syncRecordingHudLanguage();
   applyBounceStyleNames();
   applyShuffleOptionNames();
   buildBg3DMenu();   // rebuilds category headers + item labels, including the id-less Favourites-section duplicates the generic per-id sweep below can't reach
@@ -24090,6 +24116,44 @@ document.getElementById('fullscreenBtn').onclick = ()=>{
 
 /* ---------- record screen + audio to a downloadable video file ---------- */
 let mediaRecorder = null, recordedChunks = [], streamDest = null, isRecording = false;
+let recordingStartedAt = 0, recordingHudTimer = null;
+function formatRecordingElapsed(ms){
+  const total = Math.max(0, Math.floor(ms/1000));
+  const hours = Math.floor(total/3600);
+  const minutes = Math.floor((total%3600)/60);
+  const seconds = total%60;
+  const mmss = String(minutes).padStart(2,'0') + ':' + String(seconds).padStart(2,'0');
+  return hours ? String(hours).padStart(2,'0') + ':' + mmss : mmss;
+}
+function syncRecordingHudLanguage(){
+  const hud = document.getElementById('recordingHud');
+  const label = document.getElementById('recordingHudLabel');
+  if(label) label.textContent = t2('recordingNow');
+  if(hud) hud.setAttribute('aria-label', t2('recordingAria'));
+}
+function updateRecordingElapsed(){
+  const elapsed = document.getElementById('recordingElapsed');
+  if(elapsed) elapsed.textContent = formatRecordingElapsed(performance.now()-recordingStartedAt);
+}
+function setRecordingUi(on){
+  const starting = !!on && !isRecording;
+  isRecording = !!on;
+  const hud = document.getElementById('recordingHud');
+  if(hud) hud.classList.toggle('show', isRecording);
+  if(starting){
+    recordingStartedAt = performance.now();
+    updateRecordingElapsed();
+    if(recordingHudTimer) clearInterval(recordingHudTimer);
+    recordingHudTimer = setInterval(updateRecordingElapsed, 250);
+  }else if(!isRecording){
+    if(recordingHudTimer){ clearInterval(recordingHudTimer); recordingHudTimer = null; }
+    const elapsed = document.getElementById('recordingElapsed');
+    if(elapsed) elapsed.textContent = '00:00';
+  }
+  syncRecordingHudLanguage();
+  const btn = document.getElementById('recordBtn');
+  if(btn){ btn.textContent = STATEFUL_LABELS.recordBtn(); btn.classList.toggle('active', isRecording); }
+}
 
 /* Every one of these effects lazily computes its particle/bar/star layout ONCE (on first use) and
    caches it — sized for whatever W/H was current at that moment. If we force the canvas to 4K for
@@ -24143,7 +24207,7 @@ function ensureStreamDest(){
 }
 async function startRecording(){
   ensureStreamDest();
-  if(!cv.captureStream){ console.error('captureStream not supported in this browser'); return; }
+  if(!cv.captureStream){ console.error('captureStream not supported in this browser'); return false; }
   enterRecordingResolution();   // force the canvas buffer to 4K just for the recording — see comment above
   const canvasStream = composeCaptureFrame().captureStream(60);
   const audioTracks = streamDest ? streamDest.stream.getAudioTracks() : [];
@@ -24171,7 +24235,7 @@ async function startRecording(){
     // picture matters (4K), audio doesn't — it gets replaced with a lossless track later —
     // so video bitrate is generous and audio bitrate is kept low
     mediaRecorder = new MediaRecorder(combined, {mimeType, videoBitsPerSecond:30_000_000, audioBitsPerSecond:320_000});
-  }catch(e){ console.error('recorder init failed:', e); exitRecordingResolution(); return; }
+  }catch(e){ console.error('recorder init failed:', e); exitRecordingResolution(); return false; }
   mediaRecorder.ondataavailable = async e=>{
     if(!e.data || e.data.size===0) return;
     if(usingFileSystemWrite && fileWritable){
@@ -24182,6 +24246,7 @@ async function startRecording(){
     }
   };
   mediaRecorder.onstop = async ()=>{
+    setRecordingUi(false);
     exitRecordingResolution();   // back to the normal on-screen resolution now that capture is done
     if(usingFileSystemWrite && fileWritable){
       try{ await fileWritable.close(); } catch(e){ console.error('file close failed:', e); }
@@ -24195,7 +24260,19 @@ async function startRecording(){
       setTimeout(()=>URL.revokeObjectURL(url), 4000);
     }
   };
-  mediaRecorder.start(1000);   // flush a chunk every second so memory never builds up
+  mediaRecorder.onerror = e=>{
+    console.error('recording failed:', e.error || e);
+    setRecordingUi(false);
+    exitRecordingResolution();
+  };
+  try{
+    mediaRecorder.start(1000);   // flush a chunk every second so memory never builds up
+    return mediaRecorder.state === 'recording';
+  }catch(e){
+    console.error('recorder start failed:', e);
+    exitRecordingResolution();
+    return false;
+  }
 }
 function stopRecording(){
   if(mediaRecorder && mediaRecorder.state!=='inactive') mediaRecorder.stop();
@@ -24204,15 +24281,11 @@ const recordBtn = document.getElementById('recordBtn');
 recordBtn.onclick = async ()=>{
   ensureCtx(); await ctx.resume();
   if(!isRecording){
-    await startRecording();
-    isRecording = true;
-    recordBtn.textContent = STATEFUL_LABELS.recordBtn();
-    recordBtn.classList.add('active');
+    const started = await startRecording();
+    if(started) setRecordingUi(true);
   }else{
     stopRecording();
-    isRecording = false;
-    recordBtn.textContent = STATEFUL_LABELS.recordBtn();
-    recordBtn.classList.remove('active');
+    setRecordingUi(false);
   }
 };
 
