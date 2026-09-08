@@ -157,7 +157,7 @@ test('侧栏菜单开着时，dock 整条都还点得到 —— 不能有按钮�
      * 菜单一开，dock 右端那 300px 里的按钮就全被盖住点不到。
      * 改之前是 💾 Looks / ⏱ Timing / ⚙ Tools 三个，换行之后变成 🌀 VJ / 💾 Looks，
      * 也就是说这个坑一直在，只是每次被埋的按钮不一样。 */
-    const RIGHT_EDGE_BTNS = ['bg3DMenuBtn', 'vjMenuBtn', 'looksMenuBtn', 'timingBtn', 'moreMenuBtn'];
+    const RIGHT_EDGE_BTNS = ['bg3DMenuBtn', 'vjMenuBtn', 'timingBtn', 'moreMenuBtn'];
 
     for (const w of [1600, 1176]) {
       await resize(w);

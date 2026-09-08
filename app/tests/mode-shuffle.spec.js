@@ -124,14 +124,23 @@ test('轮换整套 Look 的入口仍然驱动同一份状态', async () => {
   });
 });
 
-test('Looks 菜单里 Next Look 的说明不再指向已经搬走的控件', async () => {
+test('Tools 菜单里 Next Look 的说明不再指向已经搬走的控件', async () => {
   await withApp('modeshuf-5', async (win) => {
     const res = await win.evaluate(() => {
       const btn = document.getElementById('nextLookBtn');
-      return { inMenu: btn.closest('.dock-dd').id, title: btn.title };
+      return {
+        inMenu: btn.closest('.dock-dd').id,
+        title: btn.title,
+        looksButtonGone: !document.getElementById('looksMenuBtn'),
+        looksMenuGone: !document.getElementById('looksMenu'),
+        toolsChildren: ['presetsBtn','randomBtn','nextLookBtn'].every(id => document.getElementById(id)?.closest('.dock-dd')?.id === 'moreMenu')
+      };
     });
 
-    expect(res.inMenu).toBe('looksMenu');
+    expect(res.inMenu).toBe('moreMenu');
+    expect(res.looksButtonGone).toBe(true);
+    expect(res.looksMenuGone).toBe(true);
+    expect(res.toolsChildren).toBe(true);
     // 原来写的是「using whatever Auto-Shuffle source is set below」——
     // 那几个控件已经搬到 Mode 菜单了，"below" 会把人指到空处
     expect(res.title.toLowerCase()).not.toContain('below');

@@ -136,9 +136,9 @@ test('手动的那几个入口也一样：🎲 Random、⏭ Next Look、快捷�
       };
 
       return [
-        // Looks 菜单里的 🎲 —— 人就站在这个菜单里点的，留着才能连点几次重掷
-        await check('looks-random', 'looksMenuBtn', 'looksMenu', () => $('randomBtn').click()),
-        await check('next-look',    'looksMenuBtn', 'looksMenu', () => $('nextLookBtn').click()),
+        // Tools 菜单里的 Looks 区 —— 人就站在这里点，留着才能连续重掷/切换
+        await check('looks-random', 'moreMenuBtn', 'moreMenu', () => $('randomBtn').click()),
+        await check('next-look',    'moreMenuBtn', 'moreMenu', () => $('nextLookBtn').click()),
         // 快捷键 / MIDI 的 Random Shuffle：手根本不在选单上
         await check('midi-random',  'bg3DMenuBtn',  'bg3DMenu',
           () => MIDI_ACTIONS.find(a => a.key === 'randomShuffle').fn())

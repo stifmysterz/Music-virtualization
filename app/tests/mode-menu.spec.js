@@ -258,9 +258,9 @@ test('其他 dock 菜单仍然是右侧全高侧栏，没被这次改动波及',
   await withApp('modemenu-9', async (win) => {
     const res = await win.evaluate(() => {
       const out = {};
-      ['bgMenuBtn', 'looksMenuBtn', 'moreMenuBtn'].forEach(id => {
+      ['bgMenuBtn', 'moreMenuBtn'].forEach(id => {
         document.getElementById(id).click();
-        const menuId = { bgMenuBtn: 'bgMenu', looksMenuBtn: 'looksMenu', moreMenuBtn: 'moreMenu' }[id];
+        const menuId = { bgMenuBtn: 'bgMenu', moreMenuBtn: 'moreMenu' }[id];
         const r = document.getElementById(menuId).getBoundingClientRect();
         out[menuId] = { h: r.height, right: r.right };
       });

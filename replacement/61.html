@@ -124,8 +124,6 @@
   .dock .grp-sound:hover{border-color:#5ea8ff;color:#5ea8ff}
   .dock .grp-bg{border-color:rgba(255,179,71,.55)}
   .dock .grp-bg:hover{border-color:#ffb347;color:#ffb347}
-  .dock .grp-looks{border-color:rgba(255,94,168,.55)}
-  .dock .grp-looks:hover{border-color:#ff5ea8;color:#ff5ea8}
   .dock .grp-timing{border-color:rgba(255,234,94,.55)}
   .dock .grp-timing:hover{border-color:#ffea5e;color:#ffea5e}
   .dock .grp-live{border-color:rgba(255,80,80,.55)}
@@ -596,7 +594,7 @@
     .mode-sheet-head{flex:0 0 auto}
     .mode-grid{grid-template-columns:1fr; flex:1 1 auto; overflow-y:auto; padding-right:4px; align-content:start}
 
-    /* dock dropdowns (Logo/Sound/Background/3D/Looks/Tools) get the same right-sidebar treatment as the mode panel */
+    /* dock dropdowns (Logo/Sound/Background/3D/Tools) get the same right-sidebar treatment as the mode panel */
     .dock-dd{
       top:0; right:0; bottom:0; left:auto;
       width:300px; max-width:300px; height:100%; max-height:none;
@@ -604,8 +602,7 @@
       padding:16px;
     }
     /* 侧栏是整屏高的，z-index 25 盖在 dock（10）上面 —— 于是菜单一开，dock 右端
-       那 300px 里的按钮就全点不到了（1176px 宽的窗口上是 💾 Looks / ⏱ Timing /
-       ⚙ Tools 三个）。菜单开着的时候把 dock 让到侧栏左边去。
+       那 300px 里的按钮就全点不到了。菜单开着的时候把 dock 让到侧栏左边去。
        #modeMenu 除外：它在桌面上是从按钮正上方弹出的 drop-up，不是侧栏，
        跟着挪反而会把它锚着的那个按钮挪走。
        条件跟 PANEL_SAFE_ZONE 那句用的是同一组选择器，两边要一起改。 */
@@ -712,7 +709,6 @@
   <button id="bg3DMenuBtn" class="grp-bg" title="Audio-reactive 3D background — separate from photo/video background and from modes">🌌 3D</button>
   <button id="vjMenuBtn" class="grp-bg" title="VJ loop tunnels — seamless fly-through visuals, rushing from the back of the screen straight past the camera">🌀 VJ</button>
   <div class="sep"></div>
-  <button id="looksMenuBtn" class="grp-looks" title="Save/load looks, or randomise">💾 Looks</button>
   <button id="timingBtn" class="grp-timing" title="BPM and scheduled mode changes">⏱ Timing</button>
   <button id="moreMenuBtn" class="grp-tools" title="Fullscreen, recording, sound, and tools">⚙ Tools</button>
 </div>
@@ -975,12 +971,6 @@
 </div>
 
 
-<div id="looksMenu" class="dock-dd">
-  <button id="presetsBtn" class="dock-dd-item" title="Save or load a look">💾 Presets</button>
-  <button id="randomBtn" class="dock-dd-item" title="Random mode combo">🎲 Random</button>
-  <button id="nextLookBtn" class="dock-dd-item" title="Manually trigger one change, using whatever Auto-Shuffle source is set in the Mode menu">⏭ Next Look</button>
-</div>
-
 <div id="moreMenu" class="dock-dd">
   <div class="tools-section-header" style="color:#0d2b6b;font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin:4px 4px 0">Interface</div>
   <button id="langBtn" class="dock-dd-item" title="Switch interface language">🌐 中文</button>
@@ -988,6 +978,10 @@
   <button id="uiScaleBtn" class="dock-dd-item" title="Interface text size — handy for readability">🔍 Interface: Normal</button>
   <div class="tools-section-header" style="color:#0d2b6b;font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin:8px 4px 0">Edit</div>
   <button id="redoBtn" class="dock-dd-item" title="Redo (Ctrl+Shift+Z)">↷ Redo</button>
+  <div class="tools-section-header" style="color:#0d2b6b;font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin:8px 4px 0">Looks</div>
+  <button id="presetsBtn" class="dock-dd-item" title="Save or load a look">💾 Presets</button>
+  <button id="randomBtn" class="dock-dd-item" title="Random mode combo">🎲 Random</button>
+  <button id="nextLookBtn" class="dock-dd-item" title="Manually trigger one change, using whatever Auto-Shuffle source is set in the Mode menu">⏭ Next Look</button>
   <div class="tools-section-header" style="color:#0d2b6b;font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin:8px 4px 0">Output</div>
   <button id="aspectBtn" class="dock-dd-item" title="Shape the canvas for portrait/square social video">▭ Free Shape</button>
   <button id="snapshotBtn" class="dock-dd-item" title="Save the current frame as a PNG">📷 Snapshot</button>
@@ -5484,7 +5478,6 @@ const UI_STRINGS = {
     logoMenuBtn:"🖼 Logo",
     soundMenuBtn:"🎵 Sound",
     bgMenuBtn:"🌄 Background",
-    looksMenuBtn:"💾 Looks",
     timingBtn:"⏱ Timing",
     moreMenuBtn:"⚙ Tools",
     bgAdjustBtn:"🎯 Position BG",
@@ -5772,7 +5765,6 @@ const UI_STRINGS = {
     logoMenuBtn:"🖼 Logo",
     soundMenuBtn:"🎵 声音",
     bgMenuBtn:"🌄 背景",
-    looksMenuBtn:"💾 效果组合",
     timingBtn:"⏱ 节奏",
     moreMenuBtn:"⚙ 工具",
     bgAdjustBtn:"🎯 调整背景位置",
@@ -24230,7 +24222,6 @@ setupDockDropdown('logoMenuBtn', 'logoMenu');
 setupDockDropdown('soundMenuBtn', 'soundMenu');
 setupDockDropdown('bgMenuBtn', 'bgMenu');
 setupDockDropdown('bg3DMenuBtn', 'bg3DMenu');
-setupDockDropdown('looksMenuBtn', 'looksMenu');
 setupDockDropdown('moreMenuBtn', 'moreMenu');
 
 const helpPanel = document.getElementById('helpPanel');
@@ -25235,7 +25226,7 @@ SUDDEN_CHANGE_SUBSCRIBERS.push(
    of them need to change behavior, just get labeled correctly for assistive tech ---------- */
 document.querySelectorAll('.dock-dd').forEach(el=> el.setAttribute('role','menu'));
 document.querySelectorAll('.dock-dd-item').forEach(el=> el.setAttribute('role','menuitem'));
-['logoMenuBtn','soundMenuBtn','bgMenuBtn','bg3DMenuBtn','vjMenuBtn','nowPlayingBtn','looksMenuBtn','moreMenuBtn','modeBtn','textStyleBtn','timingBtn'].forEach(id=>{
+['logoMenuBtn','soundMenuBtn','bgMenuBtn','bg3DMenuBtn','vjMenuBtn','nowPlayingBtn','moreMenuBtn','modeBtn','textStyleBtn','timingBtn'].forEach(id=>{
   const btn = document.getElementById(id);
   if(btn) btn.setAttribute('aria-haspopup','true');
 });
