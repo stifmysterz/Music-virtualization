@@ -19,10 +19,12 @@
     "sync:scene-cache": "node scripts/sync-scene-cache.js --write",
     "verify:vj-registry": "node scripts/sync-vj-registry.js",
     "sync:vj-registry": "node scripts/sync-vj-registry.js --write",
+    "verify:bg3d-catalog": "node scripts/sync-bg3d-catalog.js",
+    "sync:bg3d-catalog": "node scripts/sync-bg3d-catalog.js --write",
     "verify:release": "node scripts/release-integrity.js verify",
     "release:manifest": "node scripts/release-integrity.js generate",
     "release": "node scripts/release.js",
-    "predist": "npm run verify:version && npm run verify:mode-quality && npm run verify:music-state && npm run verify:scene-cache && npm run verify:vj-registry && npm run verify:replacement",
+    "predist": "npm run verify:version && npm run verify:mode-quality && npm run verify:music-state && npm run verify:scene-cache && npm run verify:vj-registry && npm run verify:bg3d-catalog && npm run verify:replacement",
     "dist": "electron-builder --win",
     "postinstall": "patch-package",
     "icon": "node scripts/build-icon.js"

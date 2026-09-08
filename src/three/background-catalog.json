@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "categories": [
+    { "cat": "bg3DCatParticles", "kinds": ["particles", "particleStorm", "particleWaves", "particleRings", "particleRain", "particleVortex", "particleStardust", "particlePulseOrb", "particleWaterfall"] },
+    { "cat": "bg3DCatGalaxy", "kinds": ["galaxy", "galaxyMerge", "rainbowNebula", "cosmicRings", "galaxySpiral", "rainbowWormhole", "frequencyGalaxy"] },
+    { "cat": "bg3DCatTunnels", "kinds": ["tunnel", "colorTunnel", "neonSpiralTunnel", "beatTunnel"] },
+    { "cat": "bg3DCatNeon", "kinds": ["synthwave", "hologramPortal"] },
+    { "cat": "bg3DCatGeometric", "kinds": ["prism", "helix"] },
+    { "cat": "bg3DCatArchitecture", "kinds": ["festival"], "chapters": [["bg3DChapterTimeTravelBtn", "timeTravel"], ["bg3DChapterMalaysiaBtn", "malaysia"], ["bg3DChapterFutureCityBtn", "futureCity"]] },
+    { "cat": "bg3DCatCelebration", "kinds": ["fireworkSky", "aurora"] },
+    { "cat": "bg3DCatNature", "kinds": ["fireflyForest", "cherryBlossom", "glacierAurora", "dandelionSeeds", "duneRipple", "rainforestVines"] },
+    { "cat": "bg3DCatOcean", "kinds": ["coralReef", "jellyfishSwarm", "bioluminescentDeep", "tideRippleGrid", "oceanVortex"] },
+    { "cat": "bg3DCatWeather", "kinds": ["lightningStorm", "snowfallDrift", "sandstorm", "foggyMoonlight", "rainbowRain"] },
+    { "cat": "bg3DCatRetro", "kinds": ["vhsCube", "vaporwaveSunset", "hologramCity", "matrixDataRain", "warpSpeedStreaks", "pixelGlitchField", "hyperspaceRush"] },
+    { "cat": "bg3DCatCosmos", "kinds": ["blackHoleAccretion", "supernovaBurst", "meteorShower", "cometTrail", "pulsarBeacon"] },
+    { "cat": "bg3DCatAbstract", "kinds": ["kaleidoscope", "fractalTree", "voronoiShatter", "waveformRings", "mobiusRibbon", "liquidMetalWave", "waveformTerrain", "particleDNAHelix"] },
+    { "cat": "bg3DCatZen", "kinds": ["zenRipplePond", "floatingOrbs", "breathingHalo", "stardustDrift", "horizonGlow"] },
+    { "cat": "bg3DCatAdrenaline", "kinds": ["heartbeatPulse", "redAlertScan", "highVoltageGrid", "chaseLightTrails", "dangerScanSweep", "ambushBeacon"] },
+    { "cat": "bg3DCatImpact", "kinds": ["shockwavePulse", "impactCraterBurst", "groundCrackRift", "glassShatterBurst", "thunderStrikeFlash", "sonicBoomRing"] },
+    { "cat": "bg3DCatSurprise", "kinds": ["confettiExplosion", "giftRevealBurst", "partyBalloonRise", "surpriseStarburst", "ribbonBloom", "bubblePopBurst"] },
+    { "cat": "bg3DCatVividChaos", "kinds": ["neonRiot", "chromaExplosion", "strobeMatrix", "kineticSpectrum", "speedColorRings", "electroPartyFlash"] },
+    { "cat": "bg3DCatStage", "kinds": ["stageSpotlightSweep", "laserGridShow", "flameBurstColumn", "energyCoreOverload", "edmPulseWall", "lightWaveSurge"] },
+    { "cat": "bg3DCatTension", "kinds": ["suspenseFlicker", "popScareBurst", "emergencySignalPulse", "climaxFlashBurst", "electricShockArc", "surpriseFirecrackerPop", "tensionCountdownRing", "highEnergyFlashStage", "criticalMassBurst"] },
+    { "cat": "bg3DCatBirthday", "kinds": ["birthdayCombo", "birthdayCake", "balloonArch", "confettiCannon", "partyStreamerSwirl", "sprinkleShower"] },
+    { "cat": "bg3DCatWedding", "kinds": ["weddingCombo", "weddingRings", "doveFlight", "rosePetalFall", "fairyLightCanopy", "floatingLanterns"] }
+  ]
+}
