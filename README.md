@@ -88,6 +88,24 @@ npm run build:replace-zip
 npm run verify:replace-zip
 ```
 
+## 正式发布
+
+在 `app/` 目录运行：
+
+```powershell
+npm run release
+```
+
+该命令会依次检查版本与 replacement、生成并验证 Replace ZIP、构建 Windows 安装包、
+运行完整 Playwright 测试（包括打包程序启动测试），最后生成并复核
+`dist/release-integrity.json`。只有所有步骤成功才会显示 `RELEASE READY`。
+
+发布后可随时重新检查产物有没有被替换或损坏：
+
+```powershell
+npm run verify:release
+```
+
 ## 安装脚本的作用范围
 
 - 只写入 `replacement/` 下实际存在的文件,不新增、不修改、不删除其他任何文件。
