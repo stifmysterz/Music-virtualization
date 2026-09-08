@@ -13418,6 +13418,87 @@ function vjPhase(st, dt, loopBeats){
   return (st.beats % loopBeats) / loopBeats;
 }
 
+/* ---------- VJ Top 20 Premium Pass -------------------------------------------------
+   旗舰不是另建一批效果，也不是把其余 25 条降级；它是一层只挂到精选 20 条上的
+   cinematic treatment。每条都有明确 family / 拍数 / 镜头语言 / 分频职责，供菜单、
+   测试和后续迭代共同使用。所有运动只读归一化 phase，0/1 的位置和速度都闭合。 */
+const VJ_PREMIUM_META = Object.freeze({
+  vjLiquidGrid:     {family:'liquid',       loopBeats:16, cameraStyle:'dolly-orbit', hue:0.83, bass:'surface swell', mid:'bank',             high:'micro shimmer'},
+  vjNeonRibbon:     {family:'energy',       loopBeats:16, cameraStyle:'ribbon-weave',hue:0.91, bass:'ribbon width',  mid:'weave',            high:'edge sparks'},
+  vjPrismShards:    {family:'glass',        loopBeats:16, cameraStyle:'prism-orbit', hue:0.57, bass:'shard spread',  mid:'refraction sweep', high:'facet glint'},
+  vjChromeTube:     {family:'metallic',     loopBeats:16, cameraStyle:'rail-dolly',  hue:0.60, bass:'tube pulse',    mid:'specular roll',    high:'rim glint'},
+  vjChromeFlow:     {family:'liquid-metal', loopBeats:16, cameraStyle:'fluid-orbit', hue:0.54, bass:'flow pressure', mid:'surface roll',     high:'mercury sparkle'},
+  vjMetalTwist:     {family:'mechanical',   loopBeats:16, cameraStyle:'helix-bank',  hue:0.08, bass:'helix torque',  mid:'bank',             high:'edge glint'},
+  vjFractalWell:    {family:'fractal',      loopBeats:32, cameraStyle:'well-orbit',  hue:0.76, bass:'depth inhale',  mid:'fractal turn',     high:'detail reveal'},
+  vjTentacleTunnel: {family:'organic',      loopBeats:16, cameraStyle:'organic-drift',hue:0.89,bass:'body contract', mid:'tendril wave',     high:'wet highlight'},
+  vjBioMembrane:    {family:'organic',      loopBeats:16, cameraStyle:'membrane-float',hue:0.34,bass:'membrane breath',mid:'cell drift',     high:'vein shimmer'},
+  vjVoidNebula:     {family:'cosmic',       loopBeats:32, cameraStyle:'nebula-arc',  hue:0.73, bass:'void pressure', mid:'cloud orbit',      high:'star ignition'},
+  vjEventHorizon:   {family:'cosmic',       loopBeats:32, cameraStyle:'horizon-orbit',hue:0.04,bass:'gravity pulse', mid:'accretion turn',   high:'photon sparks'},
+  vjDataBloom:      {family:'digital',      loopBeats:16, cameraStyle:'data-arc',    hue:0.46, bass:'core bloom',    mid:'branch spread',    high:'packet sparks'},
+  vjNeonArches:     {family:'architectural',loopBeats:16, cameraStyle:'arch-dolly',  hue:0.82, bass:'arch pulse',    mid:'camera bank',      high:'trim chase'},
+  vjHorizonVoyage:  {family:'cinematic',    loopBeats:32, cameraStyle:'horizon-sweep',hue:0.58,bass:'horizon lift',  mid:'lateral parallax',high:'distant glint'},
+  vjHyperCube:      {family:'optical',      loopBeats:16, cameraStyle:'tesseract-orbit',hue:0.69,bass:'dimension pulse',mid:'axis fold',     high:'vertex flare'},
+  vjCoasterRush:    {family:'kinetic',      loopBeats:16, cameraStyle:'track-bank',  hue:0.02, bass:'speed surge',   mid:'curve bank',       high:'rail sparks'},
+  vjMercuryPool:    {family:'liquid-metal', loopBeats:16, cameraStyle:'surface-skate',hue:0.52,bass:'pool displacement',mid:'surface drift', high:'mercury glint'},
+  vjLiquidSpine:    {family:'biomechanical',loopBeats:16, cameraStyle:'spine-weave', hue:0.88, bass:'spine flex',    mid:'vertebra roll',    high:'nerve sparks'},
+  vjWarpJump:       {family:'hyperspace',   loopBeats:16, cameraStyle:'warp-arc',    hue:0.62, bass:'warp compression',mid:'course bend',    high:'star streaks'},
+  vjSolarFlare:     {family:'energy',       loopBeats:16, cameraStyle:'solar-orbit', hue:0.07, bass:'corona surge',  mid:'prominence curl',  high:'flare sparks'}
+});
+const VJ_PREMIUM_KINDS = Object.freeze(Object.keys(VJ_PREMIUM_META));
+
+function ensureVjPremiumRig(kind, s){
+  const meta = VJ_PREMIUM_META[kind];
+  if(!meta || s.scene.userData.vjPremiumRig) return;
+  const group = new THREE.Group(); group.name = 'vj-premium-depth-atmosphere';
+  const count = vjQuality==='low' ? 32 : 72;
+  const pos = new Float32Array(count*3), col = new Float32Array(count*3);
+  for(let i=0;i<count;i++){
+    /* integer spread is deterministic: no reseed or particle pop at the loop boundary */
+    const a = ((i*137.508)%360)*Math.PI/180, r = 7 + ((i*29)%100)/100*18;
+    pos[i*3] = Math.cos(a)*r; pos[i*3+1] = Math.sin(a)*r*0.68; pos[i*3+2] = -((i*47)%VJ_LEN);
+    VJ_C.setHSL((meta.hue + (i%7)*0.018)%1, 0.72, 0.48 + (i%3)*0.08);
+    col[i*3]=VJ_C.r; col[i*3+1]=VJ_C.g; col[i*3+2]=VJ_C.b;
+  }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col,3));
+  const mat = new THREE.PointsMaterial({size:vjQuality==='low'?0.10:0.16, vertexColors:true,
+    transparent:true, opacity:0.38, blending:THREE.AdditiveBlending, depthWrite:false});
+  group.add(new THREE.Points(geo,mat));
+  const key = new THREE.PointLight(new THREE.Color().setHSL(meta.hue,0.8,0.58), 0.55, 70, 2);
+  const rim = new THREE.PointLight(new THREE.Color().setHSL((meta.hue+0.42)%1,0.72,0.56), 0.42, 65, 2);
+  group.add(key,rim); s.scene.add(group);
+  let styleSeed=0; for(let i=0;i<meta.cameraStyle.length;i++) styleSeed=(styleSeed*31+meta.cameraStyle.charCodeAt(i))>>>0;
+  const profile={orbit:1+(styleSeed%3), weave:1+((styleSeed>>>3)%3),
+    xAmp:0.48+((styleSeed>>>6)%37)/100, yAmp:0.14+((styleSeed>>>11)%23)/100,
+    bank:0.018+((styleSeed>>>16)%17)/1000};
+  s.scene.userData.vjPremiumRig = {group,key,rim,mat,state:{beats:0,bass:0,mid:0,high:0},meta,profile};
+}
+
+function applyVjPremiumPass(kind, s, bass, mid, high, dt){
+  const rig = s.scene.userData.vjPremiumRig;
+  if(!rig) return;
+  const st=rig.state, meta=rig.meta, profile=rig.profile;
+  st.bass += (bass-st.bass)*(1-Math.pow(0.82,dt));
+  st.mid  += (mid-st.mid)  *(1-Math.pow(0.88,dt));
+  st.high += (high-st.high)*(1-Math.pow(0.72,dt));
+  const phase=vjPhase(st,dt,meta.loopBeats), a=phase*Math.PI*2;
+  const phrase=0.5-0.5*Math.cos(a);
+  /* integer harmonics make every named cameraStyle visibly distinct while still closing at 0/1 */
+  const bank=Math.sin(a*profile.weave)*profile.bank*(0.45+st.mid*0.55);
+  const arcX=Math.sin(a*profile.orbit)*profile.xAmp, arcY=Math.sin(a*profile.weave)*profile.yAmp;
+  rig.group.rotation.z=bank*0.7;
+  rig.group.position.x=arcX*0.55; rig.group.position.y=arcY;
+  rig.mat.opacity=0.24 + st.high*0.24 + phrase*0.08;
+  rig.mat.size=(vjQuality==='low'?0.10:0.16)*(1+st.high*0.55);
+  rig.key.position.set(Math.cos(a)*12, 5+Math.sin(a)*3, -16+Math.sin(a)*7);
+  rig.rim.position.set(Math.cos(a+Math.PI)*10, -4+Math.sin(a*2)*2, -28);
+  rig.key.intensity=0.38 + phrase*0.28 + st.bass*0.34;
+  rig.rim.intensity=0.30 + (1-phrase)*0.18 + st.high*0.32;
+  s.camera.position.x += arcX*(0.32+st.mid*0.45);
+  s.camera.position.y += arcY*(0.45+st.high*0.25);
+  s.camera.rotation.z += bank;
+}
+
 /* ---------- 1. 液态网格隧道 —— 圆角方管的线框，管壁像液体一样起伏 ---------- */
 function buildBg3DVjLiquidGrid(){
   const scene = new THREE.Scene();
@@ -16082,6 +16163,7 @@ function applyBg3DFilter(mid, high, now, bounce){
 function renderBg3D(bass, mid, high, dt){
   if(!hasBg3D || !bg3DKind || !bg3DScenes[bg3DKind]) return;
   const s = bg3DScenes[bg3DKind];
+  ensureVjPremiumRig(bg3DKind, s);
   const dirM = bg3DDirectorMultipliers();
   // raw bass can saturate near 1 for long stretches on bass-heavy tracks (detectBeat clamps it), so
   // some effects' own "1+bass*X" formulas can sit at a static elevated value instead of visibly
@@ -16101,6 +16183,7 @@ function renderBg3D(bass, mid, high, dt){
      saturate）交给下面的 applyBg3DFilter —— 摄影机吃不下那四个。 */
   const bounceParams = computeBgBounceParams(bass, mid, high, performance.now());
   applyBgBounceToCamera(s.camera, bounceParams);
+  applyVjPremiumPass(bg3DKind, s, bass, mid, high, dt*bg3DSpeed);
   /* 每一粒的冲击。dt 的单位就是「16.7ms 一帧」，所以可以直接当指数用。
      取 max 而不是累加 —— 累加的话连续鼓点会一粒比一粒高，最后连成一片。 */
   bg3DHit = Math.max(bg3DHit * Math.pow(BG3D_HIT_DECAY, dt), beat >= 0.999 ? 1 : 0);
@@ -24530,7 +24613,7 @@ function buildBg3DMenu(){
 buildBg3DMenu();
 
 /* ---------- 🌀 VJ 菜单 ----------
-   这十个隧道注册在 BG3D_BUILDERS 里，enableBg3D / 预设 / 随机全部照旧能用；
+   这四十五个隧道注册在 BG3D_BUILDERS 里，enableBg3D / 预设 / 随机全部照旧能用；
    但它们不在 BG3D_CATALOG 里，所以 🌌 3D 菜单的列表和它的 ⏭ Next 顺序完全不受影响。 */
 const VJ_TUNNEL_KINDS = ["vjLiquidGrid","vjHexPulse","vjNeonRibbon","vjPrismShards","vjWaveCorridor","vjPlasmaRings","vjStarLane","vjKaleido","vjChromeTube","vjCubeMatrix",
   "vjChromeFlow","vjMetalTwist","vjGridMorph","vjFractalWell","vjCyborgCorridor","vjRaceTrack","vjSpeedGates","vjHoverCity","vjTentacleTunnel","vjBioMembrane","vjVoidNebula","vjEventHorizon","vjCandyOrbs","vjDataBloom","vjNeonTubeRoom","vjNeonArches","vjHorizonVoyage","vjLightWell","vjHyperCube","vjCoasterRush",
