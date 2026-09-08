@@ -829,6 +829,13 @@
 <div id="modeMenu" class="dock-dd">
   <div id="modeMenuList"></div>
   <!-- modeMenuList 由 buildModeMenu() 按 MODE_CATEGORIES 生成，结构照搬 bg3DMenuList -->
+  <select id="twoDMotionSel" class="dock-dd-select" style="margin-top:8px;border-top:1px solid var(--line);padding-top:10px" title="Audio-reactive movement applied to the complete 2D visualizer layer">
+    <option value="off">🎥 2D Motion: Off</option>
+    <option value="shake">🎥 2D Motion: Shake Impact</option>
+  </select>
+  <button id="twoDDirectorBtn" class="dock-dd-item" title="Reads the music's recent energy trend and stages the 2D layer for Build Up, Drop and Breakdown">🎬 2D Auto Director: Off</button>
+  <button id="twoDGradeBtn" class="dock-dd-item" title="Apply a restrained cinematic colour grade to the complete 2D visualizer layer">🎞 2D Film Grade: Off</button>
+  <div style="padding:5px 8px 2px;font-size:11px;opacity:.58;cursor:default">💡 See Through is “FX over BG” in Background</div>
   <!-- 自动轮换。原本在 Looks 菜单里，但想让特效自动换的人会来 Mode 找。
        它是纯定时器，不依赖音频播放；来源选「我的预设」时轮换的是整套 Look，
        那个用法也可以从 Looks 面板的「自动轮换预设」按钮走 —— 同一份状态。 -->
@@ -4906,10 +4913,73 @@ const backCtx = cvBack.getContext('2d'); // Behind-FX 文字 / back 层 logo
    半透明画（见 GLITCH_BAR_ALPHA），screen 退居为可选项。 */
 let fxBlendOn = false;
 try{ fxBlendOn = localStorage.getItem('subremix_fxblend') === '1'; }catch(e){}
+let twoDMotion = 'off';
+let twoDDirectorOn = false;
+let twoDDirectorPhase = 'normal';
+let twoDGradeOn = false;
+let twoDImpact = 0, twoDDirectorPunch = 0;
+let twoDDirectorSamples = [], twoDDirectorLastSampleAt = -Infinity;
+try{
+  const savedMotion = localStorage.getItem('subremix_2dmotion');
+  if(savedMotion==='shake') twoDMotion = savedMotion;
+  twoDDirectorOn = localStorage.getItem('subremix_2ddirector') === '1';
+  twoDGradeOn = localStorage.getItem('subremix_2dgrade') === '1';
+}catch(e){}
 function applyFxBlend(){
   document.body.classList.toggle('fx-blend-screen', fxBlendOn);
   const b = document.getElementById('fxBlendToggle');
   if(b){ b.textContent = STATEFUL_LABELS.fxBlendToggle(); b.classList.toggle('active', fxBlendOn); }
+}
+function resetTwoDPostStyle(){
+  cvFx.style.transform = 'translateX(-50%)';
+  cvFx.style.filter = 'none';
+}
+/* The complete 2D layer moves as one virtual camera. This deliberately lives at the DOM layer:
+   individual effects keep their authored geometry and trails, while preview and recorder can share
+   the same computed transform/filter through drawCaptureElement(). */
+function applyTwoDPost(now, dt){
+  updateTwoDDirector(now);
+  const hit = musicState.onset ? 1 : 0;
+  twoDImpact = Math.max(twoDImpact * Math.pow(0.78, dt), hit);
+  twoDDirectorPunch *= Math.pow(0.84, dt);
+
+  if(twoDMotion==='off' && !twoDDirectorOn && !twoDGradeOn){
+    resetTwoDPostStyle();
+    return;
+  }
+
+  let x=0, y=0, rotation=0, scale=1, brightness=1, contrast=1, saturation=1;
+  if(twoDMotion==='shake'){
+    // Two incommensurate waves make a designed impact vibration without frame-to-frame randomness.
+    const amp = twoDImpact * (2.2 + musicState.bassEnvelope*3.8);
+    x += (Math.sin(now*0.081) + Math.sin(now*0.137)*0.45) * amp;
+    y += (Math.cos(now*0.097) + Math.sin(now*0.173)*0.35) * amp*0.62;
+    rotation += Math.sin(now*0.071) * twoDImpact*0.22;
+  }
+  if(twoDDirectorOn){
+    if(twoDDirectorPhase==='buildup'){
+      scale += 0.012 + musicState.energyEnvelope*0.018;
+      rotation += Math.sin(now*0.0011)*0.18;
+      saturation *= 1.07;
+    }else if(twoDDirectorPhase==='drop'){
+      scale += twoDDirectorPunch*0.075;
+      brightness *= 1 + twoDDirectorPunch*0.08;
+      contrast *= 1.08;
+      saturation *= 1.12;
+    }else if(twoDDirectorPhase==='breakdown'){
+      scale *= 0.988;
+      saturation *= 0.82;
+      contrast *= 0.94;
+    }
+  }
+  if(twoDGradeOn){
+    brightness *= 0.98;
+    contrast *= 1.12;
+    saturation *= 1.08;
+  }
+  cvFx.style.transform = `translateX(-50%) translate(${x.toFixed(3)}px,${y.toFixed(3)}px) scale(${scale.toFixed(5)}) rotate(${rotation.toFixed(3)}deg)`;
+  const gradeTail = twoDGradeOn ? ' sepia(0.045)' : '';
+  cvFx.style.filter = `brightness(${brightness.toFixed(4)}) contrast(${contrast.toFixed(4)}) saturate(${saturation.toFixed(4)})${gradeTail}`;
 }
 let W,H,CX,CY,DPR;
 let DOCK_SAFE_ZONE = 100;   // CSS px reserved at the bottom of the canvas so effects don't render under the dock — recalculated from the dock's real on-screen size, see updateDockSafeZone()
@@ -5092,7 +5162,9 @@ function composeCaptureFrame(){
   captureCtx.drawImage(cvBack, 0, 0);
   // fxBlendOn 关掉时 #cvFx 也是普通混合，合成帧要跟着走，否则导出和屏幕不一致
   captureCtx.globalCompositeOperation = fxBlendOn ? 'screen' : 'source-over';
-  captureCtx.drawImage(cvFx, 0, 0);
+  // #cvFx can carry 2D virtual-camera motion and film grading. Use the same DOM-aware path as
+  // Background/3D so captureStream receives the exact transform, filter and opacity seen on screen.
+  drawCaptureElement(cvFx, targetRect, false);
   captureCtx.globalCompositeOperation = 'source-over';
   captureCtx.drawImage(cv, 0, 0);
   return captureCanvas;
@@ -6099,6 +6171,14 @@ const CAMERA_MOTION_NAMES = {
   en:{off:'🎥 Camera: Off',orbit:'🎥 Camera: Slow Orbit',flythrough:'🎥 Camera: Fly Through',zoomburst:'🎥 Camera: Zoom Burst',shake:'🎥 Camera: Shake Impact',drift:'🎥 Camera: Rotation Drift'},
   zh:{off:'🎥 镜头：关闭',orbit:'🎥 镜头：慢速环绕',flythrough:'🎥 镜头：穿越推进',zoomburst:'🎥 镜头：节拍推近',shake:'🎥 镜头：震动冲击',drift:'🎥 镜头：缓慢漂移'}
 };
+const TWO_D_MOTION_NAMES = {
+  en:{off:'🎥 2D Motion: Off',shake:'🎥 2D Motion: Shake Impact'},
+  zh:{off:'🎥 2D 动态：关闭',shake:'🎥 2D 动态：震动冲击'}
+};
+const TWO_D_DIRECTOR_PHASE_NAMES = {
+  en:{normal:'Normal',buildup:'Build Up',drop:'Drop!',breakdown:'Breakdown'},
+  zh:{normal:'正常',buildup:'爬升中',drop:'炸场！',breakdown:'回落中'}
+};
 function applyShuffleOptionNames(){
   document.querySelectorAll('#micShuffleIntervalSel, #bg3DShuffleIntervalSel, #vjShuffleIntervalSel').forEach(sel=>{
     [...sel.options].forEach(opt=>{
@@ -6137,6 +6217,13 @@ function applyShuffleOptionNames(){
       if(name) opt.textContent = name;
     });
   }
+  const twoDSel = document.getElementById('twoDMotionSel');
+  if(twoDSel){
+    [...twoDSel.options].forEach(opt=>{
+      const name = (TWO_D_MOTION_NAMES[currentLang] && TWO_D_MOTION_NAMES[currentLang][opt.value]) || TWO_D_MOTION_NAMES.en[opt.value];
+      if(name) opt.textContent = name;
+    });
+  }
 }
 function applyBounceStyleNames(){
   document.querySelectorAll('#titleBounceStyleSel, #textABounceStyleSel, #textBBounceStyleSel, #logoBounceStyleSel').forEach(sel=>{
@@ -6166,7 +6253,7 @@ const T2 = {
       bounceOn:'Bounce: On',bounceOff:'Bounce: Off',
       fxBlendLabelOn:'✳ FX over BG: On',fxBlendLabelOff:'✳ FX over BG: Off',mic:'Mic',micOn:'Mic On',
       outlineLabel:'Canvas Outline',debug3dLabel:'3D Debug',onWord:'On',offWord:'Off',
-      fpsLabel:'FPS Meter',recordQualityLabel:'Quality',fpsRecording:'recording',seeThroughLabel:'See Through',filmGradeLabel:'Film Grade',
+      fpsLabel:'FPS Meter',recordQualityLabel:'Quality',fpsRecording:'recording',seeThroughLabel:'See Through',filmGradeLabel:'Film Grade',autoDirectorLabel:'Auto Director',
       fpsTipQuality:'Recording is dropping frames — try a lower Quality in Tools.',
       fpsTipLayers:'Still dropping frames at 1080p — try using fewer modes at once.',
       recordQualityLocked:'Stop the recording before changing quality.',
@@ -6205,7 +6292,7 @@ const T2 = {
       screenBlendOn:'✳ 去黑底：开',screenBlendOff:'✳ 去黑底：关',
       fxBlendLabelOn:'✳ 特效透背景：开',fxBlendLabelOff:'✳ 特效透背景：关',
       outlineLabel:'画布边框',debug3dLabel:'3D 调试',onWord:'开',offWord:'关',
-      fpsLabel:'帧率',recordQualityLabel:'录制画质',fpsRecording:'录制中',seeThroughLabel:'透出背景',filmGradeLabel:'电影调色',
+      fpsLabel:'帧率',recordQualityLabel:'录制画质',fpsRecording:'录制中',seeThroughLabel:'透出背景',filmGradeLabel:'电影调色',autoDirectorLabel:'自动导演',
       fpsTipQuality:'录制掉帧了 —— 到 Tools 里把录制画质调低一档试试。',
       fpsTipLayers:'1080p 还是掉帧 —— 试试同时少开几个 mode。',
       recordQualityLocked:'先停止录制，再改画质。',
@@ -6255,6 +6342,13 @@ const STATEFUL_LABELS = {
   fpsHudBtn: ()=> '📊 ' + t2('fpsLabel') + ': ' + t2((typeof fpsHudOn!=='undefined' && fpsHudOn) ? 'onWord' : 'offWord'),
   bg3DSeeThroughBtn: ()=> '🪟 ' + t2('seeThroughLabel') + ': ' + t2((typeof bg3DSeeThrough==='undefined' || bg3DSeeThrough) ? 'onWord' : 'offWord'),
   bg3DGradeBtn: ()=> '🎞 ' + t2('filmGradeLabel') + ': ' + t2((typeof bg3DGrade==='undefined' || bg3DGrade) ? 'onWord' : 'offWord'),
+  twoDDirectorBtn: ()=>{
+    const prefix = '🎬 2D ' + t2('autoDirectorLabel') + ': ';
+    if(typeof twoDDirectorOn==='undefined' || !twoDDirectorOn) return prefix + t2('offWord');
+    const names = TWO_D_DIRECTOR_PHASE_NAMES[currentLang] || TWO_D_DIRECTOR_PHASE_NAMES.en;
+    return prefix + (names[twoDDirectorPhase] || twoDDirectorPhase);
+  },
+  twoDGradeBtn: ()=> '🎞 2D ' + t2('filmGradeLabel') + ': ' + t2((typeof twoDGradeOn!=='undefined' && twoDGradeOn) ? 'onWord' : 'offWord'),
   recordQualityBtn: ()=> '🎬 ' + t2('recordQualityLabel') + ': ' + ({'4k':'4K','1440p':'1440p','1080p':'1080p'})[typeof recordQuality!=='undefined'?recordQuality:'4k'],
   micBtn: ()=> (typeof micActive!=='undefined' && micActive) ? ('🎤 '+t2('micOn')) : ('🎤 '+t2('mic')),
   micShuffleToggle: ()=> (typeof micShuffleOn!=='undefined' && micShuffleOn) ? t2('shuffleOn') : t2('shuffleOff'),
@@ -16316,6 +16410,35 @@ let bg3DDirectorOn = false;
 let bg3DDirectorPhase = 'normal';   // 'normal' | 'buildup' | 'drop' | 'breakdown'
 let dirShortHist = [], dirLongHist = [];
 let dirDropPunch = 0;   // decaying one-shot kick fired the instant Drop is detected (camera punch + canvas flash)
+/* 2D uses time-window samples instead of frame counts, so Director behaves the same at 30/60fps. */
+function classifyTwoDDirector(now){
+  if(!twoDDirectorSamples.length || now-twoDDirectorSamples[0].t < 2500) return 'normal';
+  const short = twoDDirectorSamples.filter(s=>s.t >= now-650);
+  const long = twoDDirectorSamples;
+  if(!short.length || !long.length) return 'normal';
+  const average = list=>list.reduce((sum,s)=>sum+s.v,0)/list.length;
+  const shortAvg = average(short), longAvg = average(long), diff = shortAvg-longAvg;
+  if(diff > 0.22 && shortAvg > 0.62) return 'drop';
+  if(diff > 0.075 && shortAvg > 0.38) return 'buildup';
+  if(diff < -0.16 && shortAvg < 0.32) return 'breakdown';
+  return 'normal';
+}
+function updateTwoDDirector(now){
+  if(!twoDDirectorOn){
+    twoDDirectorPhase = 'normal';
+    twoDDirectorSamples = [];
+    twoDDirectorLastSampleAt = -Infinity;
+    return;
+  }
+  if(now-twoDDirectorLastSampleAt < 50) return;
+  twoDDirectorLastSampleAt = now;
+  twoDDirectorSamples.push({t:now, v:musicState.energyEnvelope});
+  while(twoDDirectorSamples.length && twoDDirectorSamples[0].t < now-6000) twoDDirectorSamples.shift();
+  const previous = twoDDirectorPhase;
+  twoDDirectorPhase = classifyTwoDDirector(now);
+  if(twoDDirectorPhase==='drop' && previous!=='drop') twoDDirectorPunch = 1;
+  if(previous!==twoDDirectorPhase && typeof syncTwoDDirectorBtn==='function') syncTwoDDirectorBtn();
+}
 function updateBg3DDirector(){
   if(!bg3DDirectorOn){ bg3DDirectorPhase = 'normal'; return; }
   dirShortHist.push(lastBass); if(dirShortHist.length>30) dirShortHist.shift();    // ~0.5s at 60fps
@@ -16883,6 +17006,8 @@ function draw(now){
     fxCtx.globalAlpha = 1;
     transitionAlpha = Math.max(0, transitionAlpha - 0.02*dt);
   }
+
+  applyTwoDPost(now, dt);
 
   // captureStream() 抓的是合成画布，必须每帧重新合成，否则录出来是静止的第一帧。
   // 只在真的在录时才做这次额外合成 —— 4K 下这是笔不小的开销。
@@ -23486,6 +23611,7 @@ function getPresetState(){
     textBounce: JSON.parse(JSON.stringify(textBounce)),
     textBehindCanvas: {...textBehindCanvas},
     textLayerOrder: [...textLayerOrder],
+    twoDPost: { motion:twoDMotion, directorOn:twoDDirectorOn, gradeOn:twoDGradeOn, seeThrough:fxBlendOn },
     bg3DKind: (hasBg3D && bg3DKind) ? bg3DKind : null
   };
 }
@@ -23547,6 +23673,20 @@ function applyPresetState(state){
   }
   if(Array.isArray(state.textLayerOrder) && state.textLayerOrder.length===3) textLayerOrder = [...state.textLayerOrder];
   applyTextLayerOrder();
+  if(state.twoDPost){
+    twoDMotion = state.twoDPost.motion==='shake' ? 'shake' : 'off';
+    twoDDirectorOn = !!state.twoDPost.directorOn;
+    twoDGradeOn = !!state.twoDPost.gradeOn;
+    if(typeof state.twoDPost.seeThrough==='boolean') fxBlendOn = state.twoDPost.seeThrough;
+    twoDDirectorPhase = 'normal'; twoDDirectorPunch = 0;
+    twoDDirectorSamples = []; twoDDirectorLastSampleAt = -Infinity;
+    const motionSel = document.getElementById('twoDMotionSel');
+    if(motionSel) motionSel.value = twoDMotion;
+    applyFxBlend();
+    syncTwoDDirectorBtn();
+    syncTwoDGradeBtn();
+    applyTwoDPost(performance.now(), 1);
+  }
   if('bg3DKind' in state){
     // only touch the 3D background if this preset actually recorded one — older presets saved
     // before that field existed must leave whatever 3D background is currently running alone,
@@ -25947,6 +26087,30 @@ document.getElementById('fxBlendToggle').onclick = ()=>{
   applyFxBlend();
 };
 applyFxBlend();
+document.getElementById('twoDMotionSel').value = twoDMotion;
+document.getElementById('twoDMotionSel').addEventListener('change', e=>{
+  twoDMotion = e.target.value==='shake' ? 'shake' : 'off';
+  if(twoDMotion==='off') twoDImpact = 0;
+  try{ localStorage.setItem('subremix_2dmotion', twoDMotion); }catch(err){}
+  applyTwoDPost(performance.now(), 1);
+});
+document.getElementById('twoDDirectorBtn').onclick = ()=>{
+  twoDDirectorOn = !twoDDirectorOn;
+  twoDDirectorPhase = 'normal'; twoDDirectorPunch = 0;
+  twoDDirectorSamples = []; twoDDirectorLastSampleAt = -Infinity;
+  try{ localStorage.setItem('subremix_2ddirector', twoDDirectorOn ? '1' : '0'); }catch(err){}
+  syncTwoDDirectorBtn();
+  applyTwoDPost(performance.now(), 1);
+};
+document.getElementById('twoDGradeBtn').onclick = ()=>{
+  twoDGradeOn = !twoDGradeOn;
+  try{ localStorage.setItem('subremix_2dgrade', twoDGradeOn ? '1' : '0'); }catch(err){}
+  syncTwoDGradeBtn();
+  applyTwoDPost(performance.now(), 1);
+};
+syncTwoDDirectorBtn();
+syncTwoDGradeBtn();
+applyTwoDPost(performance.now(), 1);
 document.getElementById('bgOpacitySel').addEventListener('input', e=>{
   const pct = e.target.value;
   const f = `brightness(${pct}%) saturate(1.15)`;
@@ -26331,6 +26495,18 @@ const DIRECTOR_PHASE_NAMES = {
   en:{normal:'Normal',buildup:'Build Up',drop:'Drop!',breakdown:'Breakdown'},
   zh:{normal:'正常',buildup:'爬升中',drop:'炸场！',breakdown:'回落中'}
 };
+function syncTwoDDirectorBtn(){
+  const btn = document.getElementById('twoDDirectorBtn');
+  if(!btn) return;
+  btn.textContent = STATEFUL_LABELS.twoDDirectorBtn();
+  btn.classList.toggle('active', twoDDirectorOn);
+}
+function syncTwoDGradeBtn(){
+  const btn = document.getElementById('twoDGradeBtn');
+  if(!btn) return;
+  btn.textContent = STATEFUL_LABELS.twoDGradeBtn();
+  btn.classList.toggle('active', twoDGradeOn);
+}
 function syncBg3DDirectorBtn(){
   const btn = document.getElementById('bg3DDirectorBtn');
   if(!btn) return;
