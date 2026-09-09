@@ -164,7 +164,7 @@ test('X / Y / 缩放 / 角度 滑杆能精确设定背景，重置能回到默�
   });
 });
 
-test('resize / 开关 dock 菜单不会把拖好的背景拽回左上角', async () => {
+test('resize / 开关 dock 菜单后，背景保持在 Canvas Outline 内的相对位置', async () => {
   await withApp('bgpos-4', async (win) => {
     const res = await win.evaluate((install) => {
       const el = eval('(' + install + ')')();
@@ -173,6 +173,11 @@ test('resize / 开关 dock 菜单不会把拖好的背景拽回左上角', async
       // 拖到一个明显偏离默认的位置，并放大
       t.set({ x: 260, y: -140, scale: 1.6 });
       const before = el.getBoundingClientRect();
+      const relativeCentre = () => {
+        const r = el.getBoundingClientRect(), s = document.getElementById('visualStage').getBoundingClientRect();
+        return { x:r.left+r.width/2-(s.left+s.width/2), y:r.top+r.height/2-(s.top+s.height/2) };
+      };
+      const beforeRelative = relativeCentre();
 
       // clampPositionedElements() 挂在 resize、fullscreenchange，以及一个监听
       // .dock-dd class 变化的 MutationObserver 上 —— 也就是说随便开一个 dock
@@ -187,11 +192,14 @@ test('resize / 开关 dock 菜单不会把拖好的背景拽回左上角', async
       return new Promise(resolve => {
         setTimeout(() => {
           const afterMenu = el.getBoundingClientRect();
+          const afterRelative = relativeCentre();
           menu.classList.remove('show');
           resolve({
             clampDx: afterClamp.left - before.left,
             clampDy: afterClamp.top - before.top,
             menuDx: afterMenu.left - before.left,
+            relativeDx: afterRelative.x-beforeRelative.x,
+            relativeDy: afterRelative.y-beforeRelative.y,
             state: t.state(),
             // 面板数字必须和真实状态一致
             sliderX: parseFloat(document.getElementById('bgPosXSel').value)
@@ -202,7 +210,9 @@ test('resize / 开关 dock 菜单不会把拖好的背景拽回左上角', async
 
     expect(Math.abs(res.clampDx)).toBeLessThan(2);
     expect(Math.abs(res.clampDy)).toBeLessThan(2);
-    expect(Math.abs(res.menuDx)).toBeLessThan(2);
+    // 侧栏会移动/缩窄 Outline，所以全局像素位置理应跟着变；相对 Outline 的位置不能跳。
+    expect(Math.abs(res.relativeDx)).toBeLessThan(2);
+    expect(Math.abs(res.relativeDy)).toBeLessThan(2);
     expect(res.state.x).toBeCloseTo(260, 0);
     expect(res.sliderX).toBeCloseTo(260, 0);
   });

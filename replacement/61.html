@@ -253,9 +253,12 @@
   body.dock-light .help-row b{color:#0891b2}
   html,body{height:100%;overflow:hidden;background:var(--bg)}
   body{font-family:"SF Mono",ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;color:var(--ink)}
-  #bgVideo{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:130vw;height:130vh;object-fit:cover;display:none;filter:brightness(.72) saturate(1.15);touch-action:none;cursor:grab}
-  #bgImage{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:130vw;height:130vh;object-fit:cover;display:none;filter:brightness(.72) saturate(1.15);touch-action:none;cursor:grab}
-  #bgThree{position:fixed;left:0;top:0;width:100vw;height:100vh;display:none}
+  /* One clipped output stage is the single source of truth for the Canvas Outline. Every visual
+     layer lives inside it, so portrait/square/landscape cannot leak into the surrounding UI. */
+  #visualStage{position:fixed;left:0;top:0;width:100vw;height:100vh;overflow:hidden;contain:layout paint;z-index:0}
+  #bgVideo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:130%;height:130%;object-fit:cover;display:none;filter:brightness(.72) saturate(1.15);touch-action:none;cursor:grab}
+  #bgImage{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:130%;height:130%;object-fit:cover;display:none;filter:brightness(.72) saturate(1.15);touch-action:none;cursor:grab}
+  #bgThree{position:absolute;left:0;top:0;width:100%;height:100%;display:none}
   #bgVideo.dragging,#bgImage.dragging{cursor:grabbing}
   canvas{position:fixed;inset:0;width:100vw;height:100vh;display:block;touch-action:none}
   /* 三层叠加的可视化画布，几何完全一致（resize() 会同步三者的 width/height/left）：
@@ -264,6 +267,7 @@
                  合成模式改不了 alpha（实测 'screen'/'lighter' 画不透明源，结果 alpha 仍是 255），
                  只有 DOM 层混合才是对着「不透明的背景元素」做的，背景才有份参与
        #cv     — front 层 logo、选中框、转场，普通混合，不被 screen 洗白，也是唯一收指针事件的一层 */
+  #visualStage canvas{position:absolute}
   #cv,#cvFx,#cvBack{
     inset:auto;top:0;left:50%;transform:translateX(-50%);
   }
@@ -272,7 +276,7 @@
   #cv{z-index:3}
   #cvFx,#cvBack{pointer-events:none}
   body.fx-blend-screen #cvFx{mix-blend-mode:screen}   /* 「特效透背景」开关打开时才用 screen，见 fxBlendOn */
-  body.debug-outline #cv, body.debug-outline #cvFx, body.debug-outline #cvBack, body.debug-outline #bgThree{
+  body.debug-outline #visualStage, body.debug-outline #cv, body.debug-outline #cvFx, body.debug-outline #cvBack, body.debug-outline #bgThree{
     outline:2px dashed rgba(125,243,255,.65);
     outline-offset:-2px;
   }
@@ -338,8 +342,8 @@
 
   /* ---------- on-screen title (type your own text, e.g. song name) ---------- */
   #titleDisplay, .text-overlay{
-    position:fixed;left:50%;bottom:116px;transform:translateX(-50%);z-index:8;
-    text-align:center;max-width:90vw;width:max-content;
+    position:absolute;left:50%;bottom:116px;transform:translateX(-50%);z-index:8;
+    text-align:center;max-width:90%;width:max-content;
     font-size:clamp(18px,5vw,36px);font-weight:700;letter-spacing:.06em;
     background:linear-gradient(90deg,var(--cyan),var(--magenta));
     -webkit-background-clip:text;background-clip:text;color:transparent;
@@ -641,12 +645,17 @@
 </head>
 <body>
 
-<video id="bgVideo" muted loop playsinline></video>
-<img id="bgImage" alt="">
-<canvas id="bgThree"></canvas>
-<canvas id="cvBack"></canvas>
-<canvas id="cvFx"></canvas>
-<canvas id="cv"></canvas>
+<div id="visualStage">
+  <video id="bgVideo" muted loop playsinline></video>
+  <img id="bgImage" alt="">
+  <canvas id="bgThree"></canvas>
+  <canvas id="cvBack"></canvas>
+  <canvas id="cvFx"></canvas>
+  <canvas id="cv"></canvas>
+  <div id="titleDisplay"></div>
+  <div id="textADisplay" class="text-overlay"></div>
+  <div id="textBDisplay" class="text-overlay"></div>
+</div>
 <!-- 🎯 Position BG 开着时整个画布不吃事件，所有手势都归背景。原来屏幕上没有任何提示，
      菜单一关就完全看不出自己还在这个模式里 —— 于是「双击选不中特效、一直在动背景」。 -->
 <button id="bgAdjustBanner" title="Click or press Esc to finish"></button>
@@ -707,10 +716,6 @@
   </div>
   <canvas id="previewOverlayCanvas"></canvas>
 </div>
-
-<div id="titleDisplay"></div>
-<div id="textADisplay" class="text-overlay"></div>
-<div id="textBDisplay" class="text-overlay"></div>
 
 <div id="progressBar" class="progress-bar" style="display:none">
   <span id="progressTimeCur">0:00</span>
@@ -4922,6 +4927,7 @@ async function togglePlay(){
 const cv = document.getElementById('cv');
 const cvFx = document.getElementById('cvFx');
 const cvBack = document.getElementById('cvBack');
+const visualStage = document.getElementById('visualStage');
 let g2 = cv.getContext('2d');
 const mainCtx = g2;
 const fxCtx = cvFx.getContext('2d');     // 所有特效画在这里（screen 混合，透背景）
@@ -5028,36 +5034,29 @@ function updateDockSafeZone(){
   }
   applyBgDockSafeCentering();
   applyTextPanelSafeCentering();
-  resizeBg3D();
 }
 function applyTextPanelSafeCentering(){
-  // recenter Text A/B/C horizontally within the panel-free region while a right-side panel is open,
-  // same idea as applyBgDockSafeCentering() below. Skipped once dragged (dataset.positioned).
-  // Known gap: this only affects the CSS-default centered state — once audio starts, updateTextBounceDom()
-  // overwrites transform every frame without a centering term of its own (pre-existing, independent of
-  // this fix), so a non-dragged text's on-screen center can still drift slightly during active bounce
-  // playback. Left alone here rather than touching the shared per-frame animation system.
+  // The stage itself is centred in the panel-free region. Unpositioned text is therefore always 50%
+  // of the output frame — subtracting PANEL_SAFE_ZONE again would double-shift it.
   ['titleDisplay','textADisplay','textBDisplay'].forEach(id=>{
     const el = document.getElementById(id);
-    if(el && !el.dataset.positioned) el.style.left = `calc(50% - ${PANEL_SAFE_ZONE/2}px)`;
+    if(el && !el.dataset.positioned) el.style.left = '50%';
   });
 }
 function applyBgDockSafeCentering(){
-  // recenter the uploaded photo/video background on the area above the dock and clear of any open
-  // right-side panel, not the full viewport, so its visual center doesn't default toward a strip
-  // that's covered. Skipped once the user has manually dragged it (dataset.positioned) — their
-  // placement always wins over this default.
+  // Background is a child of the clipped output stage, so its default centre is simply the stage
+  // centre. The stage already excludes the dock and any open sidebar.
   ['bgImage','bgVideo'].forEach(id=>{
     const el = document.getElementById(id);
     if(el && !el.dataset.positioned){
-      el.style.top = `calc(50% - ${DOCK_SAFE_ZONE/2}px)`;
-      el.style.left = `calc(50% - ${PANEL_SAFE_ZONE/2}px)`;
+      el.style.top = '50%';
+      el.style.left = '50%';
     }
   });
 }
 let aspectMode = 'free';   // 'free' | 'portrait' | 'square' | 'landscape'
 function resize(){
-  updateDockSafeZone();   // also triggers resizeBg3D() internally, now that DOCK_SAFE_ZONE/PANEL_SAFE_ZONE are current
+  updateDockSafeZone();
   DPR = Math.min(window.devicePixelRatio||1, 2);
   const availH = Math.max(1, innerHeight - DOCK_SAFE_ZONE);   // the canvas itself stops above the dock now, not just its drawn content
   const availW = Math.max(1, innerWidth - PANEL_SAFE_ZONE);   // ditto for an open right-side panel
@@ -5074,6 +5073,14 @@ function resize(){
     if(availW/availH > ratio){ cssH = availH; cssW = availH*ratio; }
     else{ cssW = availW; cssH = availW/ratio; }
   }
+  visualStage.style.left = ((availW-cssW)/2) + 'px';
+  visualStage.style.top = '0px';
+  visualStage.style.width = cssW + 'px';
+  visualStage.style.height = cssH + 'px';
+  ['bgImage','bgVideo'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el?.dataset.positioned && el._transform?.reflow) el._transform.reflow();
+  });
   /* 录制中画布缓冲区锁死在 4K，任何 resize 都不许动它。
      resize() 的触发点比想象中多得多 —— 窗口变化、进出全屏，还有那个监听
      .mode-panel / .dock-dd class 变化的 MutationObserver。于是录制途中随手打开
@@ -5083,12 +5090,14 @@ function resize(){
      CSS 显示尺寸照常跟着走 —— 冻住的是缓冲区，不是屏幕上那块画面。 */
   if(recordingResolutionActive){
     syncCanvasLayers(cssW, cssH, availW, true);
+    resizeBg3D(cssW, cssH);
     return;
   }
   W = cssW * DPR;
   H = cssH * DPR;
   syncCanvasLayers(cssW, cssH, availW);
   CX = W/2; CY = H/2;
+  resizeBg3D(cssW, cssH);
 }
 /* resize() 在下面就会被立即调用一次，而 enterRecordingResolution() 那一整块在文件很后面 ——
    这个标志必须在这里声明，否则首次 resize() 会撞上 let 的 TDZ（连 typeof 都会抛）。 */
@@ -5101,7 +5110,7 @@ function syncCanvasLayers(cssW, cssH, availW, cssOnly){
     if(!cssOnly){ c.width = W; c.height = H; }   // cssOnly：录制中只更新显示尺寸，4K 缓冲区不碰
     if(cssW!=null){
       c.style.width = cssW+'px'; c.style.height = cssH+'px';
-      c.style.left = (availW/2)+'px';   // center within the panel-free region instead of the CSS default (50% of the full viewport)
+      c.style.left = (cssW/2)+'px';   // stage-local centre; visualStage itself handles viewport/panel centring
     }
   });
 }
@@ -5142,11 +5151,16 @@ function drawCaptureElement(el, targetRect, replacedElement){
   const ox = Number.isFinite(origin[0]) ? origin[0] : boxW/2;
   const oy = Number.isFinite(origin[1]) ? origin[1] : boxH/2;
   const matrix = cs.transform && cs.transform!=='none' ? new DOMMatrix(cs.transform) : new DOMMatrix();
+  // offsetLeft/Top are stage-local now. Convert them back to viewport CSS coordinates before the
+  // existing viewport -> recording-pixel mapping, otherwise portrait/square captures shift left.
+  const parentRect = el.offsetParent ? el.offsetParent.getBoundingClientRect() : {left:0,top:0};
+  const layoutLeft = parentRect.left + el.offsetLeft;
+  const layoutTop = parentRect.top + el.offsetTop;
 
   captureCtx.save();
   // viewport CSS coordinates -> the visible #cv rectangle -> recording pixels
   captureCtx.setTransform(sx, 0, 0, sy, -targetRect.left*sx, -targetRect.top*sy);
-  captureCtx.translate(el.offsetLeft + ox, el.offsetTop + oy);
+  captureCtx.translate(layoutLeft + ox, layoutTop + oy);
   captureCtx.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
   captureCtx.translate(-ox, -oy);
   captureCtx.globalAlpha = parseFloat(cs.opacity) || 1;
@@ -16375,12 +16389,12 @@ const BG3D_BUILDERS = {
 /* 119 regular 3D backgrounds + 45 VJ tunnels share this builder registry. */
 /* BG3D_BUILDERS:END */
 
-function resizeBg3D(){
-  const availH = Math.max(1, window.innerHeight - DOCK_SAFE_ZONE);   // keep 3D content out of the strip reserved for the dock, same idea as the 2D canvas clip
-  const availW = Math.max(1, window.innerWidth - PANEL_SAFE_ZONE);   // ditto for an open right-side panel
+function resizeBg3D(stageW, stageH){
+  const availW = Math.max(1, stageW || visualStage.clientWidth || window.innerWidth - PANEL_SAFE_ZONE);
+  const availH = Math.max(1, stageH || visualStage.clientHeight || window.innerHeight - DOCK_SAFE_ZONE);
   if(bg3DRenderer) bg3DRenderer.setSize(availW, availH, false);
   const canvasEl = document.getElementById('bgThree');   // resize() runs once at page load, before the bgThreeCanvas const below is initialized — look it up fresh instead
-  if(canvasEl){ canvasEl.style.width = availW + 'px'; canvasEl.style.height = availH + 'px'; }
+  if(canvasEl){ canvasEl.style.left = '0px'; canvasEl.style.top = '0px'; canvasEl.style.width = availW + 'px'; canvasEl.style.height = availH + 'px'; }
   Object.values(bg3DScenes).forEach(s=>{
     if(s.camera){ s.camera.aspect = availW/availH; s.camera.updateProjectionMatrix(); }
     if(s.composer) s.composer.setSize(availW, availH);
@@ -16846,6 +16860,8 @@ function drawBehindCanvasTexts(){
     if(!text) return;
     const r = el.getBoundingClientRect();
     const cx = r.left + r.width/2, cy = r.top + r.height/2;
+    const canvasRect = cv.getBoundingClientRect();
+    const sx = W/canvasRect.width, sy = H/canvasRect.height, textScale = Math.min(sx,sy);
     const scale = parseFloat(el.dataset.txScale) || 1;
     const rotation = parseFloat(el.dataset.txRotation) || 0;
     const fontFamily = document.getElementById(cfg.font)?.value || 'sans-serif';
@@ -16855,11 +16871,12 @@ function drawBehindCanvasTexts(){
     const bp = computeTextBounceParams(id, lastBass||0);
 
     g2.save();
-    g2.translate(cx*DPR + (bp.shakeX+bp.orbitX)*DPR, cy*DPR + (bp.shakeY+bp.bounceY+bp.orbitY)*DPR);
+    g2.translate((cx-canvasRect.left)*sx + (bp.shakeX+bp.orbitX)*sx,
+                 (cy-canvasRect.top)*sy + (bp.shakeY+bp.bounceY+bp.orbitY)*sy);
     g2.rotate(rotation + bp.extraRot);
     g2.scale(scale*bp.pulse*bp.scaleX, scale*bp.pulse*bp.scaleY);
     if(bp.skewAmt) g2.transform(1,0,bp.skewAmt,1,0,0);
-    g2.font = `700 ${fontSize*DPR}px ${fontFamily}`;
+    g2.font = `700 ${fontSize*textScale}px ${fontFamily}`;
     g2.textAlign = 'center';
     g2.textBaseline = 'middle';
     g2.globalAlpha = bp.alphaAmt;
@@ -25902,8 +25919,9 @@ function makeTransformable(el){
     }
     const r = el.getBoundingClientRect();
     const cx = r.left + r.width/2, cy = r.top + r.height/2;
-    homeX = cx - el.offsetWidth/2;
-    homeY = cy - el.offsetHeight/2;
+    const parentRect = el.offsetParent ? el.offsetParent.getBoundingClientRect() : {left:0,top:0};
+    homeX = cx - parentRect.left - el.offsetWidth/2;
+    homeY = cy - parentRect.top - el.offsetHeight/2;
     elX = 0; elY = 0;
     el.style.bottom = 'auto';
     el.dataset.positioned = '1';
@@ -25912,8 +25930,15 @@ function makeTransformable(el){
   }
   function applyPosition(){
     if(homeX===null) return;
-    el.style.left = (homeX + elX) + 'px';
-    el.style.top  = (homeY + elY) + 'px';
+    if(el.id==='bgImage' || el.id==='bgVideo'){
+      // Background dimensions are percentages of the stage and change with every aspect/sidebar
+      // resize. Keep X/Y relative to the current stage centre instead of a stale pixel-sized home.
+      el.style.left = (visualStage.clientWidth/2 - el.offsetWidth/2 + elX) + 'px';
+      el.style.top  = (visualStage.clientHeight/2 - el.offsetHeight/2 + elY) + 'px';
+    }else{
+      el.style.left = (homeX + elX) + 'px';
+      el.style.top  = (homeY + elY) + 'px';
+    }
   }
   function applyTransform(){
     el.style.transform = `scale(${elScale}) rotate(${elRotation}rad)`;
@@ -26001,6 +26026,7 @@ function makeTransformable(el){
     },
     nudge(dx, dy){ ensurePositioned(); elX += dx; elY += dy; applyPosition(); notify(); },
     reset(){ ensurePositioned(); elX=0; elY=0; elScale=1; elRotation=0; applyPosition(); applyTransform(); notify(); },
+    reflow(){ applyPosition(); },
     onChange(fn){ listeners.push(fn); }
   };
   el._transform = api;
@@ -26099,28 +26125,29 @@ document.getElementById('bgPosResetBtn').onclick = ()=>{
    Exiting fullscreen (or any resize) can otherwise leave them off-screen or under the dock. */
 function clampPositionedElements(){
   const MARGIN = 48;   // 比可视区大的元素，至少要留这么多还压在可视区里，才抓得回来
+  const stageRect = visualStage.getBoundingClientRect();
   [titleDisplay, textADisplay, textBDisplay, bgImageEl, bgVideoEl].forEach(el=>{
     if(!el || !el.dataset.positioned || !el._transform) return;
     const r = el.getBoundingClientRect();
-    const availW = innerWidth - PANEL_SAFE_ZONE, availH = innerHeight - DOCK_SAFE_ZONE;
 
     /* 比可视区还大的元素不能「塞进屏幕里」。背景是 130vw，再放大就更宽，
        旧写法算出来的 maxLeft 恒为 0，于是每次 resize / 开关 dock 菜单（那个监听
        .dock-dd class 的 MutationObserver）都会把辛苦拖好的背景硬拽回左上角。
        对这类元素只要求「还盖着可视区」，位置一概不动。 */
-    const axis = (start, end, avail) => {
+    const axis = (start, end, min, max) => {
       const size = end - start;
+      const avail = max-min;
       if(size <= avail){
-        if(start < 0) return -start;
-        if(end > avail) return avail - end;
+        if(start < min) return min-start;
+        if(end > max) return max-end;
         return 0;
       }
-      if(start > avail - MARGIN) return (avail - MARGIN) - start;
-      if(end < MARGIN) return MARGIN - end;
+      if(start > max-MARGIN) return (max-MARGIN)-start;
+      if(end < min+MARGIN) return (min+MARGIN)-end;
       return 0;
     };
-    const dx = axis(r.left, r.right, availW);
-    const dy = axis(r.top, r.bottom, availH);
+    const dx = axis(r.left, r.right, stageRect.left, stageRect.right);
+    const dy = axis(r.top, r.bottom, stageRect.top, stageRect.bottom);
     // 走 API 而不是直接写 style.left —— 否则 Position BG 面板上的数字会和画面脱节
     if(dx || dy) el._transform.nudge(dx, dy);
   });
