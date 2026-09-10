@@ -23,7 +23,7 @@ test('VJ 注册源数据、standalone 与运行时顺序完全一致', async () 
     win = await app.firstWindow();
     await expect.poll(() => win.evaluate(() => document.getElementById('cv').width)).toBeGreaterThan(300);
     expect(await win.evaluate(() => [...VJ_TUNNEL_KINDS])).toEqual(config.kinds);
-    expect(config.kinds).toHaveLength(45);
+    expect(config.kinds).toHaveLength(46);
   } finally { await closeApp(app, win); try { cleanupUserDataDir(dir); } catch (e) {} }
 });
 

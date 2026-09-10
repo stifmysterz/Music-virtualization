@@ -5701,6 +5701,7 @@ const UI_STRINGS = {
     bg3DVjShatteredPanesBtn:"🔷 Shattered Panes",
     bg3DVjDustShaftBtn:"🌫 Dust Shafts",
     bg3DVjCollapsedGridBtn:"🏗 Collapsed Grid",
+    bg3DVjVoxelPulseTerrainBtn:"🌋 Voxel Pulse Terrain",
     bg3DCatNeon:"🌈 Neon",
     bg3DCatGeometric:"🔺 Geometric",
     bg3DCatArchitecture:"🏛 Architecture",
@@ -5988,6 +5989,7 @@ const UI_STRINGS = {
     bg3DVjShatteredPanesBtn:"🔷 碎窗厅",
     bg3DVjDustShaftBtn:"🌫 尘光竖井",
     bg3DVjCollapsedGridBtn:"🏗 塌陷钢架",
+    bg3DVjVoxelPulseTerrainBtn:"🌋 体素脉冲地形",
     bg3DCatNeon:"🌈 霓虹",
     bg3DCatGeometric:"🔺 几何",
     bg3DCatArchitecture:"🏛 建筑",
@@ -13635,7 +13637,7 @@ function vjDynAttr(count, itemSize){
    这批隧道原本清一色是不受光的 MeshBasicMaterial + bloom —— 铬、玻璃、金属
    全靠手写 HSL 把高光「画」上去（见 ChromeFlow 的注释）。那是有天花板的：
    没有灯就没有真高光，没有环境贴图就没有真反射。下面几个东西是「真材质」的
-   前提，加一次，45 个隧道都能用。
+   前提，加一次，全部 VJ 都能用。
 
    注意 bg3DScenes[kind] 建好之后永不回收（disableBg3D() 只是把 canvas 藏起来），
    所以环境贴图必须是模块级单例 —— 每个场景生成一张的话会一直累积下去。
@@ -16291,6 +16293,102 @@ function buildBg3DVjCollapsedGrid(){
   }};
 }
 
+/* ---------- 46. 体素脉冲地形（Voxel Pulse Terrain）——
+     参考现场音频装置的圆盘地形：数千根方柱不是频谱条排成一排，而是一张有空间深度的
+     音乐地貌。低音从中央砸出环波，中音推动大尺度地形，高音点亮细小尖峰。 ---------- */
+function voxelPulseTerrainSample(x, z, phase, bass, mid, high, seed){
+  const TAU=Math.PI*2, r=Math.hypot(x,z), a=Math.atan2(z,x);
+  const microTerrain=(0.5+0.5*Math.sin(seed*2.17+x*0.11-z*0.07))*0.82;
+  const terrain=0.82+microTerrain+(Math.sin(x*0.31)+Math.cos(z*0.27)+Math.sin((x+z)*0.19))*0.34;
+  const bassCore=Math.exp(-r*0.115)*bass*7.4;
+  const bassRing=Math.pow(Math.max(0,Math.sin(r*0.72-phase*TAU*2.0)),3)*bass*5.8;
+  const midWave=(Math.sin(x*0.34+phase*TAU*2)+Math.cos(z*0.29-phase*TAU*3))*mid*1.65;
+  const highGrain=Math.pow(0.5+0.5*Math.sin(r*1.42+a*5+phase*TAU*8+seed),8)*high*3.2;
+  const height=Math.max(0.34,Math.min(13.5,terrain+bassCore+bassRing+midWave+highGrain));
+  const heat=Math.max(0,Math.min(1,(bassCore+bassRing*0.78+highGrain*0.42)/6.2));
+  /* Hue is circular: interpolate purple .755 toward orange as 1.055, otherwise the
+     numeric "short" expression walks the long way through cyan/green. */
+  const hue=(0.755+heat*0.30+Math.sin(a*3+phase*TAU)*mid*0.025+1)%1;
+  const lum=Math.max(0.24,Math.min(0.68,0.28+height*0.018+heat*0.22+highGrain*0.022));
+  return {height,hue,lum,bassCore,bassRing,midWave,highGrain};
+}
+function buildBg3DVjVoxelPulseTerrain(){
+  const scene=new THREE.Scene();
+  scene.fog=new THREE.FogExp2(0x040318,0.018);
+  const camera=new THREE.PerspectiveCamera(48,window.innerWidth/Math.max(1,window.innerHeight),0.1,180);
+  camera.position.set(7,30,35); camera.lookAt(0,2,0);
+
+  const R=24.5, CELL=0.82, coords=[];
+  for(let ix=Math.ceil(-R/CELL);ix<=Math.floor(R/CELL);ix++){
+    const x=ix*CELL, edge=Math.sqrt(Math.max(0,R*R-x*x));
+    for(let iz=Math.ceil(-edge/CELL);iz<=Math.floor(edge/CELL);iz++){
+      const z=iz*CELL;
+      if(x*x+z*z<=R*R) coords.push({x,z,edge,seed:((ix*92821+iz*68917)>>>0)%997/997*Math.PI*2});
+    }
+  }
+  const geo=new THREE.BoxGeometry(CELL*0.72,1,CELL*0.72);
+  /* Phong is intentional here: the reference reads as thousands of luminous coloured
+     blocks, not neutral metal. It keeps per-instance colour strong while still giving
+     every cube a shaped highlight from the warm/cool light rig. */
+  const mat=new THREE.MeshPhongMaterial({color:0xffffff,shininess:72,specular:0x6f4cff,emissive:0x07020e});
+  const voxels=new THREE.InstancedMesh(geo,mat,coords.length);
+  voxels.instanceMatrix.setUsage(THREE.DynamicDrawUsage); voxels.frustumCulled=false;
+  const topPos=new THREE.BufferAttribute(new Float32Array(coords.length*3),3);
+  topPos.setUsage(THREE.DynamicDrawUsage);
+  const topCol=new THREE.BufferAttribute(new Float32Array(coords.length*3),3);
+  topCol.setUsage(THREE.DynamicDrawUsage);
+  const topGeo=new THREE.BufferGeometry(); topGeo.setAttribute('position',topPos); topGeo.setAttribute('color',topCol);
+  const topMat=new THREE.PointsMaterial({size:0.28,map:ensureBg3DDotTexture(),vertexColors:true,
+    transparent:true,opacity:0.68,blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true});
+  const tops=new THREE.Points(topGeo,topMat); tops.frustumCulled=false;
+  const group=new THREE.Group(); group.add(voxels,tops); scene.add(group);
+
+  const floorMat=new THREE.MeshBasicMaterial({color:0x160744,transparent:true,opacity:0.72,side:THREE.DoubleSide});
+  const floor=new THREE.Mesh(new THREE.CircleGeometry(R+0.8,128),floorMat);
+  floor.rotation.x=-Math.PI/2; floor.position.y=-0.22; group.add(floor);
+  const rimMat=new THREE.MeshBasicMaterial({color:0x722dff,transparent:true,opacity:0.30,
+    blending:THREE.AdditiveBlending,depthWrite:false});
+  const rim=new THREE.Mesh(new THREE.TorusGeometry(R,0.12,8,192),rimMat);
+  rim.rotation.x=Math.PI/2; rim.position.y=0.02; group.add(rim);
+
+  const lights=vjLightRig(scene,{keyColor:0xff9a55,keyI:1.05,rimColor:0x7b35ff,rimI:1.25,
+    skyColor:0x42206f,groundColor:0x05020d,fillI:0.52});
+  const coreLight=new THREE.PointLight(0xff7438,1.0,58,2);
+  coreLight.position.set(0,14,2); scene.add(coreLight);
+  const {composer}=createBg3DBloom(scene,camera,0.92,0.54,0.54);
+  const st={beats:0,bass:0,mid:0,high:0}; let travel=0;
+  scene.userData.voxelPulseTerrain={voxels,count:coords.length};
+  return {scene,camera,composer,update(bass,mid,high,dt){
+    st.bass+=(bass-st.bass)*(1-Math.pow(0.80,dt));
+    st.mid +=(mid-st.mid)  *(1-Math.pow(0.87,dt));
+    st.high+=(high-st.high)*(1-Math.pow(0.73,dt));
+    const phase=vjPhase(st,dt,16), TAU=Math.PI*2;
+    travel=(travel+(0.022+st.bass*0.075)*dt)%CELL;
+    for(let i=0;i<coords.length;i++){
+      const p=coords[i], span=(Math.floor((p.edge*2)/CELL)+1)*CELL;
+      let z=p.z+travel; if(z>p.edge) z-=span;
+      const v=voxelPulseTerrainSample(p.x,z,phase,st.bass,st.mid,st.high,p.seed);
+      vjPut(voxels,i,p.x,v.height*0.5,z,0,0,0,1,v.height,1);
+      VJ_C.setHSL(v.hue,0.82,v.lum); voxels.setColorAt(i,VJ_C);
+      topPos.array[i*3]=p.x; topPos.array[i*3+1]=v.height+0.06; topPos.array[i*3+2]=z;
+      VJ_C.setHSL(v.hue,0.94,Math.min(0.72,v.lum+0.14));
+      topCol.array[i*3]=VJ_C.r; topCol.array[i*3+1]=VJ_C.g; topCol.array[i*3+2]=VJ_C.b;
+    }
+    vjFlush(voxels);
+    topPos.needsUpdate=true; topCol.needsUpdate=true;
+    topMat.size=0.24+st.high*0.14; topMat.opacity=0.58+st.high*0.22;
+    group.rotation.y=Math.sin(phase*TAU)*0.075 + st.mid*0.025;
+    floorMat.opacity=0.62+st.bass*0.10;
+    rimMat.opacity=0.22+st.high*0.28;
+    rim.scale.setScalar(1+st.bass*0.025);
+    lights.key.intensity=0.82+st.bass*0.38;
+    lights.rim.intensity=0.92+st.high*0.42;
+    coreLight.intensity=0.72+st.bass*1.35;
+    camera.fov=48-st.bass*2.2+Math.sin(phase*TAU)*0.55;
+    camera.updateProjectionMatrix();
+  }};
+}
+
 /* BG3D_BUILDERS:START */
 /* Generated from background-catalog.json + tunnel-registry.json. Do not edit by hand. */
 const BG3D_BUILDERS = {
@@ -16457,9 +16555,10 @@ const BG3D_BUILDERS = {
   vjRustPipes: buildBg3DVjRustPipes,
   vjShatteredPanes: buildBg3DVjShatteredPanes,
   vjDustShaft: buildBg3DVjDustShaft,
-  vjCollapsedGrid: buildBg3DVjCollapsedGrid
+  vjCollapsedGrid: buildBg3DVjCollapsedGrid,
+  vjVoxelPulseTerrain: buildBg3DVjVoxelPulseTerrain
 };
-/* 119 regular 3D backgrounds + 45 VJ tunnels share this builder registry. */
+/* 119 regular 3D backgrounds + 46 VJ tunnels share this builder registry. */
 /* BG3D_BUILDERS:END */
 
 function resizeBg3D(stageW, stageH){
@@ -25212,7 +25311,8 @@ const VJ_TUNNEL_KINDS = Object.freeze([
   "vjNeonArches","vjHorizonVoyage","vjLightWell","vjHyperCube","vjCoasterRush",
   "vjChromeDrips","vjMercuryPool","vjFoilCrumple","vjChromeBubbles","vjLiquidSpine",
   "vjAsteroidSlalom","vjWarpJump","vjRingWorldRun","vjIonTrail","vjSolarFlare",
-  "vjDerelictHall","vjRustPipes","vjShatteredPanes","vjDustShaft","vjCollapsedGrid"
+  "vjDerelictHall","vjRustPipes","vjShatteredPanes","vjDustShaft","vjCollapsedGrid",
+  "vjVoxelPulseTerrain"
 ]);
 /* VJ_TUNNEL_REGISTRY:END */
 /* Machine-readable loop contract for every VJ. The geometry scroll can run forever, while
@@ -25232,7 +25332,7 @@ function createVjLoopMeta(kinds, premiumMeta, wrapDistance) {
 
 const VJ_LOOP_META = createVjLoopMeta(VJ_TUNNEL_KINDS, VJ_PREMIUM_META, VJ_LEN);
 /* VJ_LOOP_CONTRACT:END */
-/* VJ 自己的收藏 —— 45 条隧道之前完全没有这个概念，照 bg3DFavorites 那一套原样建一份。
+/* VJ 自己的收藏 —— 这些 VJ 之前完全没有这个概念，照 bg3DFavorites 那一套原样建一份。
    跟 🌌 3D 的收藏是两个独立的 Set：隧道和 3D 风格是两个不同的池子，收藏也该分开。 */
 let vjFavorites = new Set();
 try{ vjFavorites = new Set(JSON.parse(localStorage.getItem('subremix_vj_favorites')||'[]')); }catch(e){}

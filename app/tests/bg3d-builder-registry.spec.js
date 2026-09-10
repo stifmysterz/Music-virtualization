@@ -14,7 +14,7 @@ const CATALOG = path.join(ROOT, 'src', 'three', 'background-catalog.json');
 const VJ_REGISTRY = path.join(ROOT, 'src', 'vj', 'tunnel-registry.json');
 const verify = (root = ROOT) => spawnSync(process.execPath, [SYNC, '--root', root], { encoding: 'utf8' });
 
-test('BG3D_BUILDERS 由 119 个普通 3D 与 45 个 VJ 源注册表完整生成', async () => {
+test('BG3D_BUILDERS 由 119 个普通 3D 与 46 个 VJ 源注册表完整生成', async () => {
   const regular = JSON.parse(fs.readFileSync(CATALOG, 'utf8')).categories.flatMap(group => group.kinds);
   const vj = JSON.parse(fs.readFileSync(VJ_REGISTRY, 'utf8')).kinds;
   const check = verify();
@@ -31,7 +31,7 @@ test('BG3D_BUILDERS 由 119 个普通 3D 与 45 个 VJ 源注册表完整生成'
       festivalName: BG3D_BUILDERS.festival.name
     }));
     expect(regular).toHaveLength(119);
-    expect(vj).toHaveLength(45);
+    expect(vj).toHaveLength(46);
     expect(runtime.keys).toEqual([...regular, ...vj]);
     expect(runtime.invalid).toEqual([]);
     expect(runtime.festivalName).toBe('buildBg3DFestivalBuilding');
