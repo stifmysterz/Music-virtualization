@@ -7230,6 +7230,27 @@ const BG3D_GRADE_SHADER = {
     '}'
   ].join('\n')
 };
+/* VJ highlight guard. Several tunnels deliberately pack bright solid geometry into
+   a bloom chain; once those layers overlap, an unsigned render target has already
+   clipped the colour to white before the optional grade pass can recover it.
+   Apply a gentle shoulder only above 70% brightness. Dark/mid tones and geometry
+   stay untouched, while a full-white input lands at 82.9% and retains headroom for
+   the music-driven CSS flash that follows the WebGL render. */
+const VJ_HIGHLIGHT_SHADER = {
+  uniforms: { tDiffuse:{ value:null } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+  fragmentShader: [
+    'uniform sampler2D tDiffuse;',
+    'varying vec2 vUv;',
+    'void main(){',
+    '  vec4 c=texture2D(tDiffuse,vUv);',
+    '  float peak=max(c.r,max(c.g,c.b));',
+    '  float compressed=peak>0.70 ? 0.70+(peak-0.70)*0.43 : peak;',
+    '  vec3 rgb=peak>0.0001 ? c.rgb*(compressed/peak) : c.rgb;',
+    '  gl_FragColor=vec4(rgb,c.a);',
+    '}'
+  ].join('\n')
+};
 /* 默认关。实测结论：ACES 和线性→sRGB 都假定输入是「线性、场景参考」的 HDR 值，
    而这 106 个效果是用 setHSL 直接写「显示参考的 sRGB」数值的，两种变换都是二次处理。
    三方对比(vjLiquidGrid，同相位)：
@@ -7269,6 +7290,17 @@ function makeBg3DGradePass(){
   p.material.uniforms.uSrgb.value = vjSrgb ? 1.0 : 0.0;
   bg3DGradePasses.push(p);
   return p;
+}
+
+function ensureVjHighlightPass(kind, s){
+  if(!s || !s.composer || !VJ_TUNNEL_KINDS.includes(kind)) return;
+  const passes=s.composer.passes;
+  if(passes.some(p=>p.__vjHighlightGuard)) return;
+  const p=new THREE.ShaderPass(VJ_HIGHLIGHT_SHADER);
+  p.material.blending=THREE.NoBlending;
+  p.__vjHighlightGuard=true;
+  const insertAt=passes.findIndex(pass=>pass.__bg3dGrade || pass.__bg3dAlpha);
+  if(insertAt>=0) s.composer.insertPass(p,insertAt); else s.composer.addPass(p);
 }
 
 let bg3DSeeThrough = true;
@@ -16588,6 +16620,10 @@ const BG3D_HUE       = 46;     // 度，中高音拉满时的色相偏移上限
    风格开着时，实测低音一砸经常直接顶到全白、把颜色全糊掉（vjGridMorph/vjMetalTwist/
    vjFractalWell 等好几条 VJ 隧道尤其明显）。 */
 const BG3D_DYNAMIC_BRIGHTNESS_MAX = 1.6;
+/* VJ already contains bloom and dense emissive layers, so its screen-level flash
+   needs less gain than a sparse 3D background. 18% still reads clearly as a beat,
+   while leaving the highlight guard enough room to avoid browser-side clipping. */
+const VJ_DYNAMIC_BRIGHTNESS_MAX = 1.18;
 
 /* #bgThree 的 CSS filter 从这里统一出去。原来有三个写入者互相覆盖 ——
    背景亮度滑杆写一次、Director 每帧写一次、Director 关掉时又清空一次，
@@ -16620,7 +16656,8 @@ function applyBg3DFilter(mid, high, now, bounce){
   const brighten = Math.max(0, b.brightness - 1);
   const beatPop = dim + Math.max(brighten, bg3DHit*BG3D_HIT_FLASH);
   // 跳动/高音闪烁/Director 的冲击相乘，封顶之后才乘上滑杆基准
-  const dynamicMul = Math.min(BG3D_DYNAMIC_BRIGHTNESS_MAX,
+  const dynamicLimit = VJ_TUNNEL_KINDS.includes(bg3DKind) ? VJ_DYNAMIC_BRIGHTNESS_MAX : BG3D_DYNAMIC_BRIGHTNESS_MAX;
+  const dynamicMul = Math.min(dynamicLimit,
     (1 + beatPop) * (1 + high*BG3D_FLICKER*flick01) * (1 + dirDropPunch*0.6));
   const brightness = bg3DBaseBrightness * dynamicMul;
   const saturate = bg3DBaseSaturate * b.saturate;
@@ -16698,6 +16735,7 @@ function enableBg3D(kind){
     ensureBg3DRenderer();
     if(!bg3DScenes[kind]) bg3DScenes[kind] = BG3D_BUILDERS[kind]();
     ensureBg3DComposer(bg3DScenes[kind]);   // 没挂 bloom 的效果也要能透出背景
+    ensureVjHighlightPass(kind, bg3DScenes[kind]);
     resizeBg3D();
     bgThreeCanvas.style.display = bg3DVisible ? 'block' : 'none';
     bg3DKind = kind;
