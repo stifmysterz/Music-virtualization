@@ -4965,27 +4965,6 @@ function resetTwoDPostStyle(){
   cvFx.style.transform = 'translateX(-50%)';
   cvFx.style.filter = 'none';
 }
-/* Every 2D mode — including older single-band draw functions — passes through this
-   final layer. Keep the mappings different so the picture follows the music instead
-   of merely "breathing" as one flat value:
-     bass -> punch / lift, mid -> lateral camera sway, high -> highlight shimmer.
-   The function is pure on purpose: Playwright can prove each band independently. */
-function computeUniversal2DBandResponse(now, bass, mid, high, impact, beatPhase){
-  const phase = Number.isFinite(beatPhase) ? beatPhase : 0;
-  const kickWindow = Math.pow(Math.max(0, Math.cos(phase*Math.PI)), 6);
-  const bassPunch = bass * (0.018 + kickWindow*0.032) + impact*0.040;
-  const midSway = Math.sin(now*0.0031)*0.64 + Math.sin(now*0.0019 + 0.8)*0.36;
-  const highShimmer = 0.64 + Math.sin(now*0.037)*0.20 + Math.sin(now*0.061 + 0.5)*0.16;
-  return {
-    x: mid * midSway * 5.2,
-    y: -bassPunch * 3.2,
-    rotation: mid * midSway * 0.28,
-    scale: 1 + bassPunch,
-    brightness: 1 + high * highShimmer * 0.105,
-    contrast: 1 + high * 0.040,
-    saturation: 1 + high * 0.070
-  };
-}
 /* The complete 2D layer moves as one virtual camera. This deliberately lives at the DOM layer:
    individual effects keep their authored geometry and trails, while preview and recorder can share
    the same computed transform/filter through drawCaptureElement(). */
@@ -4995,16 +4974,12 @@ function applyTwoDPost(now, dt){
   twoDImpact = Math.max(twoDImpact * Math.pow(0.78, dt), hit);
   twoDDirectorPunch *= Math.pow(0.84, dt);
 
-  const bands = activeTwoDBandLevels();
-  const bandMotion = computeUniversal2DBandResponse(now, bands.bass, bands.mid, bands.high,
-    bands.bass > 0 ? twoDImpact : 0, musicState.beatPhase);
-  const hasBandEnergy = bands.bass + bands.mid + bands.high + twoDImpact > 0.001;
-  if(twoDMotion==='off' && !twoDDirectorOn && !twoDGradeOn && !hasBandEnergy){
+  if(twoDMotion==='off' && !twoDDirectorOn && !twoDGradeOn){
     resetTwoDPostStyle();
     return;
   }
 
-  let {x, y, rotation, scale, brightness, contrast, saturation} = bandMotion;
+  let x=0, y=0, rotation=0, scale=1, brightness=1, contrast=1, saturation=1;
   if(twoDMotion==='shake'){
     // Two incommensurate waves make a designed impact vibration without frame-to-frame randomness.
     const amp = twoDImpact * (2.2 + musicState.bassEnvelope*3.8);
@@ -6629,22 +6604,6 @@ function performRedo(){
 
 let activeModes = [0];   // ordered array — later entries draw ON TOP of earlier ones
 const MAX_ACTIVE_MODES = MODES.length;   // no fixed cap — any number of modes can be layered together
-/* Default presets have all three bands enabled. If the user explicitly disables a
-   band on every active layer, the universal response honours that choice too. */
-function activeTwoDBandLevels(){
-  let bassOn=false, midOn=false, highOn=false;
-  activeModes.forEach(idx=>{
-    const pos=getModePos(idx);
-    if(pos.useBass !== false) bassOn=true;
-    if(pos.useMid !== false) midOn=true;
-    if(pos.useHigh !== false) highOn=true;
-  });
-  return {
-    bass: bassOn ? musicState.bassEnvelope : 0,
-    mid: midOn ? musicState.midEnvelope : 0,
-    high: highOn ? musicState.highEnvelope : 0
-  };
-}
 function bringToFront(idx){
   const i = activeModes.indexOf(idx);
   if(i===-1) return;
@@ -13785,31 +13744,28 @@ function ensureVjPremiumRig(kind, s){
   const profile={orbit:1+(styleSeed%3), weave:1+((styleSeed>>>3)%3),
     xAmp:0.48+((styleSeed>>>6)%37)/100, yAmp:0.14+((styleSeed>>>11)%23)/100,
     bank:0.018+((styleSeed>>>16)%17)/1000};
-  s.scene.userData.vjPremiumRig = {group,key,rim,mat,state:{beats:0,bass:0,mid:0,high:0},meta,profile};
+  s.scene.userData.vjPremiumRig = {group,key,rim,mat,state:{beats:0},meta,profile};
 }
 
-function applyVjPremiumPass(kind, s, bass, mid, high, dt){
+function applyVjPremiumPass(kind, s, dt){
   const rig = s.scene.userData.vjPremiumRig;
   if(!rig) return;
   const st=rig.state, meta=rig.meta, profile=rig.profile;
-  st.bass += (bass-st.bass)*(1-Math.pow(0.82,dt));
-  st.mid  += (mid-st.mid)  *(1-Math.pow(0.88,dt));
-  st.high += (high-st.high)*(1-Math.pow(0.72,dt));
   const phase=vjPhase(st,dt,meta.loopBeats), a=phase*Math.PI*2;
   const phrase=0.5-0.5*Math.cos(a);
   /* integer harmonics make every named cameraStyle visibly distinct while still closing at 0/1 */
-  const bank=Math.sin(a*profile.weave)*profile.bank*(0.45+st.mid*0.55);
+  const bank=Math.sin(a*profile.weave)*profile.bank*0.45;
   const arcX=Math.sin(a*profile.orbit)*profile.xAmp, arcY=Math.sin(a*profile.weave)*profile.yAmp;
   rig.group.rotation.z=bank*0.7;
   rig.group.position.x=arcX*0.55; rig.group.position.y=arcY;
-  rig.mat.opacity=0.24 + st.high*0.24 + phrase*0.08;
-  rig.mat.size=(vjQuality==='low'?0.10:0.16)*(1+st.high*0.55);
+  rig.mat.opacity=0.24 + phrase*0.08;
+  rig.mat.size=vjQuality==='low'?0.10:0.16;
   rig.key.position.set(Math.cos(a)*12, 5+Math.sin(a)*3, -16+Math.sin(a)*7);
   rig.rim.position.set(Math.cos(a+Math.PI)*10, -4+Math.sin(a*2)*2, -28);
-  rig.key.intensity=0.38 + phrase*0.28 + st.bass*0.34;
-  rig.rim.intensity=0.30 + (1-phrase)*0.18 + st.high*0.32;
-  s.camera.position.x += arcX*(0.32+st.mid*0.45);
-  s.camera.position.y += arcY*(0.45+st.high*0.25);
+  rig.key.intensity=0.38 + phrase*0.28;
+  rig.rim.intensity=0.30 + (1-phrase)*0.18;
+  s.camera.position.x += arcX*0.32;
+  s.camera.position.y += arcY*0.45;
   s.camera.rotation.z += bank;
 }
 
@@ -16676,52 +16632,17 @@ function bg3DDirectorMultipliers(){
 }
 let bg3DSpeed = 1;   // global playback-speed multiplier, applies uniformly since every style scales its own animation by dt
 
-/* ---------- 中音 / 高音的全局表现 ----------
-   实测过 119 个 3D 风格的 update(bass, mid, high, dt) 各自引用了哪几个频段：
-       完全不看音频             0 个
-       只看 bass，mid/high 全扔  93 个（78%）
-       没用到 mid               94 个
-       没用到 high             114 个（96%）
-       三个频段都用到             4 个
-   mid/high 每帧都算好、每帧都传进去，然后被 93 个风格直接扔掉 —— 中高音在画面上等于不存在。
-   连 bass 也常常很轻：27 个风格只碰一次，例如樱花是
-       arr[i*3+1] -= (0.03 + fall[i]*0.06 + bass*0.05)*dt
-   低音拉满只是花瓣飘快一点，不是跳动。
-
-   而唯一对所有风格都生效的那一层（下面那句 camera.zoom *= 1 + beat*0.16 + bass*0.15）
-   只有 bass/beat，表现形式也只有「整体缩放」一种。
-
-   所以补在这一层：改一处，119 个风格全部受益，且完全不碰任何风格的内部逻辑，
-   不会把现有观感改坏。
-       中音  → 摇摆（摄影机滚转 + 横向摆动）
-       高音  → 闪烁（亮度快速起伏）
-       中+高 → 变色（色相偏移，带慢速漂移） */
-/* ---------- 每一粒低音都砸一下 ----------
-   跟上面的中音摇摆/高音闪烁并列，也是所有风格共用的那一层。
-   为什么不能指望风格自己：传给它们的 pulsedBass = min(1, bass + beat*0.4) 在压满的
-   曲子上是直流 —— 实测 lastBass 峰峰 0.206，加上 beat*0.4 之后还是 0.206，
-   瞬态被 min(1,…) 的天花板整个吞掉。改 pulsedBass 的语义会动到全部 119 个风格的
-   既有观感，所以不动它，在这里补一条独立的冲击。
-   自带包络而不是直接用 beat：beat 每帧 ×0.72，约 67ms 就衰到 0.27，看起来是抖不是砸。 */
-const BG3D_HIT_DECAY = 0.86;   // 每 16.7ms 衰到 86% —— 约 130ms 一粒，粒粒分明又看得清
-const BG3D_HIT_ZOOM  = 0.22;   // 砸下去时额外推近多少
-const BG3D_HIT_FLASH = 0.34;   // 砸下去时这一路自己能提亮多少（跟跳动风格取较强的那个，见 applyBg3DFilter）
-let bg3DHit = 0;
-
-const BG3D_SWAY_ROLL = 0.10;   // rad，中音拉满时的滚转幅度（约 ±5.7°）
-const BG3D_SWAY_X    = 2.4;    // 场景单位，中音拉满时的横向摆幅
-const BG3D_FLICKER   = 0.30;   // 高音拉满时亮度起伏的上限（只提亮，不压暗）
-const BG3D_HUE       = 46;     // 度，中高音拉满时的色相偏移上限
-/* 跳动/高音闪烁/Director 冲击这三层音频驱动的动态倍率，乘起来再封一个顶 —— 封的是
+/* Bounce 与 Auto Director 是用户主动选择的工具，仍需统一合成亮度并封顶。这里不再
+   根据 bass/mid/high 为全部 3D/VJ 强加缩放、摇摆、旋转、闪烁或色相变化。 */
+/* 跳动/Director 冲击这两层的动态倍率，乘起来再封一个顶 —— 封的是
    「动态那一截」，不是最终结果：用户自己把亮度滑杆拉到 150% 是明确选择，不该被这里
    悄悄压回去。上限 1.6 留了足够的「砸感」（Director drop 单独就能打满 1.6），但挡住了
-   跳动 + 高音 + drop 同时叠加时冲出天际、把材质全糊成一片白的情况 —— 默认 Bass Punch
+   跳动 + drop 同时叠加时冲出天际、把材质全糊成一片白的情况 —— 默认 Bass Punch
    风格开着时，实测低音一砸经常直接顶到全白、把颜色全糊掉（vjGridMorph/vjMetalTwist/
    vjFractalWell 等好几条 VJ 隧道尤其明显）。 */
 const BG3D_DYNAMIC_BRIGHTNESS_MAX = 1.6;
-/* VJ already contains bloom and dense emissive layers, so its screen-level flash
-   needs less gain than a sparse 3D background. 18% still reads clearly as a beat,
-   while leaving the highlight guard enough room to avoid browser-side clipping. */
+/* VJ already contains bloom and dense emissive layers, so opt-in Bounce/Director
+   brightness needs a lower ceiling to preserve highlight detail. */
 const VJ_DYNAMIC_BRIGHTNESS_MAX = 1.18;
 
 /* #bgThree 的 CSS filter 从这里统一出去。原来有三个写入者互相覆盖 ——
@@ -16737,36 +16658,17 @@ const BG3D_NO_BOUNCE = {brightness:1, blur:0, contrast:1, saturate:1};
    暗角脉冲、饱和脉冲、反差闪光、颗粒脉冲这 5 个基本等于什么都不做
    （实测 Bass Punch 算出 brightness 1.18，而 3D 画布上是 brightness(1)）。
    2D 背景走 updateBgBounceDom()，那边四个一直都用上了 —— 这里补上，两种背景才一致。 */
-function applyBg3DFilter(mid, high, now, bounce){
+function applyBg3DFilter(bounce){
   const b = bounce || BG3D_NO_BOUNCE;
-  // 两个互质频率叠加 —— 单一正弦是「呼吸」，叠起来才是「闪」
-  const flick01 = ((Math.sin(now*0.041) + Math.sin(now*0.067)) * 0.25) + 0.5;   // 0..1
-  /* 这一拍要提亮多少，有两路各自算出一个数：跳动风格自己的公式（比如 Bass Punch
-     的 brightness），和这里独立于风格的每拍冲击（bg3DHit）。两路经常在同一个 beat
-     上一起触发 —— 以前是相乘，Bass Punch 默认开着时亮度经常被两层一起顶到全白。
-     改成取较强的那一路而不是相乘：既保住「不管什么跳动风格、甚至跳动整个关掉，
-     每一拍都看得到亮度闪」这个设计意图（bg3DHit 这一路的下限，见 bass-per-hit.spec.js），
-     又不会在 Bass Punch 这种自己也算亮度的风格上把同一拍算两次。
-     只对「提亮」的那一半这么处理 —— 暗角脉冲那类靠 brightness<1 压暗画面的风格，
-     跟 bg3DHit 完全是两码事，不该被这条 Math.max 拿 0 把压暗吃掉（改之前直接测出暗角
-     脉冲在 3D 上量出 brightness=1，等于没压暗）。把 b.brightness-1 拆成压暗（恒定保留）
-     和提亮（跟 hit-flash 取较强）两截，再合回去。 */
-  const dim = Math.min(0, b.brightness - 1);
-  const brighten = Math.max(0, b.brightness - 1);
-  const beatPop = dim + Math.max(brighten, bg3DHit*BG3D_HIT_FLASH);
-  // 跳动/高音闪烁/Director 的冲击相乘，封顶之后才乘上滑杆基准
+  // 只合成用户主动打开的 Bounce 与 Auto Director；不读取三频。
   const dynamicLimit = VJ_TUNNEL_KINDS.includes(bg3DKind) ? VJ_DYNAMIC_BRIGHTNESS_MAX : BG3D_DYNAMIC_BRIGHTNESS_MAX;
-  const dynamicMul = Math.min(dynamicLimit,
-    (1 + beatPop) * (1 + high*BG3D_FLICKER*flick01) * (1 + dirDropPunch*0.6));
+  const dynamicMul = Math.min(dynamicLimit, b.brightness * (1 + dirDropPunch*0.6));
   const brightness = bg3DBaseBrightness * dynamicMul;
   const saturate = bg3DBaseSaturate * b.saturate;
-  // 色相：随中高音能量给一个稳定偏移，再叠一层慢漂移，才是「在变色」而不是「换了个色」
-  const hue = (mid*0.35 + high*0.65) * (BG3D_HUE*0.65 + BG3D_HUE*0.35*Math.sin(now*0.0011));   // 稳定项占大头，慢漂移只是让它一直在变，不会在谷底几乎归零
   const parts = [`brightness(${brightness.toFixed(3)})`];
   if(saturate !== 1) parts.push(`saturate(${saturate.toFixed(3)})`);
   if(b.contrast !== 1) parts.push(`contrast(${b.contrast.toFixed(3)})`);
   if(b.blur > 0.01) parts.push(`blur(${b.blur.toFixed(2)}px)`);
-  parts.push(`hue-rotate(${hue.toFixed(2)}deg)`);
   bgThreeCanvas.style.filter = parts.join(' ');
 }
 
@@ -16775,14 +16677,7 @@ function renderBg3D(bass, mid, high, dt){
   const s = bg3DScenes[bg3DKind];
   ensureVjPremiumRig(bg3DKind, s);
   const dirM = bg3DDirectorMultipliers();
-  // raw bass can saturate near 1 for long stretches on bass-heavy tracks (detectBeat clamps it), so
-  // some effects' own "1+bass*X" formulas can sit at a static elevated value instead of visibly
-  // pulsing. Add (never subtract) the beat transient — a sharp, non-saturating 0→1→decay impulse —
-  // on top of the untouched raw bass, so effects that already relied on the full sustained bass level
-  // (e.g. fractal tree's opacity/scale) keep working exactly as before, and only gain an extra snap
-  // right on each detected beat.
-  const pulsedBass = Math.min(1, bass + beat*0.4);
-  s.update(Math.min(1,pulsedBass*dirM.bassMul), Math.min(1,mid*dirM.bassMul), Math.min(1,high*dirM.bassMul), dt*bg3DSpeed*dirM.speedMul);
+  s.update(Math.min(1,bass*dirM.bassMul), Math.min(1,mid*dirM.bassMul), Math.min(1,high*dirM.bassMul), dt*bg3DSpeed*dirM.speedMul);
   if(s.scene.fog){
     if(s.scene.userData.baseFogDensity===undefined) s.scene.userData.baseFogDensity = s.scene.fog.density;
     s.scene.fog.density = s.scene.userData.baseFogDensity * dirM.fogMul;
@@ -16793,19 +16688,10 @@ function renderBg3D(bass, mid, high, dt){
      saturate）交给下面的 applyBg3DFilter —— 摄影机吃不下那四个。 */
   const bounceParams = computeBgBounceParams(bass, mid, high, performance.now());
   applyBgBounceToCamera(s.camera, bounceParams);
-  applyVjPremiumPass(bg3DKind, s, bass, mid, high, dt*bg3DSpeed);
-  /* 每一粒的冲击。dt 的单位就是「16.7ms 一帧」，所以可以直接当指数用。
-     取 max 而不是累加 —— 累加的话连续鼓点会一粒比一粒高，最后连成一片。 */
-  bg3DHit = Math.max(bg3DHit * Math.pow(BG3D_HIT_DECAY, dt), beat >= 0.999 ? 1 : 0);
-  s.camera.zoom *= 1 + beat*0.16 + bass*0.15 + bg3DHit*BG3D_HIT_ZOOM + dirDropPunch*0.6;   // beat (sharp transient, snaps to 1 then decays) drives the punch; bass alone must also be strong enough to visibly pulse tracks whose beat never crosses detectBeat()'s onset threshold — always-on, independent of the optional Bounce toggle, so every style — current and future — visibly pulses with the music
-  /* 中音摇摆 + 高音闪烁/变色，见上面 BG3D_SWAY_* 那段说明。
-     叠加在 applyBgBounceToCamera 刚写好的基准值之上 —— 它每帧重设 rotation.z 和
-     position.x，所以这里是叠加，不会一帧一帧累积上去。 */
-  const audioNow = performance.now();
-  const sway = Math.sin(audioNow*0.0040)*0.6 + Math.sin(audioNow*0.0026)*0.4;   // 周期约 1.6s / 2.4s，两个叠一起，摆得不呆板又看得出在跟着动
-  s.camera.rotation.z += sway * mid * BG3D_SWAY_ROLL;
-  s.camera.position.x += Math.sin(audioNow*0.0016) * mid * BG3D_SWAY_X;
-  applyBg3DFilter(mid, high, audioNow, bounceParams);
+  applyVjPremiumPass(bg3DKind, s, dt*bg3DSpeed);
+  // Auto Director remains opt-in; the removed universal audio layer no longer changes zoom.
+  s.camera.zoom *= 1 + dirDropPunch*0.6;
+  applyBg3DFilter(bounceParams);
   applyBg3DCameraMotion(s.camera, bass, mid, high, dt*bg3DSpeed);
   s.camera.updateProjectionMatrix();
   if(s.composer) s.composer.render();
@@ -16853,7 +16739,7 @@ function disableBg3D(){
   hasBg3D = false;
   bg3DKind = null;
   bgThreeCanvas.style.display = 'none';
-  bgThreeCanvas.style.filter = '';   // 别把最后一帧的闪烁/变色留在画布上
+  bgThreeCanvas.style.filter = '';   // 别把最后一帧的亮度/跳动滤镜留在画布上
 }
 
 function loadBgVideo(src){
@@ -26395,7 +26281,7 @@ document.getElementById('bgOpacitySel').addEventListener('input', e=>{
   const f = `brightness(${pct}%) saturate(1.15)`;
   bgImageEl.style.filter = f;
   bgVideoEl.style.filter = f;
-  // 3D 那边不直接写 filter —— 只记下基准，由 applyBg3DFilter() 跟闪烁/变色/Director 一起合成
+  // 3D 那边不直接写 filter —— 只记下基准，由 applyBg3DFilter() 跟可选 Bounce/Director 合成
   bg3DBaseBrightness = parseFloat(pct)/100;
   bg3DBaseSaturate = 1.15;
 });

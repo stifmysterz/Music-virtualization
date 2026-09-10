@@ -19,29 +19,8 @@ async function withApp(label, fn) {
   }
 }
 
-test('2D 共用合成层把 bass、mid、high 映射到不同动作', async () => {
-  await withApp('universal-2d-bands', async win => {
-    const r = await win.evaluate(() => {
-      const at = 913;
-      return {
-        quiet: computeUniversal2DBandResponse(at, 0, 0, 0, 0, 0.4),
-        bass: computeUniversal2DBandResponse(at, 1, 0, 0, 0, 0),
-        mid: computeUniversal2DBandResponse(at, 0, 1, 0, 0, 0.4),
-        high: computeUniversal2DBandResponse(at, 0, 0, 1, 0, 0.4)
-      };
-    });
-
-    expect(r.bass.scale, 'bass 没有推动缩放').toBeGreaterThan(r.quiet.scale + 0.015);
-    expect(r.bass.y, 'bass 没有推动上下冲击').toBeLessThan(r.quiet.y);
-    expect(Math.abs(r.mid.x - r.quiet.x), 'mid 没有推动横向摇摆').toBeGreaterThan(0.2);
-    expect(Math.abs(r.mid.rotation - r.quiet.rotation), 'mid 没有推动滚转').toBeGreaterThan(0.01);
-    expect(r.high.brightness, 'high 没有推动亮度').toBeGreaterThan(r.quiet.brightness + 0.02);
-    expect(r.high.contrast, 'high 没有推动对比度').toBeGreaterThan(r.quiet.contrast + 0.02);
-  });
-});
-
-test('全部 2D effects 都经过三频共用层，原有效果数量不变', async () => {
-  await withApp('universal-all-2d', async win => {
+test('全部 2D effects 不再被三频共用层统一缩放、摇摆或调色', async () => {
+  await withApp('no-universal-2d-bands', async win => {
     const result = await win.evaluate(() => {
       document.getElementById('intro')?.classList.add('hidden');
       twoDMotion = 'off'; twoDDirectorOn = false; twoDGradeOn = false;
@@ -49,44 +28,43 @@ test('全部 2D effects 都经过三频共用层，原有效果数量不变', as
       musicState.midEnvelope = 0.73;
       musicState.highEnvelope = 0.91;
       musicState.beatPhase = 0;
-      musicState.onset = false;
+      musicState.onset = true;
       twoDImpact = 0;
       const failed = [];
       for(let i=0; i<MODES.length; i++){
         activeModes = [i];
-        const pos = getModePos(i);
-        pos.useBass = pos.useMid = pos.useHigh = true;
         applyTwoDPost(913, 1);
         const transform = cvFx.style.transform;
         const filter = cvFx.style.filter;
-        if(!transform.includes('scale(') || !transform.includes('rotate(') ||
-           !filter.includes('brightness(') || !filter.includes('contrast(')) failed.push(MODES[i]);
+        if(transform !== 'translateX(-50%)' || filter !== 'none') failed.push(MODES[i]);
       }
       return { count: MODES.length, failed };
     });
 
     expect(result.count, '2D effects 被删除或减少了').toBeGreaterThanOrEqual(200);
-    expect(result.failed, `这些 2D effects 没经过共用三频层: ${result.failed.join(', ')}`).toEqual([]);
+    expect(result.failed, `这些 2D effects 仍被共用三频层改变: ${result.failed.join(', ')}`).toEqual([]);
   });
 });
 
-test('普通 3D 与 VJ 都走同一个 bass/mid/high 共用渲染层', async () => {
-  await withApp('universal-3d-vj', async win => {
+test('普通 3D 与 VJ 不再被三频共用层统一改变镜头或画面滤镜', async () => {
+  await withApp('no-universal-3d-vj', async win => {
     const result = await win.evaluate(async () => {
       document.getElementById('intro')?.classList.add('hidden');
+      bgBounceOn = false; bg3DDirectorOn = false; bg3DCameraMotion = 'off'; dirDropPunch = 0; beat = 1;
       const frame = () => new Promise(r => requestAnimationFrame(r));
       const probe = async kind => {
         enableBg3D(kind);
         await frame();
         const scene = bg3DScenes[kind];
-        beat = 0;
-        renderBg3D(0, 0, 0, 1);
-        const quietZoom = scene.camera.zoom;
-        renderBg3D(1, 0, 0, 1);
-        const bassZoom = scene.camera.zoom;
-        renderBg3D(0, 1, 1, 1);
-        const filter = bgThreeCanvas.style.filter;
-        return { kind, quietZoom, bassZoom, filter };
+        scene.update = () => {};
+        const shot = (bass, mid, high) => {
+          const rig = scene.scene.userData.vjPremiumRig;
+          if(rig) rig.state.beats = 0;
+          renderBg3D(bass, mid, high, 1);
+          return {zoom:scene.camera.zoom, x:scene.camera.position.x, y:scene.camera.position.y,
+            roll:scene.camera.rotation.z, filter:bgThreeCanvas.style.filter};
+        };
+        return { kind, quiet:shot(0,0,0), loud:shot(1,1,1) };
       };
       const regular = await probe(BG3D_ORDER[0]);
       const vj = await probe(VJ_TUNNEL_KINDS[VJ_TUNNEL_KINDS.length - 1]);
@@ -95,18 +73,25 @@ test('普通 3D 与 VJ 都走同一个 bass/mid/high 共用渲染层', async () 
         regular, vj,
         regularCount: BG3D_ORDER.length,
         vjCount: VJ_TUNNEL_KINDS.length,
-        sharedRenderer: renderBg3D.toString()
+        sharedRenderer: renderBg3D.toString(),
+        sharedFilter: applyBg3DFilter.toString(),
+        premiumPass: applyVjPremiumPass.toString()
       };
     });
 
     expect(result.regularCount, '普通 3D effects 被删除或减少了').toBeGreaterThanOrEqual(100);
     expect(result.vjCount, 'VJ effects 被删除或减少了').toBeGreaterThanOrEqual(40);
     for(const row of [result.regular, result.vj]){
-      expect(row.bassZoom, `${row.kind}: bass 没有推动镜头`).toBeGreaterThan(row.quietZoom + 0.1);
-      expect(row.filter, `${row.kind}: 没有 high 亮度反应`).toMatch(/brightness\(/);
-      expect(row.filter, `${row.kind}: 没有 mid/high 色相反应`).toMatch(/hue-rotate\((?!0(?:\.0+)?deg)/);
+      expect(row.loud.zoom, `${row.kind}: bass 仍在统一缩放镜头`).toBeCloseTo(row.quiet.zoom, 6);
+      expect(row.loud.x, `${row.kind}: mid 仍在统一横向摇摆`).toBeCloseTo(row.quiet.x, 6);
+      expect(row.loud.y, `${row.kind}: 三频仍在统一移动镜头`).toBeCloseTo(row.quiet.y, 6);
+      expect(row.loud.roll, `${row.kind}: mid 仍在统一旋转镜头`).toBeCloseTo(row.quiet.roll, 6);
+      expect(row.loud.filter, `${row.kind}: high 仍在统一改变滤镜`).toBe(row.quiet.filter);
+      expect(row.loud.filter).not.toContain('hue-rotate(');
     }
-    expect(result.sharedRenderer).toContain('s.camera.rotation.z += sway * mid');
-    expect(result.sharedRenderer).toContain('applyBg3DFilter(mid, high');
+    expect(result.sharedRenderer).not.toContain('beat*0.16');
+    expect(result.sharedRenderer).not.toContain('bass*0.15');
+    expect(result.sharedFilter).not.toMatch(/\b(mid|high)\b/);
+    expect(result.premiumPass).not.toMatch(/\b(bass|mid|high)\b/);
   });
 });

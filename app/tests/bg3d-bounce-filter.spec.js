@@ -22,8 +22,8 @@ const APP_DIR = path.join(__dirname, '..');
  *     低音重击  丢掉鼓点那一下 brightness 闪光
  *     低音猛推  丢掉 blur
  *
- * 合成的位置是现成的：applyBg3DFilter() 已经在把基准亮度、高音闪烁、变色和
- * Director 的亮度冲击合成到同一个 filter 上，这四个字段并进去即可。
+ * 合成的位置是 applyBg3DFilter()：它只保留用户主动选择的 Bounce、亮度滑杆与
+ * Director，不再把 high/mid 的全局闪烁和变色偷偷叠进来。
  */
 
 async function withApp(label, fn) {
@@ -40,8 +40,7 @@ async function withApp(label, fn) {
   }
 }
 
-/* 把跳动风格设好、渲一帧、把 3D 画布的 filter 拆成数值返回。
-   mid/high 一律给 0，把这一层和高音闪烁/变色隔离开。 */
+/* 把跳动风格设好、渲一帧、把 3D 画布的 filter 拆成数值返回。 */
 function bounceProbe() {
   window.__p = {
     read() {
@@ -140,7 +139,7 @@ test('跳动关掉时这些通通不出现', async () => {
   });
 });
 
-test('跟高音闪烁、亮度滑杆、Director 叠在一起而不是互相覆盖', async () => {
+test('跟亮度滑杆、Director 正确合成，但 high 不再额外闪烁', async () => {
   await withApp('bounce3d-4', async (win) => {
     const res = await win.evaluate((p) => {
       eval('(' + p + ')')();
@@ -150,25 +149,23 @@ test('跟高音闪烁、亮度滑杆、Director 叠在一起而不是互相覆�
       const sl = document.getElementById('bgOpacitySel');
       sl.value = '50'; sl.dispatchEvent(new Event('input', { bubbles: true }));
 
-      // amt 故意取小一点（0.3）：跳动这一路自己算出的亮度压到低于每粒闪光的下限，
-      // 这样「叠上高音闪烁还会再提亮」这件事才测得干净，不会一上来就撞封顶。
-      // 封顶本身、以及两路谁大用谁（而不是相乘）在下一个 test 里单独测。
+      // amt 故意取小一点，避免 Bounce 自己先撞上封顶。
       bgBounceOn = true; bgBounceStyle = 'basspunch'; bgBounceAmt = 0.3;
 
       beat = 0; renderBg3D(0, 0, 0, 1);
       const base = R();                       // 只有滑杆的 50%
 
       beat = 1; renderBg3D(1, 0, 0, 1);
-      const withPunch = R();                  // 滑杆 × max(跳动亮度, 每粒闪光)，封顶不生效
-      const hitAmount = bg3DHit;              // 每粒闪光这一路的当前强度
-      // 跳动那一路的亮度、每粒闪光的系数、封顶都直接问实现要，别在测试里复制系数 ——
-      // 复制的话调系数就会假报回归
+      const withPunch = R();                  // 滑杆 × Bounce 亮度
       const bounceBrightness = computeBgBounceParams(1, 0, 0, performance.now()).brightness;
-      const hitFlash = BG3D_HIT_FLASH;
       const dynamicMax = BG3D_DYNAMIC_BRIGHTNESS_MAX;
 
       beat = 1; renderBg3D(1, 0, 1, 1);
-      const withPunchAndHigh = R();           // 再叠高音闪烁
+      const withPunchAndHigh = R();           // high 不应再额外改变 filter
+
+      dirDropPunch = 0.4;
+      beat = 1; renderBg3D(1, 0, 1, 1);
+      const withDirector = R();               // Director 是用户主动打开的工具，仍可合成
 
       // 饱和度：滑杆定的 1.15 要和跳动的 saturate 相乘，不能互相顶掉
       // amt 换回 1 —— 上面为了单测「取较强的那个」故意调小到 0.3，这里跟亮度无关，
@@ -177,28 +174,21 @@ test('跟高音闪烁、亮度滑杆、Director 叠在一起而不是互相覆�
       renderBg3D(1, 0, 0, 1);
       const satCombined = R();
 
-      return { base, withPunch, withPunchAndHigh, satCombined,
-               hitAmount: +hitAmount.toFixed(4), bounceBrightness: +bounceBrightness.toFixed(4),
-               hitFlash, dynamicMax };
+      return { base, withPunch, withPunchAndHigh, withDirector, satCombined,
+               bounceBrightness: +bounceBrightness.toFixed(4), dynamicMax };
     }, bounceProbe.toString());
 
     expect(res.base.brightness, '亮度滑杆的 50% 没生效').toBeCloseTo(0.5, 2);
-    /* 「这一拍提亮多少」取跳动亮度和每粒闪光里较强的那个，不是两个相乘 —— 相乘正是
-       低音一砸就糊白的原因（Bass Punch 默认开着时，两层算的是同一个 beat）。
-       期望值按实现的实际强度算，别在这里复制系数：先是钉死上限 <0.7，加了「每粒砸
-       一下」那一路就假报回归；改成写死 0.30 之后，调了 Bass Punch 的系数又假报了一次。
-       amt=0.3 时跳动自己算出的亮度（~1.195）比每粒闪光的下限（1.34）还低，所以这里
-       应该是闪光那一路胜出，不是跳动亮度——这正是要测的地方。 */
-    const beatPop = Math.max(res.bounceBrightness - 1, res.hitAmount * res.hitFlash);
-    const expected = 0.5 * Math.min(res.dynamicMax, 1 + beatPop);
-    expect(res.withPunch.brightness, `各路亮度没有取到较强的那个（期望约 ${expected.toFixed(3)}）`).toBeCloseTo(expected, 2);
-    expect(res.withPunchAndHigh.brightness, '高音闪烁没有再叠上去').toBeGreaterThan(res.withPunch.brightness);
+    const expected = 0.5 * Math.min(res.dynamicMax, res.bounceBrightness);
+    expect(res.withPunch.brightness, `Bounce 没有跟亮度滑杆相乘（期望约 ${expected.toFixed(3)}）`).toBeCloseTo(expected, 2);
+    expect(res.withPunchAndHigh.brightness, 'high 仍在全局提亮 3D').toBeCloseTo(res.withPunch.brightness, 3);
+    expect(res.withDirector.brightness, 'Auto Director 没有跟现有亮度合成').toBeGreaterThan(res.withPunch.brightness);
     // 滑杆的 1.15 × 跳动的 1.9 ≈ 2.18
     expect(res.satCombined.saturate, '滑杆饱和度和跳动饱和度没有相乘').toBeGreaterThan(2);
   });
 });
 
-test('低音 + 高音 + Director drop 同时拉满时，动态亮度倍率有封顶 —— 这正是当初把画面糊白的那套叠法', async () => {
+test('Bounce + Director 同时拉满时，动态亮度倍率仍有封顶', async () => {
   await withApp('bounce3d-5', async (win) => {
     const res = await win.evaluate((p) => {
       eval('(' + p + ')')();
@@ -213,9 +203,9 @@ test('低音 + 高音 + Director drop 同时拉满时，动态亮度倍率有封
     }, bounceProbe.toString());
 
     // 滑杆基准（1）× 封顶后的动态倍率，不能比封顶本身还高
-    expect(res.slammed.brightness, `三路一起拉满时冲出了封顶（filter 里是 ${res.slammed.brightness}，封顶 ${res.base * res.dynamicMax}）`)
+    expect(res.slammed.brightness, `两路一起拉满时冲出了封顶（filter 里是 ${res.slammed.brightness}，封顶 ${res.base * res.dynamicMax}）`)
       .toBeLessThanOrEqual(res.base * res.dynamicMax + 0.01);
-    // 封顶不是摆设：不加封顶的话这里会是 1×1.98(跳动)×1.3(高音)×1.6(drop) ≈ 4.1，
+    // 封顶不是摆设：不加封顶的话这里会是 1×1.98(跳动)×1.6(drop) ≈ 3.2，
     // 早就把材质糊成一片白了
     expect(res.slammed.brightness, '封顶太松，没起到防止糊白的作用').toBeLessThan(2);
   });
