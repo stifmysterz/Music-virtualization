@@ -4965,6 +4965,27 @@ function resetTwoDPostStyle(){
   cvFx.style.transform = 'translateX(-50%)';
   cvFx.style.filter = 'none';
 }
+/* Every 2D mode — including older single-band draw functions — passes through this
+   final layer. Keep the mappings different so the picture follows the music instead
+   of merely "breathing" as one flat value:
+     bass -> punch / lift, mid -> lateral camera sway, high -> highlight shimmer.
+   The function is pure on purpose: Playwright can prove each band independently. */
+function computeUniversal2DBandResponse(now, bass, mid, high, impact, beatPhase){
+  const phase = Number.isFinite(beatPhase) ? beatPhase : 0;
+  const kickWindow = Math.pow(Math.max(0, Math.cos(phase*Math.PI)), 6);
+  const bassPunch = bass * (0.018 + kickWindow*0.032) + impact*0.040;
+  const midSway = Math.sin(now*0.0031)*0.64 + Math.sin(now*0.0019 + 0.8)*0.36;
+  const highShimmer = 0.64 + Math.sin(now*0.037)*0.20 + Math.sin(now*0.061 + 0.5)*0.16;
+  return {
+    x: mid * midSway * 5.2,
+    y: -bassPunch * 3.2,
+    rotation: mid * midSway * 0.28,
+    scale: 1 + bassPunch,
+    brightness: 1 + high * highShimmer * 0.105,
+    contrast: 1 + high * 0.040,
+    saturation: 1 + high * 0.070
+  };
+}
 /* The complete 2D layer moves as one virtual camera. This deliberately lives at the DOM layer:
    individual effects keep their authored geometry and trails, while preview and recorder can share
    the same computed transform/filter through drawCaptureElement(). */
@@ -4974,12 +4995,16 @@ function applyTwoDPost(now, dt){
   twoDImpact = Math.max(twoDImpact * Math.pow(0.78, dt), hit);
   twoDDirectorPunch *= Math.pow(0.84, dt);
 
-  if(twoDMotion==='off' && !twoDDirectorOn && !twoDGradeOn){
+  const bands = activeTwoDBandLevels();
+  const bandMotion = computeUniversal2DBandResponse(now, bands.bass, bands.mid, bands.high,
+    bands.bass > 0 ? twoDImpact : 0, musicState.beatPhase);
+  const hasBandEnergy = bands.bass + bands.mid + bands.high + twoDImpact > 0.001;
+  if(twoDMotion==='off' && !twoDDirectorOn && !twoDGradeOn && !hasBandEnergy){
     resetTwoDPostStyle();
     return;
   }
 
-  let x=0, y=0, rotation=0, scale=1, brightness=1, contrast=1, saturation=1;
+  let {x, y, rotation, scale, brightness, contrast, saturation} = bandMotion;
   if(twoDMotion==='shake'){
     // Two incommensurate waves make a designed impact vibration without frame-to-frame randomness.
     const amp = twoDImpact * (2.2 + musicState.bassEnvelope*3.8);
@@ -6602,6 +6627,22 @@ function performRedo(){
 
 let activeModes = [0];   // ordered array — later entries draw ON TOP of earlier ones
 const MAX_ACTIVE_MODES = MODES.length;   // no fixed cap — any number of modes can be layered together
+/* Default presets have all three bands enabled. If the user explicitly disables a
+   band on every active layer, the universal response honours that choice too. */
+function activeTwoDBandLevels(){
+  let bassOn=false, midOn=false, highOn=false;
+  activeModes.forEach(idx=>{
+    const pos=getModePos(idx);
+    if(pos.useBass !== false) bassOn=true;
+    if(pos.useMid !== false) midOn=true;
+    if(pos.useHigh !== false) highOn=true;
+  });
+  return {
+    bass: bassOn ? musicState.bassEnvelope : 0,
+    mid: midOn ? musicState.midEnvelope : 0,
+    high: highOn ? musicState.highEnvelope : 0
+  };
+}
 function bringToFront(idx){
   const i = activeModes.indexOf(idx);
   if(i===-1) return;
