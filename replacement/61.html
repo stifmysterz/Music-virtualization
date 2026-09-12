@@ -5677,6 +5677,8 @@ const UI_STRINGS = {
     bg3DVjDustShaftBtn:"🌫 Dust Shafts",
     bg3DVjCollapsedGridBtn:"🏗 Collapsed Grid",
     bg3DVjVoxelPulseTerrainBtn:"🌋 Voxel Pulse Terrain",
+    bg3DVjNeonGeometryTunnelBtn:"🔷 Neon Geometry Infinity",
+    bg3DVjBlackGoldFluidBtn:"🖤 Liquid Black Gold",
     bg3DCatNeon:"🌈 Neon",
     bg3DCatGeometric:"🔺 Geometric",
     bg3DCatArchitecture:"🏛 Architecture",
@@ -5965,6 +5967,8 @@ const UI_STRINGS = {
     bg3DVjDustShaftBtn:"🌫 尘光竖井",
     bg3DVjCollapsedGridBtn:"🏗 塌陷钢架",
     bg3DVjVoxelPulseTerrainBtn:"🌋 体素脉冲地形",
+    bg3DVjNeonGeometryTunnelBtn:"🔷 霓虹几何无限隧道",
+    bg3DVjBlackGoldFluidBtn:"🖤 黑金液态流体",
     bg3DCatNeon:"🌈 霓虹",
     bg3DCatGeometric:"🔺 几何",
     bg3DCatArchitecture:"🏛 建筑",
@@ -16345,6 +16349,99 @@ function buildBg3DVjVoxelPulseTerrain(){
   }};
 }
 
+/* ---------- 47. 霓虹几何无限隧道：六边形骨架、悬浮切面与远端光核。
+   全部运动由 16 拍闭合相位计算，高光收紧以保留赛博霓虹的黑色负空间。 ---------- */
+function neonGeometryTunnelSample(index, phase){
+  const TAU=Math.PI*2, rings=42, spacing=VJ_LEN/rings;
+  return {z:vjLoopZ(phase*VJ_LEN,index*spacing),radius:11.8+Math.sin(index*0.61+phase*TAU*2)*2.15,
+    twist:(index*0.19+phase*TAU*2)%TAU,hue:(0.52+(index%6)*0.068+0.055*Math.sin(phase*TAU+index*0.37)+1)%1};
+}
+function buildBg3DVjNeonGeometryTunnel(){
+  const scene=new THREE.Scene(); scene.fog=new THREE.FogExp2(0x01020a,0.0095);
+  const camera=new THREE.PerspectiveCamera(65,window.innerWidth/Math.max(1,window.innerHeight),0.1,400);
+  const RINGS=42,SIDES=6,BEAMS=RINGS*SIDES;
+  const beam=new THREE.InstancedMesh(new THREE.BoxGeometry(1,0.36,0.64),new THREE.MeshBasicMaterial({color:0xffffff}),BEAMS);
+  beam.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(beam);
+  const nodes=new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.7,0),new THREE.MeshBasicMaterial({color:0xffffff}),RINGS*3);
+  nodes.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(nodes);
+  const rails=new THREE.InstancedMesh(new THREE.BoxGeometry(0.12,0.12,15),new THREE.MeshBasicMaterial({color:0xffffff}),18);
+  rails.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(rails);
+  const core=new THREE.Mesh(new THREE.IcosahedronGeometry(2.4,2),new THREE.MeshBasicMaterial({color:0x5b20ff,wireframe:true,transparent:true,opacity:0.62}));
+  core.position.z=-82; scene.add(core);
+  const {composer}=createBg3DBloom(scene,camera,1.12,0.5,0.57),st={beats:0};
+  scene.userData.neonGeometryTunnel={beamCount:BEAMS,nodeCount:RINGS*3,loopBeats:16};
+  return {scene,camera,composer,update(_bass,_mid,_high,dt){
+    const phase=vjPhase(st,dt,16),TAU=Math.PI*2;
+    for(let i=0;i<RINGS;i++){
+      const p=neonGeometryTunnelSample(i,phase);
+      for(let j=0;j<SIDES;j++){
+        const a=j/SIDES*TAU+p.twist,next=(j+1)/SIDES*TAU+p.twist,idx=i*SIDES+j;
+        vjPut(beam,idx,(Math.cos(a)+Math.cos(next))*p.radius*.5,(Math.sin(a)+Math.sin(next))*p.radius*.5,p.z,0,0,a+Math.PI/2,2*p.radius*Math.sin(Math.PI/SIDES),1,1);
+        VJ_C.setHSL((p.hue+j*.035)%1,.96,.38); beam.setColorAt(idx,VJ_C);
+      }
+      for(let j=0;j<3;j++){
+        const a=j/3*TAU-p.twist*.45,idx=i*3+j;
+        vjPut(nodes,idx,Math.cos(a)*p.radius,Math.sin(a)*p.radius,p.z,phase*TAU+j,p.twist,0,.75,.75,.75);
+        VJ_C.setHSL((.82+j*.12+i*.009)%1,1,.44); nodes.setColorAt(idx,VJ_C);
+      }
+    }
+    for(let i=0;i<18;i++){
+      const a=i%6/6*TAU+Math.floor(i/6)*.055+phase*TAU*.25,z=vjLoopZ(phase*VJ_LEN,i/18*VJ_LEN);
+      vjPut(rails,i,Math.cos(a)*8.2,Math.sin(a)*8.2,z,0,0,0,1,1,1); VJ_C.setHSL((.52+i*.027)%1,1,.32); rails.setColorAt(i,VJ_C);
+    }
+    vjFlush(beam); vjFlush(nodes); vjFlush(rails);
+    core.rotation.x=phase*TAU; core.rotation.y=-phase*TAU*2; core.scale.setScalar(.88+.12*Math.sin(phase*TAU*4));
+    camera.position.x=Math.sin(phase*TAU)*.8; camera.position.y=Math.cos(phase*TAU)*.55; camera.rotation.z=Math.sin(phase*TAU)*.055;
+  }};
+}
+
+/* ---------- 48. 黑金液态流体：黑液负责体积，金液形成流动高光脉络。
+   流线、灯位和镜头全部周期闭合，16 拍后精确回到首帧。 ---------- */
+function blackGoldFluidSample(stream,bead,phase){
+  const TAU=Math.PI*2,count=54,u=bead/count,t=phase*TAU,z=vjLoopZ(phase*VJ_LEN,(u*VJ_LEN+stream*7.3)%VJ_LEN);
+  const a=stream/10*TAU+t+u*TAU*2,swell=6.4+2.2*Math.sin(u*TAU*3+t*2+stream*.7);
+  return {z,x:Math.cos(a)*swell+Math.sin(u*TAU*5-t)*2.1,y:Math.sin(a)*swell*.62+Math.cos(u*TAU*4+t)*1.6,
+    scale:.72+.55*(.5+.5*Math.sin(u*TAU*6-t*2+stream))};
+}
+function buildBg3DVjBlackGoldFluid(){
+  const scene=new THREE.Scene(); scene.fog=new THREE.FogExp2(0x020201,.011);
+  const camera=new THREE.PerspectiveCamera(40,window.innerWidth/Math.max(1,window.innerHeight),.1,400);
+  const STREAMS=10,BEADS=54,N=STREAMS*BEADS,geo=new THREE.SphereGeometry(1,8,6);
+  const black=new THREE.InstancedMesh(geo,vjStdMat({color:0x090806,metalness:.82,roughness:.16,envMapIntensity:.42}),N);
+  const gold=new THREE.InstancedMesh(geo,vjStdMat({color:0xf0a320,emissive:0x512300,metalness:.88,roughness:.13,envMapIntensity:.52}),N);
+  black.instanceMatrix.setUsage(THREE.DynamicDrawUsage); gold.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(black,gold);
+  const halos=new THREE.InstancedMesh(new THREE.TorusGeometry(1,.055,6,40),new THREE.MeshBasicMaterial({color:0xb86f12,transparent:true,opacity:.22,blending:THREE.AdditiveBlending,depthWrite:false}),12);
+  halos.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(halos);
+  /* 三块低亮度金色液池留在远景，负责电影感的大面积流体轮廓；前景黑液会把它们切开，
+     因而不是一张平的金色底板，同时能避免暗色题材在投影上只剩几条细高光。 */
+  const pools=[];
+  for(let i=0;i<3;i++){
+    const pool=new THREE.Mesh(new THREE.CircleGeometry(12,64),new THREE.MeshBasicMaterial({color:i===1?0x542b05:0x3c1d03,side:THREE.DoubleSide}));
+    pool.position.set((i-1)*11,(i%2?5:-5),-28-i*3); scene.add(pool); pools.push(pool);
+  }
+  const rig=vjLightRig(scene,{keyColor:0xffca62,keyI:.92,rimColor:0xff7a12,rimI:1.12,skyColor:0x231609,groundColor:0,fillI:.28});
+  const warm=new THREE.PointLight(0xff9a22,.9,70,2); warm.position.set(-5,7,-18); scene.add(warm);
+  const {composer}=createBg3DBloom(scene,camera,.88,.46,.62),st={beats:0};
+  scene.userData.blackGoldFluid={beadCount:N,goldCount:N,loopBeats:16};
+  return {scene,camera,composer,update(_bass,_mid,_high,dt){
+    const phase=vjPhase(st,dt,16),TAU=Math.PI*2; let gi=0;
+    for(let s=0;s<STREAMS;s++) for(let b=0;b<BEADS;b++){
+      const i=s*BEADS+b,p=blackGoldFluidSample(s,b,phase),stretch=1.25+.55*Math.sin(b/BEADS*TAU*2+phase*TAU+s);
+      vjPut(black,i,p.x,p.y,p.z,phase*TAU+s*.2,b*.11,0,p.scale*2.7,p.scale*1.55,stretch*1.55);
+      const gs=p.scale*(1.08+.16*Math.sin(phase*TAU*3+b));
+      vjPut(gold,gi++,p.x*1.035,p.y*1.035,p.z+.72,0,b*.09,phase*TAU,gs,gs*.62,stretch*.92);
+    }
+    for(let i=0;i<12;i++){const z=vjLoopZ(phase*VJ_LEN,i*VJ_LEN/12),pulse=3.6+1.1*Math.sin(phase*TAU*2+i); vjPut(halos,i,0,0,z,0,0,phase*TAU+i*.3,pulse,pulse*.68,pulse);}
+    vjFlush(black); vjFlush(gold); vjFlush(halos);
+    warm.position.x=Math.sin(phase*TAU)*8; warm.position.y=5+Math.cos(phase*TAU)*3; rig.key.intensity=.82+.12*Math.sin(phase*TAU*2);
+    for(let i=0;i<pools.length;i++){
+      const a=phase*TAU+i*2.1; pools[i].position.x=(i-1)*11+Math.sin(a)*4; pools[i].position.y=(i%2?4:-4)+Math.cos(a*2)*2;
+      pools[i].scale.set(1.35+.28*Math.sin(a*2),.72+.16*Math.cos(a*3),1); pools[i].rotation.z=Math.sin(a)*.28;
+    }
+    camera.position.set(Math.sin(phase*TAU)*1.1,Math.cos(phase*TAU)*.7,0); camera.rotation.z=Math.sin(phase*TAU)*.035;
+  }};
+}
+
 /* BG3D_BUILDERS:START */
 /* Generated from background-catalog.json + tunnel-registry.json. Do not edit by hand. */
 const BG3D_BUILDERS = {
@@ -16512,9 +16609,11 @@ const BG3D_BUILDERS = {
   vjShatteredPanes: buildBg3DVjShatteredPanes,
   vjDustShaft: buildBg3DVjDustShaft,
   vjCollapsedGrid: buildBg3DVjCollapsedGrid,
-  vjVoxelPulseTerrain: buildBg3DVjVoxelPulseTerrain
+  vjVoxelPulseTerrain: buildBg3DVjVoxelPulseTerrain,
+  vjNeonGeometryTunnel: buildBg3DVjNeonGeometryTunnel,
+  vjBlackGoldFluid: buildBg3DVjBlackGoldFluid
 };
-/* 119 regular 3D backgrounds + 46 VJ tunnels share this builder registry. */
+/* 119 regular 3D backgrounds + 48 VJ tunnels share this builder registry. */
 /* BG3D_BUILDERS:END */
 
 function resizeBg3D(stageW, stageH){
@@ -25198,7 +25297,7 @@ const VJ_TUNNEL_KINDS = Object.freeze([
   "vjChromeDrips","vjMercuryPool","vjFoilCrumple","vjChromeBubbles","vjLiquidSpine",
   "vjAsteroidSlalom","vjWarpJump","vjRingWorldRun","vjIonTrail","vjSolarFlare",
   "vjDerelictHall","vjRustPipes","vjShatteredPanes","vjDustShaft","vjCollapsedGrid",
-  "vjVoxelPulseTerrain"
+  "vjVoxelPulseTerrain","vjNeonGeometryTunnel","vjBlackGoldFluid"
 ]);
 /* VJ_TUNNEL_REGISTRY:END */
 /* Machine-readable loop contract for every VJ. The geometry scroll can run forever, while
