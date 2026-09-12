@@ -74,26 +74,24 @@ test('Premium rig 只增强选中的 20 个，不改变其余 VJ', async () => {
   });
 });
 
-test('低中高频分别驱动质量、镜头和灯光，而且闭合相位不累积漂移', async () => {
+test('Premium rig 保留循环编舞，但不再强制添加全局三频反应', async () => {
   await withApp('vj-premium-motion', async (win) => {
     const result = await win.evaluate(() => {
       enableBg3D('vjLiquidGrid'); renderBg3D(0,0,0,1);
       const s=bg3DScenes.vjLiquidGrid, rig=s.scene.userData.vjPremiumRig, st=rig.state;
-      const sample=(beats,bass,mid,high)=>{
-        st.beats=beats; st.bass=bass; st.mid=mid; st.high=high;
-        applyVjPremiumPass('vjLiquidGrid',s,bass,mid,high,0);
+      const sample=(beats)=>{
+        st.beats=beats;
+        applyVjPremiumPass('vjLiquidGrid',s,0);
         return {x:rig.group.position.x,y:rig.group.position.y,roll:rig.group.rotation.z,
           opacity:rig.mat.opacity,size:rig.mat.size,key:rig.key.intensity,rim:rig.rim.intensity};
       };
-      return {start:sample(0,0,0,0), end:sample(16,0,0,0), bass:sample(4,1,0,0),
-        mid:sample(4,0,1,0), high:sample(4,0,0,1)};
+      return {start:sample(0), quarter:sample(4), end:sample(16), source:applyVjPremiumPass.toString()};
     });
     for (const key of ['x','y','roll','opacity','size','key','rim']) {
       expect(Math.abs(result.start[key]-result.end[key]), `${key} 在 loop seam 漂移`).toBeLessThan(1e-8);
     }
-    expect(result.bass.key).toBeGreaterThan(result.start.key);
-    expect(Math.abs(result.mid.roll)).toBeGreaterThan(Math.abs(result.start.roll));
-    expect(result.high.opacity).toBeGreaterThan(result.start.opacity);
-    expect(result.high.size).toBeGreaterThan(result.start.size);
+    expect(result.quarter.opacity).toBeGreaterThan(result.start.opacity);
+    expect(result.quarter.key).toBeGreaterThan(result.start.key);
+    expect(result.source).not.toMatch(/\b(bass|mid|high)\b/);
   });
 });

@@ -15,11 +15,11 @@ function verify(packagePath, lockPath) {
   ], { encoding: 'utf8' });
 }
 
-test('package.json 和 package-lock 根版本统一为 1.1.4', () => {
+test('package.json 和 package-lock 根版本统一为 1.1.5', () => {
   const pkg = JSON.parse(fs.readFileSync(PACKAGE_PATH, 'utf8'));
   const lock = JSON.parse(fs.readFileSync(LOCK_PATH, 'utf8'));
 
-  expect(pkg.version).toBe('1.1.4');
+  expect(pkg.version).toBe('1.1.5');
   expect(lock.version).toBe(pkg.version);
   expect(lock.packages[''].version).toBe(pkg.version);
   expect(lock.name).toBe(pkg.name);
@@ -27,7 +27,7 @@ test('package.json 和 package-lock 根版本统一为 1.1.4', () => {
 
   const result = verify(PACKAGE_PATH, LOCK_PATH);
   expect(result.status, result.stderr || result.stdout).toBe(0);
-  expect(result.stdout).toContain('sub-remix@1.1.4');
+  expect(result.stdout).toContain('sub-remix@1.1.5');
 });
 
 test('版本检查会拒绝 package-lock metadata drift', () => {
@@ -47,4 +47,3 @@ test('版本检查会拒绝 package-lock metadata drift', () => {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
-

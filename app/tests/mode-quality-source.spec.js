@@ -44,7 +44,10 @@ test('同步校验会拒绝被手动改坏的单文件生成区块', () => {
   try {
     fs.mkdirSync(path.join(tempRoot, 'src', 'config'), { recursive: true });
     fs.copyFileSync(SOURCE, path.join(tempRoot, 'src', 'config', 'mode-quality.json'));
-    const staleTarget = fs.readFileSync(TARGET, 'utf8').replace("'laserBeam'", "'not-a-real-mode'");
+    const sourceTarget = fs.readFileSync(TARGET, 'utf8');
+    const blockStart = sourceTarget.indexOf('/* MODE_QUALITY_DATA:START */');
+    const staleTarget = sourceTarget.slice(0, blockStart) +
+      sourceTarget.slice(blockStart).replace("'laserBeam'", "'not-a-real-mode'");
     fs.writeFileSync(path.join(tempRoot, '61.html'), staleTarget);
     const result = verify(tempRoot);
     expect(result.status).not.toBe(0);
