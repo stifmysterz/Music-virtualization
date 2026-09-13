@@ -5679,6 +5679,7 @@ const UI_STRINGS = {
     bg3DVjVoxelPulseTerrainBtn:"🌋 Voxel Pulse Terrain",
     bg3DVjNeonGeometryTunnelBtn:"🔷 Neon Geometry Infinity",
     bg3DVjBlackGoldFluidBtn:"🖤 Liquid Black Gold",
+    bg3DVjUltravioletHiveRushBtn:"🟣 Ultraviolet Hive Rush",
     bg3DCatNeon:"🌈 Neon",
     bg3DCatGeometric:"🔺 Geometric",
     bg3DCatArchitecture:"🏛 Architecture",
@@ -5969,6 +5970,7 @@ const UI_STRINGS = {
     bg3DVjVoxelPulseTerrainBtn:"🌋 体素脉冲地形",
     bg3DVjNeonGeometryTunnelBtn:"🔷 霓虹几何无限隧道",
     bg3DVjBlackGoldFluidBtn:"🖤 黑金液态流体",
+    bg3DVjUltravioletHiveRushBtn:"🟣 紫外蜂巢疾驰",
     bg3DCatNeon:"🌈 霓虹",
     bg3DCatGeometric:"🔺 几何",
     bg3DCatArchitecture:"🏛 建筑",
@@ -16442,6 +16444,67 @@ function buildBg3DVjBlackGoldFluid(){
   }};
 }
 
+/* ---------- 49. 紫外蜂巢疾驰（Ultraviolet Hive Rush）——
+   8 秒 / 16 拍中心对称高速推进：蜂巢骨架、LED 珠链、激光三角和粒子旋臂使用同一个
+   闭合相位，首尾的光位、旋转、粒子和镜头完全一致。画面纯抽象，不含纹理文字。 ---------- */
+function ultravioletHiveRushSample(ring,phase){
+  const TAU=Math.PI*2,RINGS=48,spacing=VJ_LEN/RINGS,t=phase*TAU;
+  return {z:vjLoopZ(phase*VJ_LEN*2,ring*spacing),twist:(ring*.235+t*3)%TAU,
+    radius:10.8+1.35*Math.sin(ring*.72+t*4),pulse:.84+.16*Math.cos(ring*.88-t*8)};
+}
+function buildBg3DVjUltravioletHiveRush(){
+  const scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x01000a,.009);
+  const camera=new THREE.PerspectiveCamera(68,window.innerWidth/Math.max(1,window.innerHeight),.1,400);
+  const RINGS=48,SIDES=6,TAU=Math.PI*2;
+  const shell=new THREE.InstancedMesh(new THREE.BoxGeometry(1,.34,.62),new THREE.MeshBasicMaterial({color:0xffffff}),RINGS*SIDES);
+  const leds=new THREE.InstancedMesh(new THREE.SphereGeometry(.48,8,6),new THREE.MeshBasicMaterial({color:0xffffff}),RINGS*SIDES*2);
+  const lasers=new THREE.InstancedMesh(new THREE.BoxGeometry(1,.095,.15),new THREE.MeshBasicMaterial({color:0xffffff}),RINGS*3);
+  shell.instanceMatrix.setUsage(THREE.DynamicDrawUsage);leds.instanceMatrix.setUsage(THREE.DynamicDrawUsage);lasers.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(shell,leds,lasers);
+  const PN=960,pos=new Float32Array(PN*3),col=new Float32Array(PN*3),seed=[];
+  for(let i=0;i<PN;i++){
+    const arm=i%8,u=((i*73)%PN)/PN,a=arm/8*TAU+u*TAU*3,r=3.8+u*10.2;
+    seed.push({arm,u,a,r,off:(i*97%PN)/PN*VJ_LEN});VJ_C.setHSL((.52+arm*.055+u*.12)%1,1,.55);
+    col[i*3]=VJ_C.r;col[i*3+1]=VJ_C.g;col[i*3+2]=VJ_C.b;
+  }
+  const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));pg.setAttribute('color',new THREE.BufferAttribute(col,3));
+  const particles=new THREE.Points(pg,new THREE.PointsMaterial({size:.26,map:ensureBg3DDotTexture(),vertexColors:true,transparent:true,opacity:.82,
+    blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true}));particles.frustumCulled=false;scene.add(particles);
+  const core=new THREE.Mesh(new THREE.TorusKnotGeometry(2.1,.16,128,12,3,5),new THREE.MeshBasicMaterial({color:0xd72dff}));
+  core.position.z=-72;scene.add(core);
+  const {composer}=createBg3DBloom(scene,camera,1.08,.48,.58),st={beats:0};
+  scene.userData.ultravioletHiveRush={shellCount:RINGS*SIDES,ledCount:RINGS*SIDES*2,particleCount:PN,loopBeats:16,durationSeconds:8};
+  return {scene,camera,composer,update(_bass,_mid,_high,dt){
+    const phase=vjPhase(st,dt,16),t=phase*TAU;
+    for(let i=0;i<RINGS;i++){
+      const p=ultravioletHiveRushSample(i,phase);
+      for(let j=0;j<SIDES;j++){
+        const a=j/SIDES*TAU+p.twist,n=(j+1)/SIDES*TAU+p.twist,idx=i*SIDES+j;
+        const x=(Math.cos(a)+Math.cos(n))*p.radius*.5,y=(Math.sin(a)+Math.sin(n))*p.radius*.5;
+        vjPut(shell,idx,x,y,p.z,0,0,a+Math.PI/2,2*p.radius*Math.sin(Math.PI/SIDES),p.pulse,p.pulse);
+        VJ_C.setHSL((.56+j*.064+i*.006+phase*.18)%1,.98,.36);shell.setColorAt(idx,VJ_C);
+        for(let q=0;q<2;q++){
+          const la=a+(q-.5)*Math.PI/6,li=idx*2+q,rr=p.radius*(q?.82:1.08);
+          vjPut(leds,li,Math.cos(la)*rr,Math.sin(la)*rr,p.z+(q-.5)*1.2,t*2+j,a,0,p.pulse,p.pulse,p.pulse);
+          VJ_C.setHSL((.48+j*.075+q*.16+i*.011)%1,1,.48);leds.setColorAt(li,VJ_C);
+        }
+      }
+      for(let j=0;j<3;j++){
+        const a=j/3*TAU-p.twist*.7,idx=i*3+j,len=p.radius*1.5;
+        vjPut(lasers,idx,Math.cos(a)*p.radius*.25,Math.sin(a)*p.radius*.25,p.z+.4,0,0,a,len,1,1);
+        VJ_C.setHSL((.78+j*.19+i*.013)%1,1,.44);lasers.setColorAt(idx,VJ_C);
+      }
+    }
+    for(let i=0;i<PN;i++){
+      const s=seed[i],a=s.a+t*4+s.u*Math.sin(t*2)*.35,r=s.r*(.9+.1*Math.sin(t*8+s.arm));
+      pos[i*3]=Math.cos(a)*r;pos[i*3+1]=Math.sin(a)*r;pos[i*3+2]=vjLoopZ(phase*VJ_LEN*2,s.off);
+    }
+    pg.attributes.position.needsUpdate=true;vjFlush(shell);vjFlush(leds);vjFlush(lasers);
+    particles.material.size=.22+.08*(.5+.5*Math.sin(t*8));core.rotation.x=t*2;core.rotation.y=-t*3;core.scale.setScalar(.9+.1*Math.sin(t*4));
+    camera.position.x=Math.sin(t)*.26;camera.position.y=Math.cos(t)*.26;camera.rotation.z=Math.sin(t*2)*.018;
+  }};
+}
+
 /* BG3D_BUILDERS:START */
 /* Generated from background-catalog.json + tunnel-registry.json. Do not edit by hand. */
 const BG3D_BUILDERS = {
@@ -16611,9 +16674,10 @@ const BG3D_BUILDERS = {
   vjCollapsedGrid: buildBg3DVjCollapsedGrid,
   vjVoxelPulseTerrain: buildBg3DVjVoxelPulseTerrain,
   vjNeonGeometryTunnel: buildBg3DVjNeonGeometryTunnel,
-  vjBlackGoldFluid: buildBg3DVjBlackGoldFluid
+  vjBlackGoldFluid: buildBg3DVjBlackGoldFluid,
+  vjUltravioletHiveRush: buildBg3DVjUltravioletHiveRush
 };
-/* 119 regular 3D backgrounds + 48 VJ tunnels share this builder registry. */
+/* 119 regular 3D backgrounds + 49 VJ tunnels share this builder registry. */
 /* BG3D_BUILDERS:END */
 
 function resizeBg3D(stageW, stageH){
@@ -25297,7 +25361,7 @@ const VJ_TUNNEL_KINDS = Object.freeze([
   "vjChromeDrips","vjMercuryPool","vjFoilCrumple","vjChromeBubbles","vjLiquidSpine",
   "vjAsteroidSlalom","vjWarpJump","vjRingWorldRun","vjIonTrail","vjSolarFlare",
   "vjDerelictHall","vjRustPipes","vjShatteredPanes","vjDustShaft","vjCollapsedGrid",
-  "vjVoxelPulseTerrain","vjNeonGeometryTunnel","vjBlackGoldFluid"
+  "vjVoxelPulseTerrain","vjNeonGeometryTunnel","vjBlackGoldFluid","vjUltravioletHiveRush"
 ]);
 /* VJ_TUNNEL_REGISTRY:END */
 /* Machine-readable loop contract for every VJ. The geometry scroll can run forever, while

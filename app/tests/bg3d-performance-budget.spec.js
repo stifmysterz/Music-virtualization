@@ -9,7 +9,7 @@ const SOAK_KINDS = [
   'vjLiquidGrid','vjPrismShards','vjChromeFlow','vjFractalWell','vjTentacleTunnel',
   'vjVoidNebula','vjEventHorizon','vjDataBloom','vjHyperCube','vjCoasterRush',
   'vjMercuryPool','vjLiquidSpine','vjWarpJump','vjSolarFlare','vjCollapsedGrid','vjVoxelPulseTerrain',
-  'vjNeonGeometryTunnel','vjBlackGoldFluid'
+  'vjNeonGeometryTunnel','vjBlackGoldFluid','vjUltravioletHiveRush'
 ];
 
 async function withApp(label, fn) {
