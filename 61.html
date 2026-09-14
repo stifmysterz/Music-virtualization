@@ -17286,15 +17286,36 @@ function revealBg3DControls(){
   if(toggleBtn) toggleBtn.style.display = '';
   if(removeBtn) removeBtn.style.display = '';
 }
-function syncBgVideo(){
-  if(bgFolderActive&&bgFolderActiveSlot>=0){
+/* 背景现在有两个来源：手动上传的单个 img/video，和文件夹播放列表的两个交叉淡化槽。
+   「当前可见的背景元素是哪个」以前由每个调用点各自判断，结果漏了文件夹这一路的地方
+   会静默作用在隐藏的手动元素上 —— Bounce 和 Position BG 就是这么失效的。
+   这两个函数是这个问题的唯一答案，新增调用点一律走这里。
+   例外：composeCaptureFrame 不走这里，交叉淡化期间它需要同时画两个槽。        */
+function activeBgMediaEl(){
+  if(typeof bgFolderActive!=='undefined' && bgFolderActive && bgFolderActiveSlot>=0)
+    return bgFolderSlots[bgFolderActiveSlot].el;
+  if(hasBgVideo) return bgVideoEl;
+  if(hasBgMedia) return bgImageEl;
+  return null;
+}
+/* 手动背景靠 left/top:50% 居中，首次拖动前要补 translate(-50%,-50%)；
+   而文件夹播放槽是 inset:0 铺满舞台的，再补这个偏移会把画面顶到左上角去。 */
+function bgCenteringPrefix(el){
+  if(el.classList.contains('bg-playlist-slot')) return '';
+  return el.dataset.positioned ? '' : 'translate(-50%,-50%) ';
+}
+function activeBgVideoEl(){
+  if(typeof bgFolderActive!=='undefined' && bgFolderActive && bgFolderActiveSlot>=0){
     const slot=bgFolderSlots[bgFolderActiveSlot];
-    if(slot.type==='video'){if(playing)slot.video.play().catch(()=>{});else slot.video.pause();}
-    return;
+    return slot.type==='video' ? slot.video : null;
   }
-  if(!hasBgVideo) return;
-  if(playing) bgVideoEl.play().catch(()=>{});
-  else bgVideoEl.pause();
+  return hasBgVideo ? bgVideoEl : null;
+}
+function syncBgVideo(){
+  const video = activeBgVideoEl();
+  if(!video) return;
+  if(playing) video.play().catch(()=>{});
+  else video.pause();
 }
 
 /* auto-generated background: flying crystal tunnel — no video needed */
@@ -17411,13 +17432,13 @@ function updateTextBounceDom(bass){
   });
 }
 function updateBgBounceDom(bass, mid, high, now){
-  const el = hasBgVideo ? bgVideoEl : (hasBgMedia ? bgImageEl : null);
+  const el = activeBgMediaEl();
   if(!el) return;
   if(!bgBounceOn) return;   // nothing to animate — avoid rewriting transform/filter on a large fixed element every frame for no visual change
   const baseScale = parseFloat(el.dataset.txScale) || 1;
   const baseRotation = parseFloat(el.dataset.txRotation) || 0;
   const p = computeBgBounceParams(bass, mid, high, now);
-  const centering = el.dataset.positioned ? '' : 'translate(-50%,-50%) ';   // only needed before the first drag, while it's still CSS-centered via left/top:50%
+  const centering = bgCenteringPrefix(el);
   el.style.transform = `${centering}translate(${p.offX}px, ${p.offY}px) scale(${baseScale*p.scale}) rotate(${baseRotation+p.rotation}rad)`;
   const opacityPct = document.getElementById('bgOpacitySel')?.value || 72;
   const filterStr = `brightness(${Math.round(opacityPct*p.brightness)}%) saturate(${(1.15*p.saturate).toFixed(2)}) contrast(${p.contrast.toFixed(2)}) blur(${p.blur.toFixed(1)}px)`;
@@ -26688,7 +26709,9 @@ makeTransformable(bgVideoEl);
    拖动/滚轮是粗调，这组滑杆用来精确到具体数值，同时也让当前参数看得见。
    X/Y 的 0 点是背景的默认居中位置（ensurePositioned() 记下的 home）。 */
 function activeBgTransform(){
-  const el = hasBgVideo ? bgVideoEl : bgImageEl;
+  /* 文件夹播放的槽没有 makeTransformable，这里会拿到 undefined 从而返回 null，
+     滑杆随之停用 —— 好过以前那样去移动一个看不见的手动背景元素。 */
+  const el = activeBgMediaEl();
   return (el && el._transform) ? el._transform : null;
 }
 function syncBgPosControls(st){
@@ -26872,11 +26895,11 @@ document.getElementById('bgBounceToggle').onclick = ()=>{
   btn.classList.toggle('active', bgBounceOn);
   if(!bgBounceOn){
     // snap back to the plain manual transform/filter so nothing looks stuck mid-bounce, now that updateBgBounceDom stops touching it
-    const el = hasBgVideo ? bgVideoEl : (hasBgMedia ? bgImageEl : null);
+    const el = activeBgMediaEl();
     if(el){
       const baseScale = parseFloat(el.dataset.txScale) || 1;
       const baseRotation = parseFloat(el.dataset.txRotation) || 0;
-      const centering = el.dataset.positioned ? '' : 'translate(-50%,-50%) ';
+      const centering = bgCenteringPrefix(el);
       el.style.transform = `${centering}scale(${baseScale}) rotate(${baseRotation}rad)`;
       const opacityPct = document.getElementById('bgOpacitySel')?.value || 72;
       el.style.filter = `brightness(${opacityPct}%) saturate(1.15)`;
