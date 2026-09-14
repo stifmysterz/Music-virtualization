@@ -74,14 +74,14 @@ test('Voxel Pulse Terrain 实际渲染有密度、有颜色且在性能预算内
         if(mn>=225) white++;
       }
       return {total:w*h,lit,vivid,white,count:bg3DScenes.vjVoxelPulseTerrain.scene.userData.voxelPulseTerrain.count,
-        snapshot:bg3DPerformanceSnapshot(),guarded:bg3DScenes.vjVoxelPulseTerrain.composer.passes.some(p=>p.__vjHighlightGuard)};
+        snapshot:bg3DPerformanceSnapshot(),budget:BG3D_PERFORMANCE_BUDGET.balanced,guarded:bg3DScenes.vjVoxelPulseTerrain.composer.passes.some(p=>p.__vjHighlightGuard)};
     });
     expect(r.count, '体素数量太少，地形会显得稀').toBeGreaterThan(2500);
     expect(r.lit/r.total, '实际画面太空').toBeGreaterThan(0.25);
     expect(r.vivid/r.lit, '颜色发灰').toBeGreaterThan(0.5);
     expect(r.white/r.total, '出现大面积白场').toBeLessThan(0.04);
     expect(r.guarded, '没有经过 VJ 高光保护').toBe(true);
-    expect(r.snapshot.calls).toBeLessThanOrEqual(12);
-    expect(r.snapshot.triangles).toBeLessThan(100000);
+    expect(r.snapshot.calls, 'draw calls').toBeLessThanOrEqual(r.budget.maxDrawCalls);
+    expect(r.snapshot.triangles, 'triangles').toBeLessThanOrEqual(r.budget.maxTriangles);
   });
 });

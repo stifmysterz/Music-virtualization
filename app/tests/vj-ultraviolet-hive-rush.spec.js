@@ -27,7 +27,8 @@ test('蜂巢 VJ 有足够密度和虹彩，但没有白场',async()=>withApp('uv
     for(let i=0;i<32;i++)renderBg3D(.8,.7,.9,1);const gl=bg3DRenderer.getContext(),w=gl.drawingBufferWidth,h=gl.drawingBufferHeight,buf=new Uint8Array(w*h*4);
     gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,buf);let lit=0,vivid=0,white=0,dark=0;
     for(let i=0;i<w*h;i++){const a=buf[i*4],b=buf[i*4+1],c=buf[i*4+2],mx=Math.max(a,b,c),mn=Math.min(a,b,c);if(mx>=40){lit++;if((mx-mn)/mx>.5)vivid++;}if(mn>=225)white++;if(mx<24)dark++;}
-    return {total:w*h,lit,vivid,white,dark,snap:bg3DPerformanceSnapshot(),guarded:bg3DScenes.vjUltravioletHiveRush.composer.passes.some(p=>p.__vjHighlightGuard)};});
+    return {total:w*h,lit,vivid,white,dark,snap:bg3DPerformanceSnapshot(),budget:BG3D_PERFORMANCE_BUDGET.balanced,guarded:bg3DScenes.vjUltravioletHiveRush.composer.passes.some(p=>p.__vjHighlightGuard)};});
   expect(r.lit/r.total).toBeGreaterThan(.25);expect(r.vivid/r.lit).toBeGreaterThan(.5);expect(r.dark/r.total).toBeGreaterThan(.15);
-  expect(r.white/r.total).toBeLessThan(.04);expect(r.guarded).toBe(true);expect(r.snap.calls).toBeLessThanOrEqual(12);expect(r.snap.triangles).toBeLessThan(100000);
+  expect(r.white/r.total).toBeLessThan(.04);expect(r.guarded).toBe(true);expect(r.snap.calls,'draw calls').toBeLessThanOrEqual(r.budget.maxDrawCalls);
+  expect(r.snap.triangles,'triangles').toBeLessThanOrEqual(r.budget.maxTriangles);
 }));

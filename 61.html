@@ -7151,6 +7151,11 @@ function ensureBg3DRenderer(){
   bg3DRenderer = new THREE.WebGLRenderer({ canvas: bgThreeCanvas, antialias:true, alpha:true });
   bg3DRenderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
   bg3DRenderer.setClearColor(0x000000, 0);   // alpha:true alone still clears opaque by default — this is what actually lets the photo/video background show through empty areas
+  /* info.render 默认每次 renderer.render() 开头就重置，而一帧要走 EffectComposer 的多个 pass，
+     所以快照拿到的永远是最后那个全屏 pass（1 个 draw call、1 个三角形），
+     跟场景复杂度无关 —— “GPU 预算”那几条断言因此一直是恒真的。
+     改成手动重置：每帧开头 reset 一次，info 就能跨 pass 累计出真实总量。 */
+  bg3DRenderer.info.autoReset = false;
   return bg3DRenderer;
 }
 let bg3DDotTexture = null;
@@ -17016,6 +17021,7 @@ function applyBg3DFilter(bounce){
 function renderBg3D(bass, mid, high, dt){
   if(!hasBg3D || !bg3DKind || !bg3DScenes[bg3DKind]) return;
   const s = bg3DScenes[bg3DKind];
+  bg3DRenderer?.info.reset();        // autoReset 已关，这里负责每帧清零
   ensureVjPremiumRig(bg3DKind, s);
   const dirM = bg3DDirectorMultipliers();
   s.update(Math.min(1,bass*dirM.bassMul), Math.min(1,mid*dirM.bassMul), Math.min(1,high*dirM.bassMul), dt*bg3DSpeed*dirM.speedMul);

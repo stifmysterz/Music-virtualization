@@ -38,10 +38,11 @@ test('实际渲染保留颜色和暗部，不产生白场',async()=>withApp('new
     gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,buf);let lit=0,vivid=0,white=0,dark=0;
     for(let i=0;i<w*h;i++){const r=buf[i*4],g=buf[i*4+1],b=buf[i*4+2],mx=Math.max(r,g,b),mn=Math.min(r,g,b);
       if(mx>=35){lit++;if(mx>0&&(mx-mn)/mx>.32)vivid++;}if(mn>=225)white++;if(mx<24)dark++;}
-    out[kind]={total:w*h,lit,vivid,white,dark,snap:bg3DPerformanceSnapshot(),guarded:bg3DScenes[kind].composer.passes.some(p=>p.__vjHighlightGuard)};
+    out[kind]={total:w*h,lit,vivid,white,dark,snap:bg3DPerformanceSnapshot(),budget:BG3D_PERFORMANCE_BUDGET.balanced,guarded:bg3DScenes[kind].composer.passes.some(p=>p.__vjHighlightGuard)};
   }return out;});
   for(const [kind,r] of Object.entries(results)){expect(r.lit/r.total,`${kind} 太空`).toBeGreaterThan(.25);
     expect(r.vivid/Math.max(1,r.lit),`${kind} 颜色不足`).toBeGreaterThan(.28);expect(r.dark/r.total,`${kind} 没有暗部`).toBeGreaterThan(.2);
     expect(r.white/r.total,`${kind} 白场过多`).toBeLessThan(.04);expect(r.guarded).toBe(true);
-    expect(r.snap.calls).toBeLessThanOrEqual(12);expect(r.snap.triangles).toBeLessThan(100000);}
+    expect(r.snap.calls,`${kind} draw calls`).toBeLessThanOrEqual(r.budget.maxDrawCalls);
+    expect(r.snap.triangles,`${kind} triangles`).toBeLessThanOrEqual(r.budget.maxTriangles);}
 }));
