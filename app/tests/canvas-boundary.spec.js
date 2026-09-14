@@ -24,7 +24,7 @@ test('Background、3D/VJ、2D、Logo、Text 全部属于同一个裁切舞台', 
   await withApp('canvas-boundary-parents', async win => {
     const result = await win.evaluate(() => ({
       overflow:getComputedStyle(visualStage).overflow,
-      children:['bgVideo','bgImage','bgThree','cvBack','cvFx','cv','titleDisplay','textADisplay','textBDisplay']
+      children:['bgPlaylistSlotA','bgPlaylistSlotB','bgVideo','bgImage','bgThree','cvBack','cvFx','cv','titleDisplay','textADisplay','textBDisplay']
         .map(id => ({id, parent:document.getElementById(id).parentElement.id}))
     }));
     expect(result.overflow).toBe('hidden');

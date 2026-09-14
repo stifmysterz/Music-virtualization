@@ -125,6 +125,50 @@ test('49 个 VJ 都注册好了，而且一个都没漏进 🌌 3D 菜单', asyn
   });
 });
 
+test('7 个金属 VJ 使用真实 PBR 表面、环境反射和受控灯组', async () => {
+  const metallicKinds = ['vjChromeTube','vjMetalTwist','vjChromeDrips','vjFoilCrumple',
+                         'vjChromeBubbles','vjLiquidSpine','vjRustPipes'];
+  await withApp('vj-metal-materials', async (win) => {
+    const results = await win.evaluate((kinds) => kinds.map(kind => {
+      enableBg3D(kind);
+      const scene = bg3DScenes[kind].scene;
+      const materials = [];
+      let directionalLights = 0, hemisphereLights = 0;
+      scene.traverse(o => {
+        if (o.isDirectionalLight) directionalLights++;
+        if (o.isHemisphereLight) hemisphereLights++;
+        if (!o.isMesh || !o.material) return;
+        for (const m of (Array.isArray(o.material) ? o.material : [o.material])) {
+          materials.push({
+            pbr: !!(m.isMeshStandardMaterial || m.isMeshPhysicalMaterial),
+            envMap: !!m.envMap,
+            metalness: m.metalness,
+            roughness: m.roughness,
+            physical: !!m.isMeshPhysicalMaterial,
+            clearcoat: m.clearcoat || 0,
+          });
+        }
+      });
+      return { kind, materials, directionalLights, hemisphereLights };
+    }), metallicKinds);
+
+    for (const r of results) {
+      expect(r.materials.length, `${r.kind} 没有可见 mesh`).toBeGreaterThan(0);
+      expect(r.materials.every(m => m.pbr), `${r.kind} 仍混有不受光的 Basic 表面`).toBe(true);
+      expect(r.materials.every(m => m.envMap), `${r.kind} 缺少环境反射`).toBe(true);
+      expect(r.materials.every(m => m.metalness >= 0.6 && m.metalness <= 0.78), `${r.kind} 金属度超出保色范围`).toBe(true);
+      expect(r.materials.every(m => m.roughness >= 0.1 && m.roughness <= 0.5), `${r.kind} 粗糙度异常`).toBe(true);
+      expect(r.directionalLights, `${r.kind} 缺少 key/rim 灯`).toBeGreaterThanOrEqual(2);
+      expect(r.hemisphereLights, `${r.kind} 缺少暗部补光`).toBeGreaterThanOrEqual(1);
+    }
+
+    for (const kind of ['vjChromeTube','vjChromeDrips','vjChromeBubbles','vjLiquidSpine']) {
+      const r = results.find(x => x.kind === kind);
+      expect(r.materials.some(m => m.physical && m.clearcoat >= 0.85), `${kind} 没有液态 clearcoat`).toBe(true);
+    }
+  });
+});
+
 test('dock 上的 🌀 VJ 按钮能开合菜单，点一项就切过去', async () => {
   await withApp('vj-menu', async (win) => {
     await win.evaluate(() => {
@@ -184,6 +228,11 @@ test('每个隧道都画得出鲜艳的画面，而且元素是从后面往镜�
   test.setTimeout(180_000);
   await withApp('vj-motion', async (win) => {
     await win.evaluate(harness);
+    /* 固定构造期随机种子。111 个 builder 用 Math.random() 决定布局，不固定的话
+       同一份代码两次跑出的覆盖率能差 16 个点（实测 vjHoverCity 22.8% / 38.8%），
+       卡在 25% 阈值附近的效果就会随机翻车，浪费时间去查根本不存在的回归。
+       种子固定之后这些数字逐帧可复现，真掉下去就是真回归。                      */
+    await win.evaluate(() => seedBg3DBuilds(0x5EED));
     for (const kind of KINDS) {
       const r = await win.evaluate((k) => {
         enableBg3D(k);

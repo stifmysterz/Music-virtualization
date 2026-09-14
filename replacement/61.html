@@ -258,6 +258,10 @@
   #visualStage{position:fixed;left:0;top:0;width:100vw;height:100vh;overflow:hidden;contain:layout paint;z-index:0}
   #bgVideo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:130%;height:130%;object-fit:cover;display:none;filter:brightness(.72) saturate(1.15);touch-action:none;cursor:grab}
   #bgImage{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:130%;height:130%;object-fit:cover;display:none;filter:brightness(.72) saturate(1.15);touch-action:none;cursor:grab}
+  .bg-playlist-slot{position:absolute;inset:0;opacity:0;transition:opacity 1.2s ease;pointer-events:none;overflow:hidden}
+  .bg-playlist-slot.active{opacity:1}
+  .bg-playlist-slot img,.bg-playlist-slot video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}
+  .bg-folder-status{padding:5px 9px;font-size:11px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #bgThree{position:absolute;left:0;top:0;width:100%;height:100%;display:none}
   #bgVideo.dragging,#bgImage.dragging{cursor:grabbing}
   canvas{position:fixed;inset:0;width:100vw;height:100vh;display:block;touch-action:none}
@@ -646,6 +650,8 @@
 <body>
 
 <div id="visualStage">
+  <div id="bgPlaylistSlotA" class="bg-playlist-slot"><img alt=""><video muted playsinline></video></div>
+  <div id="bgPlaylistSlotB" class="bg-playlist-slot"><img alt=""><video muted playsinline></video></div>
   <video id="bgVideo" muted loop playsinline></video>
   <img id="bgImage" alt="">
   <canvas id="bgThree"></canvas>
@@ -811,6 +817,27 @@
 
 <div id="bgMenu" class="dock-dd">
   <label class="dock-dd-item" title="Add a background photo or video">🌄 Upload Background<input type="file" id="bgIn" accept="image/*,video/*"></label>
+  <button id="bgFolderSelectBtn" class="dock-dd-item" title="Build a playlist from JPG, PNG, WebP, MP4 and WebM files">📁 Select Folder</button>
+  <div id="bgFolderStatus" class="bg-folder-status">No background folder selected</div>
+  <button id="bgFolderAutoBtn" class="dock-dd-item" title="Automatically advance through the selected folder">🔀 Folder Playlist: Off</button>
+  <button id="bgFolderNextBtn" class="dock-dd-item" title="Show the next usable background">⏭ Next Background</button>
+  <select id="bgFolderOrderSel" class="dock-dd-select" title="Shuffle plays every item once before reshuffling">
+    <option value="shuffle">🔀 Shuffle</option><option value="sequential">➡ Sequential</option>
+  </select>
+  <select id="bgFolderIntervalSel" class="dock-dd-select" title="Photo interval, or video interval when Timed is selected">
+    <option value="10">⏱ 10 seconds</option><option value="30">⏱ 30 seconds</option><option value="60">⏱ 1 minute</option><option value="custom">⏱ Custom…</option>
+  </select>
+  <input id="bgFolderCustomInterval" type="number" min="1" max="3600" value="10" class="dock-dd-select" style="display:none" title="Custom interval in seconds">
+  <select id="bgFolderVideoPolicySel" class="dock-dd-select" title="Choose whether videos finish or follow the timer">
+    <option value="ended">🎞 Video: Play to End</option><option value="timed">⏱ Video: Use Interval</option>
+  </select>
+  <select id="bgFolderFitSel" class="dock-dd-select" title="How folder media fits inside the canvas outline">
+    <option value="cover">▣ Fit: Cover</option><option value="contain">□ Fit: Contain</option><option value="fill">↔ Fit: Stretch</option>
+  </select>
+  <select id="bgFolderCrossfadeSel" class="dock-dd-select" title="Crossfade duration">
+    <option value="0">Crossfade: Off</option><option value="0.5">Crossfade: 0.5s</option><option value="1.2" selected>Crossfade: 1.2s</option><option value="2">Crossfade: 2s</option>
+  </select>
+  <button id="bgFolderAvoidRepeatBtn" class="dock-dd-item active" title="Avoid media used in the recent history">🛡 Avoid Recent: On</button>
   <button id="bgAdjustBtn" class="dock-dd-item" title="Drag/pinch/rotate the background itself">🎯 Position BG</button>
   <div id="bgPosPanel" style="display:none">
     <div class="dock-dd-slider-row" title="Horizontal position"><span>↔</span>
@@ -5129,16 +5156,20 @@ function captureObjectFitSource(el, boxW, boxH){
   const sh = el.videoHeight || el.naturalHeight || el.height;
   if(!sw || !sh || !boxW || !boxH) return null;
   const fit = getComputedStyle(el).objectFit;
-  if(fit !== 'cover') return {sx:0, sy:0, sw, sh};
+  if(fit === 'contain'){
+    const scale=Math.min(boxW/sw,boxH/sh),dw=sw*scale,dh=sh*scale;
+    return {sx:0,sy:0,sw,sh,dx:(boxW-dw)/2,dy:(boxH-dh)/2,dw,dh};
+  }
+  if(fit !== 'cover') return {sx:0,sy:0,sw,sh,dx:0,dy:0,dw:boxW,dh:boxH};
   const sourceAspect = sw/sh, boxAspect = boxW/boxH;
   if(sourceAspect > boxAspect){
     const cropW = sh*boxAspect;
-    return {sx:(sw-cropW)/2, sy:0, sw:cropW, sh};
+    return {sx:(sw-cropW)/2,sy:0,sw:cropW,sh,dx:0,dy:0,dw:boxW,dh:boxH};
   }
   const cropH = sw/boxAspect;
-  return {sx:0, sy:(sh-cropH)/2, sw, sh:cropH};
+  return {sx:0,sy:(sh-cropH)/2,sw,sh:cropH,dx:0,dy:0,dw:boxW,dh:boxH};
 }
-function drawCaptureElement(el, targetRect, replacedElement){
+function drawCaptureElement(el, targetRect, replacedElement, parentStyle){
   if(!el) return;
   const cs = getComputedStyle(el);
   if(cs.display==='none' || cs.visibility==='hidden' || parseFloat(cs.opacity)===0) return;
@@ -5163,12 +5194,17 @@ function drawCaptureElement(el, targetRect, replacedElement){
   captureCtx.translate(layoutLeft + ox, layoutTop + oy);
   captureCtx.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
   captureCtx.translate(-ox, -oy);
-  captureCtx.globalAlpha = parseFloat(cs.opacity) || 1;
-  captureCtx.filter = cs.filter==='none' ? 'none' : cs.filter;
+  const ownAlpha=Number.isFinite(parseFloat(cs.opacity))?parseFloat(cs.opacity):1;
+  const parentAlpha=parentStyle&&Number.isFinite(parseFloat(parentStyle.opacity))?parseFloat(parentStyle.opacity):1;
+  captureCtx.globalAlpha = ownAlpha*parentAlpha;
+  const filters=[];
+  if(parentStyle&&parentStyle.filter&&parentStyle.filter!=='none')filters.push(parentStyle.filter);
+  if(cs.filter&&cs.filter!=='none')filters.push(cs.filter);
+  captureCtx.filter=filters.length?filters.join(' '):'none';
   try{
     if(replacedElement){
       const src = captureObjectFitSource(el, boxW, boxH);
-      if(src) captureCtx.drawImage(el, src.sx, src.sy, src.sw, src.sh, 0, 0, boxW, boxH);
+      if(src) captureCtx.drawImage(el,src.sx,src.sy,src.sw,src.sh,src.dx,src.dy,src.dw,src.dh);
     }else{
       captureCtx.drawImage(el, 0, 0, el.width, el.height, 0, 0, boxW, boxH);
     }
@@ -5192,7 +5228,13 @@ function composeCaptureFrame(){
   captureCtx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#05060e';
   captureCtx.fillRect(0,0,captureCanvas.width,captureCanvas.height);
   const targetRect = cv.getBoundingClientRect();
-  if(hasBgMedia && bgVisible){
+  if(typeof bgFolderActive!=='undefined' && bgFolderActive && bgVisible){
+    bgFolderSlots.forEach(slot=>{
+      const media=slot.type==='video'?slot.video:slot.image;
+      const slotStyle=getComputedStyle(slot.el);
+      if(slot.el.classList.contains('active') || parseFloat(slotStyle.opacity)>0) drawCaptureElement(media,targetRect,true,slotStyle);
+    });
+  }else if(hasBgMedia && bgVisible){
     drawCaptureElement(hasBgVideo ? bgVideoEl : bgImageEl, targetRect, true);
   }
   if(hasBg3D && bg3DVisible){
@@ -6465,6 +6507,7 @@ function applyLanguage(lang){
   buildBg3DMenu();   // rebuilds category headers + item labels, including the id-less Favourites-section duplicates the generic per-id sweep below can't reach
   if(typeof buildVjMenu==='function') buildVjMenu();   // same reason — VJ's own id-less Favourites-section duplicates
   if(typeof buildModeMenu==='function') buildModeMenu();   // 同理：分类名和 mode 名都是按语言现算的
+  if(typeof syncBgFolderUi==='function') syncBgFolderUi();
   populatePresetBg3DSelect();
   const liveBlackoutBtnEl = document.getElementById('liveBlackoutBtn');
   if(liveBlackoutBtnEl) liveBlackoutBtnEl.textContent = (typeof blackoutOn!=='undefined' && blackoutOn) ? t2('liveBlackoutRestore') : t2('liveBlackoutBtn');
@@ -13610,7 +13653,7 @@ function vjDynAttr(count, itemSize){
 
 /* 渲染质量档。这软件要分发给硬件差别很大的人，所以做成旋钮而不是按开发机写死：
      low      —— 完全走老路径（不受光 MeshBasicMaterial），一行额外开销都没有
-     balanced —— 受光 MeshStandardMaterial + 灯组，不开环境反射
+     balanced —— 受光 MeshStandardMaterial + 灯组 + 缓存环境反射
      ultra    —— 再加 PMREM 环境贴图，金属／玻璃才有真反射                        */
 let vjQuality = 'balanced';
 
@@ -13670,12 +13713,13 @@ function vjLightRig(scene, o){
    逐实例 setColorAt 的写法不用改。                                            */
 function vjStdMat(o){
   o = o || {};
-  if(vjQuality === 'low') return vjSolidMat(o.opacity);
-  /* 金属没有漫反射，亮度全靠环境反射 —— 没挂 envMap 的话 metalness=1 会渲染成一团黑。
-     balanced 档没有环境贴图，所以把 metalness 压到 0.55，让它退化成「抛光材质」
-     而不是黑块。ultra 挂上 envMap 之后才放开到调用方要的值。                      */
-  let metal = o.metalness===undefined ? 0.95 : o.metalness;
-  if(vjQuality !== 'ultra') metal = Math.min(metal, 0.55);
+  if(vjQuality === 'low') return vjSolidMat(o.opacity, vjUnlitColorOf(o));
+  /* PMREM 环境贴图只生成一次并缓存（vjEnvRT），运行时成本只是多一次纹理采样 ——
+     balanced 档没有理由继续省掉它。之前 balanced 把 metalness 压到 0.55 正是为了
+     绕开「金属没有漫反射、没反射源就是一团黑」的问题；现在两档都挂 envMap，这个
+     退让就不再需要，balanced 和 ultra 的材质观感终于一致，塑料感也一起消失。
+     两档剩下的差异只在 MSAA 采样数（见 bg3DMsaaSamples）。                     */
+  const metal = o.metalness===undefined ? 0.95 : o.metalness;
   const m = new THREE.MeshStandardMaterial({
     color:      o.color===undefined      ? 0xffffff : o.color,
     metalness:  metal,
@@ -13685,12 +13729,40 @@ function vjStdMat(o){
     opacity:    o.opacity===undefined    ? 1        : o.opacity,
     side:       o.side===undefined       ? THREE.FrontSide : o.side,
   });
-  if(vjQuality === 'ultra'){
-    m.envMap = vjEnvMap();
-    /* 环境反射是叠在灯之上的额外能量，再往下还有 bloom。1.35 实测会把画面推爆，
-       0.55 足够让金属读出环境（那条地平线看得见就够了），又不吃掉颜色。 */
-    m.envMapIntensity = o.envMapIntensity===undefined ? 0.55 : o.envMapIntensity;
-  }
+  m.envMap = vjEnvMap();
+  /* 环境反射是叠在灯之上的额外能量，再往下还有 bloom。1.35 实测会把画面推爆，
+     0.55 足够让金属读出环境（那条地平线看得见就够了），又不吃掉颜色。 */
+  m.envMapIntensity = o.envMapIntensity===undefined ? 0.55 : o.envMapIntensity;
+  return m;
+}
+
+/* 液体 / 玻璃专用材质：在 vjStdMat 的基础上加一层 clearcoat（独立粗糙度的
+   第二高光层），模拟表面一层湿润的釉——这是"液态/玻璃"跟"打磨金属"在观感上
+   最大的区别：金属只有一个高光尖峰，液体要有「底层高光 + 表面浮光」两层。
+   没上 transmission（真透射）—— 那需要每帧采样背后已渲染的画面，对 InstancedMesh
+   这种量级（几百个实例）成本不划算，clearcoat 已经够还原「湿」的观感。
+
+   实测代价（Intel UHD 620 集显 / balanced 档 / 1352x547）：
+     走这条路的效果 40~55fps，仍走 vjSolidMat 的对照组 60fps。
+   还在 CLAUDE.md §13「60fps when hardware allows, graceful at 30fps」之内，
+   但更弱的机器可能掉到 30 以下。真收到低配反馈时的旋钮在这里：把 clearcoat
+   挂到画质档上（ultra 给满、balanced 归零退化成 vjStdMat），而不是各调用点去改。 */
+function vjPhysMat(o){
+  o = o || {};
+  if(vjQuality === 'low') return vjSolidMat(o.opacity, vjUnlitColorOf(o));
+  const m = new THREE.MeshPhysicalMaterial({
+    color:      o.color===undefined      ? 0xffffff : o.color,
+    metalness:  o.metalness===undefined  ? 0.85     : o.metalness,
+    roughness:  o.roughness===undefined  ? 0.2      : o.roughness,
+    emissive:   o.emissive===undefined   ? 0x000000 : o.emissive,
+    clearcoat:          o.clearcoat===undefined          ? 0.6  : o.clearcoat,
+    clearcoatRoughness: o.clearcoatRoughness===undefined ? 0.15 : o.clearcoatRoughness,
+    transparent: o.opacity!==undefined && o.opacity < 1,
+    opacity:    o.opacity===undefined    ? 1        : o.opacity,
+    side:       o.side===undefined       ? THREE.FrontSide : o.side,
+  });
+  m.envMap = vjEnvMap();
+  m.envMapIntensity = o.envMapIntensity===undefined ? 0.55 : o.envMapIntensity;
   return m;
 }
 
@@ -14293,13 +14365,18 @@ function buildBg3DVjChromeTube(){
   const vcount = geo.attributes.position.count;
   const col = vjDynAttr(vcount,3);
   geo.setAttribute('color', col);
-  const mat = new THREE.MeshBasicMaterial({ vertexColors:true, wireframe:true, transparent:true, opacity:0.6, side:THREE.BackSide, blending:THREE.AdditiveBlending, depthWrite:false });
+  /* 连续法线 + clearcoat 才能读成湿铬内壁；低配档仍由 vjPhysMat 自动退回 Basic。 */
+  const mat = vjPhysMat({ metalness:0.74, roughness:0.14, clearcoat:0.92,
+    clearcoatRoughness:0.08, envMapIntensity:0.82, opacity:0.92, side:THREE.BackSide });
+  mat.vertexColors = true;
   const segA = new THREE.Mesh(geo,mat), segB = new THREE.Mesh(geo,mat);
   scene.add(segA); scene.add(segB);
 
   const vz = geo.attributes.position.array;   // 顶点原始 z，用来算色相
   const c3 = new THREE.Color();
-  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.85, 0.22);
+  const rig = vjLightRig(scene, { keyColor:0xbfe9ff, keyI:0.95, rimColor:0x6a4cff,
+    rimI:1.2, skyColor:0x173560, groundColor:0x05030d, fillI:0.36 });
+  const { composer } = createBg3DBloom(scene, camera, 1.08, 0.46, 0.56);
   let scroll=0, clock=0;
   return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt*0.016; scroll += vjSpeed(bass,dt);
@@ -14308,7 +14385,8 @@ function buildBg3DVjChromeTube(){
     segB.position.z = s - VJ_LEN;    // 后面永远跟着一段，接缝在雾里
     const C=col.array, light=0.5+high*0.24;
     for(let i=0;i<vcount;i++){
-      c3.setHSL(((-vz[i*3+2]*0.009 + clock*0.20)%1+1)%1, 1, light);
+      vjTint(c3, ((-vz[i*3+2]*0.009 + clock*0.20)%1+1)%1,
+        0.66, Math.min(0.56, 0.36 + high*0.08), 1, light);
       C[i*3]=c3.r; C[i*3+1]=c3.g; C[i*3+2]=c3.b;
     }
     col.needsUpdate = true;
@@ -14316,6 +14394,8 @@ function buildBg3DVjChromeTube(){
     segA.scale.set(sq, 2-sq, 1); segB.scale.copy(segA.scale);
     camera.fov = 84 + bass*14;
     scene.rotation.z = Math.sin(clock*0.55)*0.16*(0.4+mid);
+    rig.key.intensity = 0.88 + bass*0.34;
+    rig.rim.intensity = 1.05 + high*0.42;
   }};
 }
 
@@ -14393,8 +14473,17 @@ function vjFlush(mesh){
 }
 /* 实体几何用的材质。additive 在实体上很容易糊成白，所以这批默认走普通混合 +
    自发光色，靠 bloom 出光晕，不靠叠加提亮。 */
-function vjSolidMat(opacity){
-  return new THREE.MeshBasicMaterial({ transparent: opacity < 1, opacity: opacity===undefined?1:opacity, side: THREE.DoubleSide });
+function vjSolidMat(opacity, color){
+  return new THREE.MeshBasicMaterial({ color: color===undefined ? 0xffffff : color,
+    transparent: opacity < 1, opacity: opacity===undefined?1:opacity, side: THREE.DoubleSide });
+}
+/* 受光材质退到 low 档时只剩一个颜色可用。自发光比本体色亮就以自发光为准 ——
+   光子环那类 color 接近黑、全靠 emissive 立身的材质，用本体色会退成看不见的一圈。 */
+function vjUnlitColorOf(o){
+  const lum = c => (c>>16 & 255)*0.299 + (c>>8 & 255)*0.587 + (c & 255)*0.114;
+  const base = o.color===undefined ? 0xffffff : o.color;
+  const emis = o.emissive===undefined ? 0x000000 : o.emissive;
+  return lum(emis) > lum(base) ? emis : base;
 }
 
 /* ---------- 11. 液态铬流（LuChrome）——
@@ -14412,7 +14501,7 @@ function buildBg3DVjChromeFlow(){
   /* metalness 不拉满：纯金属没有漫反射，颜色只剩环境反射的灰 —— 物理上对，
      但这层要的是「阳极氧化 / 糖果漆金属」，既有真高光又吃得住饱和色。
      0.72 是留一部分漫反射给颜色走的量。 */
-  const mesh = new THREE.InstancedMesh(geo, vjStdMat({ metalness:0.72, roughness:0.18 }), N);
+  const mesh = new THREE.InstancedMesh(geo, vjStdMat({ metalness:0.72, roughness:0.18, envMapIntensity:0.75 }), N);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(mesh);
   const rig = vjLightRig(scene, { keyI:1.15, rimColor:0x66b0ff, rimI:1.5, fillI:0.35 });
@@ -14463,11 +14552,14 @@ function buildBg3DVjMetalTwist(){
 
   const BANDS = 5, SEGS = 90, N = BANDS*SEGS, R = 13;
   const geo = new THREE.BoxGeometry(6.5, 0.5, 3.0);
-  const mesh = new THREE.InstancedMesh(geo, vjSolidMat(1), N);
+  const mesh = new THREE.InstancedMesh(geo,
+    vjStdMat({ metalness:0.76, roughness:0.24, envMapIntensity:0.74 }), N);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(mesh);
 
-  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.55, 0.5);
+  const rig = vjLightRig(scene, { keyColor:0xffdfbd, keyI:1.0, rimColor:0x7a7dff,
+    rimI:1.18, skyColor:0x3a2e54, groundColor:0x09030a, fillI:0.4 });
+  const { composer } = createBg3DBloom(scene, camera, 1.12, 0.46, 0.56);
   let scroll = 0, clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
     clock += dt*0.016; scroll += vjSpeed(bass, dt);
@@ -14485,11 +14577,15 @@ function buildBg3DVjMetalTwist(){
         const spec = Math.pow(Math.abs(Math.cos(twist)), 6);
         const i = b*SEGS+s;
         vjPut(mesh, i, Math.cos(a)*rr, Math.sin(a)*rr, z, twist, 0, a + Math.PI/2, 1, 1 + spec*2.2 + bass*0.8, 1);
-        VJ_C.setHSL(((b/BANDS + wz*0.0055 + clock*0.09)%1+1)%1, 0.99 - spec*0.24, Math.min(0.58, 0.34 + spec*0.45 + high*0.1));   // 封顶：高光反光叠上高音本来能冲到 0.89，顶到 1 就发白
+        vjTint(VJ_C, ((b/BANDS + wz*0.0055 + clock*0.09)%1+1)%1,
+          0.66 - spec*0.22, Math.min(0.57, 0.34 + spec*0.2 + high*0.05),
+          0.99 - spec*0.24, Math.min(0.58, 0.34 + spec*0.45 + high*0.1));
         mesh.setColorAt(i, VJ_C);
       }
     }
     vjFlush(mesh);
+    rig.key.intensity = 0.92 + bass*0.4;
+    rig.rim.intensity = 1.02 + high*0.5;
     camera.fov = 80 + bass*14;
   }};
 }
@@ -15472,15 +15568,19 @@ function buildBg3DVjChromeDrips(){
   const camera = new THREE.PerspectiveCamera(84, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
 
   const ROWS = 40, COLS = 26, N = ROWS*COLS, SPACING = VJ_LEN/ROWS, HALF = 24;
-  const mesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.62, 0.3, 1, 8), vjSolidMat(1), N);
+  const liquidChrome = vjPhysMat({ metalness:0.74, roughness:0.12, clearcoat:0.94,
+    clearcoatRoughness:0.07, envMapIntensity:0.86 });
+  const mesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.62, 0.3, 1, 12), liquidChrome, N);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(mesh);
   // 滴落的头部：一颗更粗的球，让柱子末端读得出「快滴下来了」
-  const head = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.95, 1), vjSolidMat(1), N);
+  const head = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.95, 2), liquidChrome.clone(), N);
   head.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(head);
 
-  const { composer } = createBg3DBloom(scene, camera, 1.45, 0.5, 0.5);
+  const rig = vjLightRig(scene, { keyColor:0xc9efff, keyI:0.96, rimColor:0x654dff,
+    rimI:1.18, skyColor:0x203c68, groundColor:0x04040c, fillI:0.36 });
+  const { composer } = createBg3DBloom(scene, camera, 1.1, 0.44, 0.58);
   let scroll = 0, clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
     clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.05;
@@ -15498,14 +15598,20 @@ function buildBg3DVjChromeDrips(){
         vjPut(mesh, idx, x, y, z, 0, 0, 0, w, L, w);
         // 高光带：一条沿 x 横扫的窄带，带内去饱和提亮 = 铬的镜面
         const spec = Math.pow(Math.max(0, Math.cos((x/HALF)*1.7 - clock*0.9)), 8);
-        VJ_C.setHSL((0.54 + j*0.006 + Math.sin(clock*0.21)*0.07)%1, 0.95 - spec*0.72, 0.2 + spec*0.42 + high*0.1);
+        vjTint(VJ_C, (0.54 + j*0.006 + Math.sin(clock*0.21)*0.07)%1,
+          0.64 - spec*0.28, 0.3 + spec*0.22 + high*0.05,
+          0.95 - spec*0.72, 0.2 + spec*0.42 + high*0.1);
         mesh.setColorAt(idx, VJ_C);
         vjPut(head, idx, x, top - L, z, 0, 0, 0, w, w*1.15, w);
-        VJ_C.setHSL((0.54 + j*0.006 + 0.04)%1, 0.9 - spec*0.6, 0.26 + spec*0.4 + bass*0.12);
+        vjTint(VJ_C, (0.54 + j*0.006 + 0.04)%1,
+          0.58 - spec*0.22, 0.34 + spec*0.2 + bass*0.04,
+          0.9 - spec*0.6, 0.26 + spec*0.4 + bass*0.12);
         head.setColorAt(idx, VJ_C);
       }
     }
     vjFlush(mesh); vjFlush(head);
+    rig.key.intensity = 0.88 + bass*0.42;
+    rig.rim.intensity = 1.02 + high*0.48;
     camera.fov = 84 + bass*12;
   }};
 }
@@ -15520,17 +15626,24 @@ function buildBg3DVjMercuryPool(){
 
   const NX = 28, NZ = 42, TILES = NX*NZ, SPACING = VJ_LEN/NZ, HALF = 26;
   const geo = new THREE.BoxGeometry(1.9, 0.5, 3.4);
-  const floorM = new THREE.InstancedMesh(geo, vjSolidMat(1), TILES);
-  const ceilM  = new THREE.InstancedMesh(geo, vjSolidMat(0.8), TILES);
+  /* 水银是这批里最依赖反射的材质：没有环境反射的「水银」只是一块灰板。
+     metalness 不拉满（0.78）是 vjChromeFlow 那条「阳极氧化金属」的配方 ——
+     留一点漫反射给颜色走，既能读出金属又吃得住这层的青蓝色。            */
+  const floorM = new THREE.InstancedMesh(geo, vjStdMat({ metalness:0.78, roughness:0.11, envMapIntensity:0.95 }), TILES);
+  const ceilM  = new THREE.InstancedMesh(geo, vjStdMat({ metalness:0.78, roughness:0.17, envMapIntensity:0.78, opacity:0.8 }), TILES);
   floorM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   ceilM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(floorM); scene.add(ceilM);
+  const rig = vjLightRig(scene, { keyColor:0xbfe4ff, keyI:1.05, rimColor:0x4f7bff, rimI:1.25,
+    skyColor:0x24365e, groundColor:0x05040c, fillI:0.4 });
 
-  const { composer } = createBg3DBloom(scene, camera, 1.6, 0.52, 0.46);
+  /* bloom 压回来一档：真材质自带高光能量，再叠原来的 1.6 会把波峰烧成白片。 */
+  const { composer } = createBg3DBloom(scene, camera, 1.18, 0.5, 0.52);
   let scroll = 0, clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
     clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.15;
     const off = scroll % SPACING;
+    const ripple2A = 1.1*(0.5+mid);
     for(let k=0;k<NZ;k++){
       const z = -k*SPACING + off - SPACING, wz = k*SPACING - scroll;
       for(let j=0;j<NX;j++){
@@ -15538,20 +15651,34 @@ function buildBg3DVjMercuryPool(){
         const x = -HALF + (j/(NX-1))*HALF*2;
         const d = Math.sqrt(x*x*0.06 + wz*wz*0.004);
         // 两列不同波长的涟漪叠加，避免看出周期
-        const h = Math.sin(d - clock*2.6)*1.5 + Math.sin(wz*0.11 + x*0.07 + clock*1.4)*1.1*(0.5+mid);
+        const c1 = Math.cos(d - clock*2.6), c2 = Math.cos(wz*0.11 + x*0.07 + clock*1.4);
+        const h = Math.sin(d - clock*2.6)*1.5 + Math.sin(wz*0.11 + x*0.07 + clock*1.4)*ripple2A;
         const lift = h*(1 + bass*1.4);
         // 波峰朝上 = 迎着光 = 亮，波谷压暗，这就是水银的明暗分层
-        const slope = Math.max(0, Math.cos(d - clock*2.6));
+        const slope = Math.max(0, c1);
         const spec = Math.pow(slope, 5);
-        vjPut(floorM, idx, x, -10 + lift, z, 0, 0, 0, 1, 1 + spec*1.6, 1);
-        VJ_C.setHSL((0.58 + h*0.02 + Math.sin(clock*0.18)*0.08)%1, 0.92 - spec*0.66, 0.16 + spec*0.44 + high*0.1);
+        /* 关键：瓦片要跟着波面的梯度倾斜。法线全部朝正上方的话，再真的灯也只会
+           把整片照得一样亮 —— 高光必须能沿着波峰扫过去，那条移动的亮带才是
+           「液态金属」的读法。梯度由两列涟漪各自对 x / wz 求导叠加得到。      */
+        const inv = d > 1e-4 ? 1/d : 0;
+        const dhx  = c1*1.5*(x*0.06*inv)  + c2*ripple2A*0.07;
+        const dhz  = c1*1.5*(wz*0.004*inv) + c2*ripple2A*0.11;
+        const tiltX = Math.max(-0.6, Math.min(0.6, -dhz*0.55));
+        const tiltZ = Math.max(-0.6, Math.min(0.6,  dhx*0.55));
+        vjPut(floorM, idx, x, -10 + lift, z, tiltX, 0, tiltZ, 1, 1 + spec*1.6, 1);
+        const hue = (0.58 + h*0.02 + Math.sin(clock*0.18)*0.08)%1;
+        vjTint(VJ_C, hue, 0.62 - spec*0.34, 0.34 + spec*0.30 + high*0.06,
+                          0.92 - spec*0.66, 0.16 + spec*0.44 + high*0.1);
         floorM.setColorAt(idx, VJ_C);
-        vjPut(ceilM, idx, x, 10 - lift, z, 0, 0, 0, 1, 1 + spec*1.6, 1);
-        VJ_C.setHSL((0.58 + h*0.02 + Math.sin(clock*0.18)*0.08 + 0.05)%1, 0.92 - spec*0.6, 0.12 + spec*0.36);
+        vjPut(ceilM, idx, x, 10 - lift, z, -tiltX, 0, -tiltZ, 1, 1 + spec*1.6, 1);
+        vjTint(VJ_C, (hue + 0.05)%1, 0.6 - spec*0.3, 0.28 + spec*0.26,
+                                     0.92 - spec*0.6, 0.12 + spec*0.36);
         ceilM.setColorAt(idx, VJ_C);
       }
     }
     vjFlush(floorM); vjFlush(ceilM);
+    rig.key.intensity = 0.92 + bass*0.5;
+    rig.rim.intensity = 1.1 + high*0.55;
     camera.fov = 82 + bass*13;
   }};
 }
@@ -15565,7 +15692,8 @@ function buildBg3DVjFoilCrumple(){
   const camera = new THREE.PerspectiveCamera(85, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
 
   const RINGS = 40, PER = 40, N = RINGS*PER, SPACING = VJ_LEN/RINGS, R = 19;
-  const mesh = new THREE.InstancedMesh(new THREE.TetrahedronGeometry(1.9, 0), vjSolidMat(1), N);
+  const mesh = new THREE.InstancedMesh(new THREE.TetrahedronGeometry(1.9, 0),
+    vjStdMat({ metalness:0.76, roughness:0.38, envMapIntensity:0.7 }), N);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(mesh);
   // 每片的朝向和「法线相位」都是建好就不变的，否则每帧重随机会变成雪花噪点
@@ -15575,7 +15703,9 @@ function buildBg3DVjFoilCrumple(){
     phase[i] = Math.random()*Math.PI*2;
   }
 
-  const { composer } = createBg3DBloom(scene, camera, 1.35, 0.46, 0.54);
+  const rig = vjLightRig(scene, { keyColor:0xffe3c5, keyI:0.98, rimColor:0x7d73ff,
+    rimI:1.08, skyColor:0x423454, groundColor:0x090405, fillI:0.38 });
+  const { composer } = createBg3DBloom(scene, camera, 1.1, 0.44, 0.58);
   let scroll = 0, clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
     clock += dt*0.016; scroll += vjSpeed(bass, dt);
@@ -15591,11 +15721,15 @@ function buildBg3DVjFoilCrumple(){
         const lit = Math.pow(Math.max(0, Math.sin(a*3 - clock*2.4 + phase[idx])), 6);
         const s = 1 + lit*1.2 + bass*0.7;
         vjPut(mesh, idx, x, y, z, rot[idx*3] + clock*0.12, rot[idx*3+1], rot[idx*3+2], s, s, s);
-        VJ_C.setHSL((0.5 + a*0.03 + Math.sin(clock*0.25)*0.1)%1, 0.95 - lit*0.7, Math.min(0.58, 0.14 + lit*0.46 + mid*0.12 + high*0.08));   // 封顶：折面高光叠中高音本来能到 0.80，饱和度这时又几乎归零，等于纯白
+        vjTint(VJ_C, (0.5 + a*0.03 + Math.sin(clock*0.25)*0.1)%1,
+          0.6 - lit*0.28, Math.min(0.56, 0.3 + lit*0.2 + mid*0.05 + high*0.04),
+          0.95 - lit*0.7, Math.min(0.58, 0.14 + lit*0.46 + mid*0.12 + high*0.08));
         mesh.setColorAt(idx, VJ_C);
       }
     }
     vjFlush(mesh);
+    rig.key.intensity = 0.9 + bass*0.34;
+    rig.rim.intensity = 0.94 + high*0.48;
     camera.fov = 85 + bass*14;
   }};
 }
@@ -15609,11 +15743,13 @@ function buildBg3DVjChromeBubbles(){
   const camera = new THREE.PerspectiveCamera(80, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
 
   const N = 260;
-  const mesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 2), vjSolidMat(1), N);
+  const mesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 2),
+    vjPhysMat({ metalness:0.72, roughness:0.13, clearcoat:0.9, clearcoatRoughness:0.08, envMapIntensity:0.82 }), N);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(mesh);
   // 高光点：每个泡上贴一颗小亮片，这是「球是镜面的」最直接的线索
-  const spec = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), vjSolidMat(0.9), N);
+  const spec = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1),
+    vjPhysMat({ metalness:0.66, roughness:0.1, clearcoat:1, clearcoatRoughness:0.04, envMapIntensity:0.9, opacity:0.86 }), N);
   spec.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(spec);
   const bub = [];
@@ -15622,7 +15758,9 @@ function buildBg3DVjChromeBubbles(){
                r: 0.9 + Math.random()*3.4, ph: Math.random()*Math.PI*2, hue: Math.random() });
   }
 
-  const { composer } = createBg3DBloom(scene, camera, 1.5, 0.55, 0.48);
+  const rig = vjLightRig(scene, { keyColor:0xd8f5ff, keyI:0.9, rimColor:0x7658ff,
+    rimI:1.12, skyColor:0x23406d, groundColor:0x04030c, fillI:0.34 });
+  const { composer } = createBg3DBloom(scene, camera, 1.08, 0.45, 0.58);
   let clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
     clock += dt*0.016;
@@ -15635,14 +15773,18 @@ function buildBg3DVjChromeBubbles(){
       const r = b.r*(1 + bass*0.3 + Math.sin(clock*2.2 + b.ph)*0.08);
       vjPut(mesh, i, b.x + wob, b.y + Math.cos(clock*1.1 + b.ph)*0.7, b.z, 0, 0, 0, r, r, r);
       // 边缘偏彩、正面偏白：靠 hue 随位置漂 + 中心去饱和来近似
-      VJ_C.setHSL((b.hue*0.35 + 0.48 + Math.sin(clock*0.2)*0.06)%1, 0.88, 0.2 + mid*0.12);
+      vjTint(VJ_C, (b.hue*0.35 + 0.48 + Math.sin(clock*0.2)*0.06)%1,
+        0.58, 0.32 + mid*0.04, 0.88, 0.2 + mid*0.12);
       mesh.setColorAt(i, VJ_C);
       const sr = r*0.3;
       vjPut(spec, i, b.x + wob - r*0.42, b.y + Math.cos(clock*1.1 + b.ph)*0.7 + r*0.42, b.z + r*0.5, 0, 0, 0, sr, sr, sr);
-      VJ_C.setHSL((b.hue*0.35 + 0.52)%1, 0.35, 0.55 + high*0.16);
+      vjTint(VJ_C, (b.hue*0.35 + 0.52)%1,
+        0.28, 0.5 + high*0.04, 0.35, 0.55 + high*0.16);
       spec.setColorAt(i, VJ_C);
     }
     vjFlush(mesh); vjFlush(spec);
+    rig.key.intensity = 0.84 + bass*0.38;
+    rig.rim.intensity = 0.96 + high*0.46;
     camera.fov = 80 + bass*15;
   }};
 }
@@ -15656,24 +15798,29 @@ function buildBg3DVjLiquidSpine(){
   const camera = new THREE.PerspectiveCamera(84, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
 
   const SEGS = 150, SPACING = VJ_LEN/SEGS;
-  const disc = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 0.9, 20), vjSolidMat(1), SEGS);
+  const spineMat = vjPhysMat({ metalness:0.74, roughness:0.15, clearcoat:0.88,
+    clearcoatRoughness:0.09, envMapIntensity:0.8 });
+  const disc = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 0.9, 24), spineMat, SEGS);
   disc.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(disc);
   // 侧翼的肋，让它读得出是「脊椎」而不是一串圆片
-  const rib = new THREE.InstancedMesh(new THREE.BoxGeometry(1.1, 1.1, 3.4), vjSolidMat(1), SEGS*2);
+  const rib = new THREE.InstancedMesh(new THREE.BoxGeometry(1.1, 1.1, 3.4), spineMat.clone(), SEGS*2);
   rib.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(rib);
   /* 光靠一条脊椎只点亮 19.7% 的画面，撑不起「饱满」。补一层跟着它甩出来的
      镜面碎屑：不抢主体，但把周围的空填上。 */
   const CHIP = 420;
-  const chip = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), vjSolidMat(1), CHIP);
+  const chip = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0),
+    vjStdMat({ metalness:0.76, roughness:0.3, envMapIntensity:0.68 }), CHIP);
   chip.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(chip);
   const ch = [];
   for(let i=0;i<CHIP;i++) ch.push({ a: Math.random()*Math.PI*2, r: 6+Math.random()*22, z:-Math.random()*VJ_LEN,
                                     s: 0.5+Math.random()*1.7, sp: 0.3+Math.random()*0.9, hue: Math.random() });
 
-  const { composer } = createBg3DBloom(scene, camera, 1.7, 0.6, 0.42);
+  const rig = vjLightRig(scene, { keyColor:0xd4efff, keyI:0.94, rimColor:0xa34fff,
+    rimI:1.16, skyColor:0x273663, groundColor:0x07030b, fillI:0.36 });
+  const { composer } = createBg3DBloom(scene, camera, 1.12, 0.48, 0.56);
   let scroll = 0, clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
     clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.1;
@@ -15686,12 +15833,15 @@ function buildBg3DVjLiquidSpine(){
       const rad = 7.2 + Math.sin(wz*0.09 + clock*2.3)*3.4 + bass*2.6;
       const spec = Math.pow(Math.max(0, Math.sin(wz*0.09 + clock*2.3)), 6);
       vjPut(disc, i, cx, cy, z, Math.PI/2, 0, wz*0.05 + clock*0.4, rad, 1, rad);
-      VJ_C.setHSL((0.56 + Math.sin(wz*0.02 + clock*0.3)*0.1)%1, 0.94 - spec*0.7, 0.18 + spec*0.44 + high*0.1);
+      vjTint(VJ_C, (0.56 + Math.sin(wz*0.02 + clock*0.3)*0.1)%1,
+        0.62 - spec*0.28, 0.31 + spec*0.2 + high*0.05,
+        0.94 - spec*0.7, 0.18 + spec*0.44 + high*0.1);
       disc.setColorAt(i, VJ_C);
       for(let s=0;s<2;s++){
         const idx = i*2+s, dir = s? 1 : -1;
         vjPut(rib, idx, cx + dir*rad*1.35, cy, z, 0, 0, dir*0.5, 1 + mid, 1, 1);
-        VJ_C.setHSL((0.6 + Math.sin(wz*0.02)*0.08)%1, 0.9, 0.16 + spec*0.34);
+        vjTint(VJ_C, (0.6 + Math.sin(wz*0.02)*0.08)%1,
+          0.58, 0.29 + spec*0.16, 0.9, 0.16 + spec*0.34);
         rib.setColorAt(idx, VJ_C);
       }
     }
@@ -15702,10 +15852,13 @@ function buildBg3DVjLiquidSpine(){
       if(c.z > VJ_FRONT) c.z -= VJ_LEN;
       const sc = c.s*(1 + bass*0.35);
       vjPut(chip, i, Math.cos(c.a)*c.r, Math.sin(c.a)*c.r*0.8, c.z, c.a, c.a*0.6, 0, sc, sc, sc);
-      VJ_C.setHSL((0.55 + c.hue*0.16)%1, 0.9, 0.15 + mid*0.16 + high*0.1);
+      vjTint(VJ_C, (0.55 + c.hue*0.16)%1,
+        0.62, 0.28 + mid*0.05 + high*0.04, 0.9, 0.15 + mid*0.16 + high*0.1);
       chip.setColorAt(i, VJ_C);
     }
     vjFlush(disc); vjFlush(rib); vjFlush(chip);
+    rig.key.intensity = 0.86 + bass*0.42;
+    rig.rim.intensity = 1.0 + high*0.5;
     camera.fov = 84 + bass*13;
   }};
 }
@@ -16059,19 +16212,23 @@ function buildBg3DVjRustPipes(){
   const camera = new THREE.PerspectiveCamera(86, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
 
   const STRANDS = 9, SEGS = 90, N = STRANDS*SEGS, SP = VJ_LEN/SEGS;
-  const pipe = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 3.2, 10), vjSolidMat(1), N);
+  const pipe = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 3.2, 12),
+    vjStdMat({ metalness:0.62, roughness:0.5, envMapIntensity:0.58 }), N);
   pipe.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(pipe);
   // 法兰盘：每隔几段套一个粗环，管子才像管子而不是面条
   const FL = STRANDS*18;
-  const flange = new THREE.InstancedMesh(new THREE.CylinderGeometry(1.5, 1.5, 0.8, 12), vjSolidMat(1), FL);
+  const flange = new THREE.InstancedMesh(new THREE.CylinderGeometry(1.5, 1.5, 0.8, 16),
+    vjStdMat({ metalness:0.7, roughness:0.37, envMapIntensity:0.64 }), FL);
   flange.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(flange);
   const sd = [];
   for(let i=0;i<STRANDS;i++) sd.push({ r: 7 + Math.random()*13, ph: Math.random()*Math.PI*2, tw: 0.02 + Math.random()*0.05,
                                        th: 0.9 + Math.random()*0.9, hue: Math.random() < 0.55 ? 0.055 : 0.48 });
 
-  const { composer } = createBg3DBloom(scene, camera, 1.4, 0.48, 0.5);
+  const rig = vjLightRig(scene, { keyColor:0xffb36b, keyI:0.94, rimColor:0x44bda5,
+    rimI:1.02, skyColor:0x4a2717, groundColor:0x080301, fillI:0.34 });
+  const { composer } = createBg3DBloom(scene, camera, 1.08, 0.44, 0.58);
   let scroll = 0, clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
     clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.05;
@@ -16088,17 +16245,23 @@ function buildBg3DVjRustPipes(){
         vjPut(pipe, idx, x, y, z, Math.PI/2, 0, 0, th, 1, th);
         // 锈色 / 冷绿两种管路交替，加一点沿长度的斑驳
         const patina = 0.5 + 0.5*Math.sin(wz*0.19 + s*2.1);
-        VJ_C.setHSL((d.hue + patina*0.04)%1, 0.95, 0.12 + patina*0.26 + mid*0.12 + high*0.06);
+        vjTint(VJ_C, (d.hue + patina*0.04)%1,
+          0.67, 0.28 + patina*0.13 + mid*0.04 + high*0.03,
+          0.95, 0.12 + patina*0.26 + mid*0.12 + high*0.06);
         pipe.setColorAt(idx, VJ_C);
         if(k % 5 === 0 && f < FL){
           vjPut(flange, f, x, y, z, Math.PI/2, 0, 0, th*1.35, 1, th*1.35);
-          VJ_C.setHSL((d.hue + 0.02)%1, 0.9, 0.2 + patina*0.3 + bass*0.12);
+          vjTint(VJ_C, (d.hue + 0.02)%1,
+            0.61, 0.33 + patina*0.13 + bass*0.04,
+            0.9, 0.2 + patina*0.3 + bass*0.12);
           flange.setColorAt(f, VJ_C); f++;
         }
       }
     }
     for(; f<FL; f++) vjPut(flange, f, 0, 0, 999, 0, 0, 0, 0.001, 0.001, 0.001);
     vjFlush(pipe); vjFlush(flange);
+    rig.key.intensity = 0.86 + bass*0.4;
+    rig.rim.intensity = 0.9 + high*0.44;
     camera.fov = 86 + bass*13;
   }};
 }
@@ -16370,29 +16533,33 @@ function buildBg3DVjNeonGeometryTunnel(){
   rails.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(rails);
   const core=new THREE.Mesh(new THREE.IcosahedronGeometry(2.4,2),new THREE.MeshBasicMaterial({color:0x5b20ff,wireframe:true,transparent:true,opacity:0.62}));
   core.position.z=-82; scene.add(core);
-  const {composer}=createBg3DBloom(scene,camera,1.12,0.5,0.57),st={beats:0};
+  const {composer}=createBg3DBloom(scene,camera,1.12,0.5,0.57),st={beats:0,bass:0,mid:0,high:0};
   scene.userData.neonGeometryTunnel={beamCount:BEAMS,nodeCount:RINGS*3,loopBeats:16};
-  return {scene,camera,composer,update(_bass,_mid,_high,dt){
-    const phase=vjPhase(st,dt,16),TAU=Math.PI*2;
+  return {scene,camera,composer,update(bass,mid,high,dt){
+    st.bass+=(bass-st.bass)*(1-Math.pow(0.78,dt));
+    st.mid +=(mid -st.mid )*(1-Math.pow(0.85,dt));
+    st.high+=(high-st.high)*(1-Math.pow(0.70,dt));
+    const phase=vjPhase(st,dt,16),TAU=Math.PI*2,beamThick=1+st.bass*.25,nodeScale=.75*(1+st.mid*.2);
     for(let i=0;i<RINGS;i++){
       const p=neonGeometryTunnelSample(i,phase);
       for(let j=0;j<SIDES;j++){
         const a=j/SIDES*TAU+p.twist,next=(j+1)/SIDES*TAU+p.twist,idx=i*SIDES+j;
-        vjPut(beam,idx,(Math.cos(a)+Math.cos(next))*p.radius*.5,(Math.sin(a)+Math.sin(next))*p.radius*.5,p.z,0,0,a+Math.PI/2,2*p.radius*Math.sin(Math.PI/SIDES),1,1);
-        VJ_C.setHSL((p.hue+j*.035)%1,.96,.38); beam.setColorAt(idx,VJ_C);
+        vjPut(beam,idx,(Math.cos(a)+Math.cos(next))*p.radius*.5,(Math.sin(a)+Math.sin(next))*p.radius*.5,p.z,0,0,a+Math.PI/2,2*p.radius*Math.sin(Math.PI/SIDES),beamThick,beamThick);
+        VJ_C.setHSL((p.hue+j*.035)%1,.96,.38+st.high*.12); beam.setColorAt(idx,VJ_C);
       }
       for(let j=0;j<3;j++){
         const a=j/3*TAU-p.twist*.45,idx=i*3+j;
-        vjPut(nodes,idx,Math.cos(a)*p.radius,Math.sin(a)*p.radius,p.z,phase*TAU+j,p.twist,0,.75,.75,.75);
-        VJ_C.setHSL((.82+j*.12+i*.009)%1,1,.44); nodes.setColorAt(idx,VJ_C);
+        vjPut(nodes,idx,Math.cos(a)*p.radius,Math.sin(a)*p.radius,p.z,phase*TAU+j,p.twist,0,nodeScale,nodeScale,nodeScale);
+        VJ_C.setHSL((.82+j*.12+i*.009)%1,1,.44+st.mid*.1); nodes.setColorAt(idx,VJ_C);
       }
     }
     for(let i=0;i<18;i++){
-      const a=i%6/6*TAU+Math.floor(i/6)*.055+phase*TAU*.25,z=vjLoopZ(phase*VJ_LEN,i/18*VJ_LEN);
-      vjPut(rails,i,Math.cos(a)*8.2,Math.sin(a)*8.2,z,0,0,0,1,1,1); VJ_C.setHSL((.52+i*.027)%1,1,.32); rails.setColorAt(i,VJ_C);
+      const a=i%6/6*TAU+Math.floor(i/6)*.055+phase*TAU*2,z=vjLoopZ(phase*VJ_LEN,i/18*VJ_LEN);
+      const railThick=1+st.high*.3;
+      vjPut(rails,i,Math.cos(a)*8.2,Math.sin(a)*8.2,z,0,0,0,railThick,railThick,1); VJ_C.setHSL((.52+i*.027)%1,1,.32+st.high*.12); rails.setColorAt(i,VJ_C);
     }
     vjFlush(beam); vjFlush(nodes); vjFlush(rails);
-    core.rotation.x=phase*TAU; core.rotation.y=-phase*TAU*2; core.scale.setScalar(.88+.12*Math.sin(phase*TAU*4));
+    core.rotation.x=phase*TAU; core.rotation.y=-phase*TAU*2; core.scale.setScalar(.88+.12*Math.sin(phase*TAU*4)+st.bass*.22);
     camera.position.x=Math.sin(phase*TAU)*.8; camera.position.y=Math.cos(phase*TAU)*.55; camera.rotation.z=Math.sin(phase*TAU)*.055;
   }};
 }
@@ -16409,8 +16576,8 @@ function buildBg3DVjBlackGoldFluid(){
   const scene=new THREE.Scene(); scene.fog=new THREE.FogExp2(0x020201,.011);
   const camera=new THREE.PerspectiveCamera(40,window.innerWidth/Math.max(1,window.innerHeight),.1,400);
   const STREAMS=10,BEADS=54,N=STREAMS*BEADS,geo=new THREE.SphereGeometry(1,8,6);
-  const black=new THREE.InstancedMesh(geo,vjStdMat({color:0x090806,metalness:.82,roughness:.16,envMapIntensity:.42}),N);
-  const gold=new THREE.InstancedMesh(geo,vjStdMat({color:0xf0a320,emissive:0x512300,metalness:.88,roughness:.13,envMapIntensity:.52}),N);
+  const black=new THREE.InstancedMesh(geo,vjPhysMat({color:0x090806,metalness:.82,roughness:.16,envMapIntensity:.42,clearcoat:.85,clearcoatRoughness:.08}),N);
+  const gold=new THREE.InstancedMesh(geo,vjPhysMat({color:0xf0a320,emissive:0x512300,metalness:.88,roughness:.13,envMapIntensity:.52,clearcoat:.5,clearcoatRoughness:.22}),N);
   black.instanceMatrix.setUsage(THREE.DynamicDrawUsage); gold.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(black,gold);
   const halos=new THREE.InstancedMesh(new THREE.TorusGeometry(1,.055,6,40),new THREE.MeshBasicMaterial({color:0xb86f12,transparent:true,opacity:.22,blending:THREE.AdditiveBlending,depthWrite:false}),12);
   halos.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(halos);
@@ -16423,24 +16590,31 @@ function buildBg3DVjBlackGoldFluid(){
   }
   const rig=vjLightRig(scene,{keyColor:0xffca62,keyI:.92,rimColor:0xff7a12,rimI:1.12,skyColor:0x231609,groundColor:0,fillI:.28});
   const warm=new THREE.PointLight(0xff9a22,.9,70,2); warm.position.set(-5,7,-18); scene.add(warm);
-  const {composer}=createBg3DBloom(scene,camera,.88,.46,.62),st={beats:0};
+  const {composer}=createBg3DBloom(scene,camera,.88,.46,.62),st={beats:0,bass:0,mid:0,high:0};
   scene.userData.blackGoldFluid={beadCount:N,goldCount:N,loopBeats:16};
-  return {scene,camera,composer,update(_bass,_mid,_high,dt){
-    const phase=vjPhase(st,dt,16),TAU=Math.PI*2; let gi=0;
+  return {scene,camera,composer,update(bass,mid,high,dt){
+    st.bass+=(bass-st.bass)*(1-Math.pow(0.78,dt));
+    st.mid +=(mid -st.mid )*(1-Math.pow(0.85,dt));
+    st.high+=(high-st.high)*(1-Math.pow(0.70,dt));
+    const phase=vjPhase(st,dt,16),TAU=Math.PI*2,swell=1+st.bass*.1; let gi=0;
     for(let s=0;s<STREAMS;s++) for(let b=0;b<BEADS;b++){
       const i=s*BEADS+b,p=blackGoldFluidSample(s,b,phase),stretch=1.25+.55*Math.sin(b/BEADS*TAU*2+phase*TAU+s);
-      vjPut(black,i,p.x,p.y,p.z,phase*TAU+s*.2,b*.11,0,p.scale*2.7,p.scale*1.55,stretch*1.55);
-      const gs=p.scale*(1.08+.16*Math.sin(phase*TAU*3+b));
-      vjPut(gold,gi++,p.x*1.035,p.y*1.035,p.z+.72,0,b*.09,phase*TAU,gs,gs*.62,stretch*.92);
+      vjPut(black,i,p.x*swell,p.y*swell,p.z,phase*TAU+s*.2,b*.11,0,p.scale*2.7,p.scale*1.55,stretch*1.55);
+      const gs=p.scale*(1.08+.16*Math.sin(phase*TAU*3+b))*(1+st.mid*.08);
+      vjPut(gold,gi++,p.x*1.035*swell,p.y*1.035*swell,p.z+.72,0,b*.09,phase*TAU,gs,gs*.62,stretch*.92);
     }
-    for(let i=0;i<12;i++){const z=vjLoopZ(phase*VJ_LEN,i*VJ_LEN/12),pulse=3.6+1.1*Math.sin(phase*TAU*2+i); vjPut(halos,i,0,0,z,0,0,phase*TAU+i*.3,pulse,pulse*.68,pulse);}
+    for(let i=0;i<12;i++){const z=vjLoopZ(phase*VJ_LEN,i*VJ_LEN/12),pulse=(3.6+1.1*Math.sin(phase*TAU*2+i))*(1+st.high*.1); vjPut(halos,i,0,0,z,0,0,phase*TAU+i*.3,pulse,pulse*.68,pulse);}
     vjFlush(black); vjFlush(gold); vjFlush(halos);
-    warm.position.x=Math.sin(phase*TAU)*8; warm.position.y=5+Math.cos(phase*TAU)*3; rig.key.intensity=.82+.12*Math.sin(phase*TAU*2);
+    halos.material.opacity=.16+st.high*.22;
+    warm.position.x=Math.sin(phase*TAU)*8; warm.position.y=5+Math.cos(phase*TAU)*3; warm.intensity=.9+st.bass*.6;
+    rig.key.intensity=.82+.12*Math.sin(phase*TAU*2)+st.bass*.15;
+    gold.material.emissiveIntensity=1+st.high*1.2;
     for(let i=0;i<pools.length;i++){
       const a=phase*TAU+i*2.1; pools[i].position.x=(i-1)*11+Math.sin(a)*4; pools[i].position.y=(i%2?4:-4)+Math.cos(a*2)*2;
       pools[i].scale.set(1.35+.28*Math.sin(a*2),.72+.16*Math.cos(a*3),1); pools[i].rotation.z=Math.sin(a)*.28;
     }
     camera.position.set(Math.sin(phase*TAU)*1.1,Math.cos(phase*TAU)*.7,0); camera.rotation.z=Math.sin(phase*TAU)*.035;
+    camera.fov=40-st.bass*1.4; camera.updateProjectionMatrix();
   }};
 }
 
@@ -16472,27 +16646,30 @@ function buildBg3DVjUltravioletHiveRush(){
     blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true}));particles.frustumCulled=false;scene.add(particles);
   const core=new THREE.Mesh(new THREE.TorusKnotGeometry(2.1,.16,128,12,3,5),new THREE.MeshBasicMaterial({color:0xd72dff}));
   core.position.z=-72;scene.add(core);
-  const {composer}=createBg3DBloom(scene,camera,1.08,.48,.58),st={beats:0};
+  const {composer}=createBg3DBloom(scene,camera,1.08,.48,.58),st={beats:0,bass:0,mid:0,high:0};
   scene.userData.ultravioletHiveRush={shellCount:RINGS*SIDES,ledCount:RINGS*SIDES*2,particleCount:PN,loopBeats:16,durationSeconds:8};
-  return {scene,camera,composer,update(_bass,_mid,_high,dt){
-    const phase=vjPhase(st,dt,16),t=phase*TAU;
+  return {scene,camera,composer,update(bass,mid,high,dt){
+    st.bass+=(bass-st.bass)*(1-Math.pow(0.75,dt));
+    st.mid +=(mid -st.mid )*(1-Math.pow(0.85,dt));
+    st.high+=(high-st.high)*(1-Math.pow(0.65,dt));
+    const phase=vjPhase(st,dt,16),t=phase*TAU,radiusBoost=1+st.bass*.05;
     for(let i=0;i<RINGS;i++){
-      const p=ultravioletHiveRushSample(i,phase);
+      const p=ultravioletHiveRushSample(i,phase),radius=p.radius*radiusBoost;
       for(let j=0;j<SIDES;j++){
         const a=j/SIDES*TAU+p.twist,n=(j+1)/SIDES*TAU+p.twist,idx=i*SIDES+j;
-        const x=(Math.cos(a)+Math.cos(n))*p.radius*.5,y=(Math.sin(a)+Math.sin(n))*p.radius*.5;
-        vjPut(shell,idx,x,y,p.z,0,0,a+Math.PI/2,2*p.radius*Math.sin(Math.PI/SIDES),p.pulse,p.pulse);
-        VJ_C.setHSL((.56+j*.064+i*.006+phase*.18)%1,.98,.36);shell.setColorAt(idx,VJ_C);
+        const x=(Math.cos(a)+Math.cos(n))*radius*.5,y=(Math.sin(a)+Math.sin(n))*radius*.5;
+        vjPut(shell,idx,x,y,p.z,0,0,a+Math.PI/2,2*radius*Math.sin(Math.PI/SIDES),p.pulse,p.pulse);
+        VJ_C.setHSL((.56+j*.064+i*.006+Math.sin(t)*.05)%1,.98,.36+st.high*.12);shell.setColorAt(idx,VJ_C);
         for(let q=0;q<2;q++){
-          const la=a+(q-.5)*Math.PI/6,li=idx*2+q,rr=p.radius*(q?.82:1.08);
+          const la=a+(q-.5)*Math.PI/6,li=idx*2+q,rr=radius*(q?.82:1.08);
           vjPut(leds,li,Math.cos(la)*rr,Math.sin(la)*rr,p.z+(q-.5)*1.2,t*2+j,a,0,p.pulse,p.pulse,p.pulse);
-          VJ_C.setHSL((.48+j*.075+q*.16+i*.011)%1,1,.48);leds.setColorAt(li,VJ_C);
+          VJ_C.setHSL((.48+j*.075+q*.16+i*.011)%1,1,.48+st.mid*.1);leds.setColorAt(li,VJ_C);
         }
       }
       for(let j=0;j<3;j++){
-        const a=j/3*TAU-p.twist*.7,idx=i*3+j,len=p.radius*1.5;
-        vjPut(lasers,idx,Math.cos(a)*p.radius*.25,Math.sin(a)*p.radius*.25,p.z+.4,0,0,a,len,1,1);
-        VJ_C.setHSL((.78+j*.19+i*.013)%1,1,.44);lasers.setColorAt(idx,VJ_C);
+        const a=j/3*TAU-p.twist*.7,idx=i*3+j,len=radius*1.5;
+        vjPut(lasers,idx,Math.cos(a)*radius*.25,Math.sin(a)*radius*.25,p.z+.4,0,0,a,len,1,1);
+        VJ_C.setHSL((.78+j*.19+i*.013)%1,1,.44+st.high*.12);lasers.setColorAt(idx,VJ_C);
       }
     }
     for(let i=0;i<PN;i++){
@@ -16500,8 +16677,9 @@ function buildBg3DVjUltravioletHiveRush(){
       pos[i*3]=Math.cos(a)*r;pos[i*3+1]=Math.sin(a)*r;pos[i*3+2]=vjLoopZ(phase*VJ_LEN*2,s.off);
     }
     pg.attributes.position.needsUpdate=true;vjFlush(shell);vjFlush(leds);vjFlush(lasers);
-    particles.material.size=.22+.08*(.5+.5*Math.sin(t*8));core.rotation.x=t*2;core.rotation.y=-t*3;core.scale.setScalar(.9+.1*Math.sin(t*4));
+    particles.material.size=.22+.08*(.5+.5*Math.sin(t*8))+st.high*.05;core.rotation.x=t*2;core.rotation.y=-t*3;core.scale.setScalar(.9+.1*Math.sin(t*4)+st.bass*.15);
     camera.position.x=Math.sin(t)*.26;camera.position.y=Math.cos(t)*.26;camera.rotation.z=Math.sin(t*2)*.018;
+    camera.fov=68-st.bass*2.4; camera.updateProjectionMatrix();
   }};
 }
 
@@ -16877,11 +17055,35 @@ function pruneBg3DSceneCache(activeKind){
   const kinds=Object.keys(bg3DScenes);
   bg3DSceneCacheIndex.evictionCandidates(kinds, activeKind).forEach(vjDropCachedScene);
 }
+/* 111 个 builder 在构造期用 Math.random() 决定布局，所以同一个效果每次启动长得都不一样。
+   生产环境这是好事（每次打开都有新鲜感），但它让测试里的覆盖率指标在阈值附近随机翻车 ——
+   实测同一份代码两次跑 vjHoverCity 得到 22.8% 和 38.8%，而门槛是 25%。
+   这里留一个只给测试用的注入点：设了种子才固定，没设就是原来的 Math.random，
+   生产路径一行开销都没有。CLAUDE.md §8 要求的「确定性种子」也落在这里。        */
+let bg3DBuildSeed = null;
+function seedBg3DBuilds(seed){
+  bg3DBuildSeed = (seed === undefined || seed === null) ? null : (seed >>> 0);
+}
+function buildBg3DScene(kind){
+  if(bg3DBuildSeed === null) return BG3D_BUILDERS[kind]();
+  /* mulberry32：够小够快够均匀，只用来固定布局，不需要密码学强度。
+     同一个 (seed, kind) 组合永远得到同一个场景。 */
+  let s = bg3DBuildSeed;
+  const realRandom = Math.random;
+  Math.random = function(){
+    s = s + 0x6D2B79F5 | 0;
+    let t = Math.imul(s ^ s >>> 15, 1 | s);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+  try{ return BG3D_BUILDERS[kind](); }
+  finally{ Math.random = realRandom; }
+}
 let bg3DVisible = true;
 function enableBg3D(kind){
   try{
     ensureBg3DRenderer();
-    if(!bg3DScenes[kind]) bg3DScenes[kind] = BG3D_BUILDERS[kind]();
+    if(!bg3DScenes[kind]) bg3DScenes[kind] = buildBg3DScene(kind);
     ensureBg3DComposer(bg3DScenes[kind]);   // 没挂 bloom 的效果也要能透出背景
     ensureVjHighlightPass(kind, bg3DScenes[kind]);
     resizeBg3D();
@@ -16926,6 +17128,152 @@ function loadBgImage(src){
   revealBgMediaControls();
   applyBgDockSafeCentering();
 }
+
+/* ---------- local Background Folder playlist ---------------------------------
+   Folder access/scanning lives in Electron's isolated preload API. The renderer receives only
+   media paths and uses two stage-owned slots, so a real crossfade is visible and is also redrawn
+   by composeCaptureFrame(). No playlist medium sits outside the recording compositor. */
+const BG_FOLDER_KEY='subremix_bg_folder_playlist_v1';
+const bgFolderSlots=['A','B'].map(letter=>{
+  const el=document.getElementById('bgPlaylistSlot'+letter);
+  return {el,image:el.querySelector('img'),video:el.querySelector('video'),type:null,path:null,gen:0};
+});
+let bgFolderFiles=[],bgFolderPath='',bgFolderActive=false,bgFolderAuto=false,bgFolderOrder='shuffle';
+let bgFolderInterval=10,bgFolderVideoPolicy='ended',bgFolderFit='cover',bgFolderCrossfade=1.2,bgFolderAvoidRepeat=true;
+let bgFolderActiveSlot=-1,bgFolderCurrentPath='',bgFolderShuffleBag=[],bgFolderRecent=[],bgFolderTimer=null,bgFolderSwitching=false;
+let bgFolderReadyPromise=Promise.resolve(true),bgFolderSession=0;
+function bgFolderSettings(){return {folder:bgFolderPath,auto:bgFolderAuto,order:bgFolderOrder,interval:bgFolderInterval,
+  videoPolicy:bgFolderVideoPolicy,fit:bgFolderFit,crossfade:bgFolderCrossfade,avoidRepeat:bgFolderAvoidRepeat};}
+function saveBgFolderSettings(){try{localStorage.setItem(BG_FOLDER_KEY,JSON.stringify(bgFolderSettings()));}catch(_e){}}
+function bgFolderUrl(file){
+  if(file.url)return file.url;
+  if(window.subRemixDesktop?.mediaFileUrl)return window.subRemixDesktop.mediaFileUrl(file.path);
+  return 'file:///'+file.path.replace(/\\/g,'/').split('/').map(encodeURIComponent).join('/');
+}
+function updateBgFolderStatus(error){
+  const el=document.getElementById('bgFolderStatus');if(!el)return;
+  const name=bgFolderPath?bgFolderPath.split(/[\\/]/).filter(Boolean).pop():'';
+  el.textContent=error?(currentLang==='zh'?'⚠ 文件夹无法读取':'⚠ Folder unavailable'):
+    (bgFolderPath?`📁 ${name} · ${bgFolderFiles.length} media`:(currentLang==='zh'?'未选择背景文件夹':'No background folder selected'));
+  el.title=bgFolderPath||'';
+}
+function syncBgFolderUi(){
+  const zh=currentLang==='zh';
+  document.getElementById('bgFolderSelectBtn').textContent=zh?'📁 选择背景文件夹':'📁 Select Folder';
+  document.getElementById('bgFolderNextBtn').textContent=zh?'⏭ 下一个背景':'⏭ Next Background';
+  document.getElementById('bgFolderAutoBtn').textContent=(bgFolderAuto?'⏸ ':'▶ ')+(currentLang==='zh'?'文件夹轮播：':'Folder Playlist: ')+(bgFolderAuto?(currentLang==='zh'?'开':'On'):(currentLang==='zh'?'关':'Off'));
+  document.getElementById('bgFolderAutoBtn').classList.toggle('active',bgFolderAuto);
+  document.getElementById('bgFolderOrderSel').value=bgFolderOrder;
+  const preset=[10,30,60].includes(bgFolderInterval)?String(bgFolderInterval):'custom';
+  document.getElementById('bgFolderIntervalSel').value=preset;
+  const custom=document.getElementById('bgFolderCustomInterval');custom.style.display=preset==='custom'?'block':'none';custom.value=String(bgFolderInterval);
+  document.getElementById('bgFolderVideoPolicySel').value=bgFolderVideoPolicy;document.getElementById('bgFolderFitSel').value=bgFolderFit;
+  document.getElementById('bgFolderCrossfadeSel').value=String(bgFolderCrossfade);
+  const order=document.getElementById('bgFolderOrderSel');order.options[0].textContent=zh?'🔀 随机播放':'🔀 Shuffle';order.options[1].textContent=zh?'➡ 顺序播放':'➡ Sequential';
+  const intervals=document.getElementById('bgFolderIntervalSel').options;intervals[0].textContent=zh?'⏱ 10 秒':'⏱ 10 seconds';intervals[1].textContent=zh?'⏱ 30 秒':'⏱ 30 seconds';intervals[2].textContent=zh?'⏱ 1 分钟':'⏱ 1 minute';intervals[3].textContent=zh?'⏱ 自定义…':'⏱ Custom…';
+  const video=document.getElementById('bgFolderVideoPolicySel').options;video[0].textContent=zh?'🎞 视频：播完再换':'🎞 Video: Play to End';video[1].textContent=zh?'⏱ 视频：按时间切换':'⏱ Video: Use Interval';
+  const fit=document.getElementById('bgFolderFitSel').options;fit[0].textContent=zh?'▣ 适应：裁满':'▣ Fit: Cover';fit[1].textContent=zh?'□ 适应：完整显示':'□ Fit: Contain';fit[2].textContent=zh?'↔ 适应：拉伸':'↔ Fit: Stretch';
+  [...document.getElementById('bgFolderCrossfadeSel').options].forEach((o,i)=>{const secs=['',.5,1.2,2][i];o.textContent=i===0?(zh?'交叉淡化：关':'Crossfade: Off'):(zh?`交叉淡化：${secs}秒`:`Crossfade: ${secs}s`);});
+  const avoid=document.getElementById('bgFolderAvoidRepeatBtn');avoid.classList.toggle('active',bgFolderAvoidRepeat);
+  avoid.textContent='🛡 '+(currentLang==='zh'?'避免最近重复：':'Avoid Recent: ')+(bgFolderAvoidRepeat?(currentLang==='zh'?'开':'On'):(currentLang==='zh'?'关':'Off'));
+  updateBgFolderStatus();applyBgFolderFit();
+}
+function applyBgFolderFit(){
+  const pct=document.getElementById('bgOpacitySel')?.value||72;
+  bgFolderSlots.forEach(s=>{s.image.style.objectFit=bgFolderFit;s.video.style.objectFit=bgFolderFit;
+    s.el.style.transitionDuration=Math.max(0,bgFolderCrossfade)+'s';s.el.style.filter=`brightness(${pct}%) saturate(1.15)`;});
+}
+function resetBgFolderBag(){
+  bgFolderShuffleBag=bgFolderFiles.map((_,i)=>i);
+  for(let i=bgFolderShuffleBag.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[bgFolderShuffleBag[i],bgFolderShuffleBag[j]]=[bgFolderShuffleBag[j],bgFolderShuffleBag[i]];}
+}
+function nextBgFolderFile(){
+  if(!bgFolderFiles.length)return null;
+  if(bgFolderOrder==='sequential'){
+    const at=bgFolderFiles.findIndex(f=>f.path===bgFolderCurrentPath);return bgFolderFiles[(at+1+bgFolderFiles.length)%bgFolderFiles.length];
+  }
+  if(!bgFolderShuffleBag.length)resetBgFolderBag();
+  const blocked=new Set(bgFolderAvoidRepeat?bgFolderRecent:[]);let pos=bgFolderShuffleBag.findIndex(i=>!blocked.has(bgFolderFiles[i]?.path));
+  if(pos<0)pos=0;const [idx]=bgFolderShuffleBag.splice(pos,1);return bgFolderFiles[idx]||null;
+}
+function clearBgFolderSlot(slot){slot.image.onload=null;slot.image.onerror=null;slot.video.onloadeddata=null;slot.video.onerror=null;
+  slot.video.pause();slot.video.removeAttribute('src');slot.video.load();
+  slot.video.style.display='none';slot.image.style.display='none';slot.type=null;slot.path=null;}
+function prepareBgFolderSlot(slot,file){
+  clearBgFolderSlot(slot);slot.gen++;slot.type=file.type;slot.path=file.path;const media=file.type==='video'?slot.video:slot.image;
+  media.style.display='block';if(file.type==='video'){media.muted=true;media.defaultMuted=true;media.loop=false;}
+  return new Promise((resolve,reject)=>{
+    let done=false;const finish=ok=>{if(done)return;done=true;clearTimeout(timeout);media.onload=null;media.onerror=null;media.onloadeddata=null;ok?resolve(true):reject(new Error('media-load-failed'));};
+    const timeout=setTimeout(()=>finish(false),8000);media.onerror=()=>finish(false);
+    if(file.type==='video')media.onloadeddata=()=>finish(true);else media.onload=()=>finish(true);
+    media.src=bgFolderUrl(file);if(file.type==='video')media.load();
+  });
+}
+function scheduleBgFolderAdvance(file,slot){
+  clearTimeout(bgFolderTimer);if(!file||!slot)return;if(slot.video)slot.video.onended=null;if(!bgFolderAuto)return;
+  if(file.type==='video'&&bgFolderVideoPolicy==='ended')slot.video.onended=()=>advanceBgFolder('ended');
+  else bgFolderTimer=setTimeout(()=>advanceBgFolder('timer'),Math.max(1,bgFolderInterval)*1000);
+}
+function rescheduleBgFolderAdvanceIfActive(){
+  if(!bgFolderActive||bgFolderActiveSlot<0)return;
+  const file=bgFolderFiles.find(f=>f.path===bgFolderCurrentPath);if(!file)return;
+  scheduleBgFolderAdvance(file,bgFolderSlots[bgFolderActiveSlot]);
+}
+async function showBgFolderFile(file,attempt=0){
+  if(!file||bgFolderSwitching||attempt>Math.max(2,bgFolderFiles.length))return false;
+  bgFolderSwitching=true;const session=bgFolderSession;
+  const nextSlot=(bgFolderActiveSlot+1)%2,slot=bgFolderSlots[nextSlot],old=bgFolderActiveSlot>=0?bgFolderSlots[bgFolderActiveSlot]:null;
+  try{
+    bgFolderReadyPromise=prepareBgFolderSlot(slot,file);await bgFolderReadyPromise;
+    if(session!==bgFolderSession){clearBgFolderSlot(slot);return false;}
+    bgFolderActive=true;hasBgMedia=true;hasBgVideo=file.type==='video';bgImageEl.style.display='none';bgVideoEl.pause();bgVideoEl.style.display='none';
+    slot.el.style.display=bgVisible?'block':'none';
+    if(!old){
+      // First item is the recording lock baseline: it must be fully opaque before callers may
+      // start capture, rather than spending the first crossfade duration fading up from black.
+      slot.el.style.transition='none';slot.el.classList.add('active');void slot.el.offsetWidth;
+      slot.el.style.transition=`opacity ${Math.max(0,bgFolderCrossfade)}s ease`;
+    }else{
+      void slot.el.offsetWidth;slot.el.classList.add('active');old.el.classList.remove('active');
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      const oldGen=old.gen;
+      setTimeout(()=>{if(old.gen===oldGen&&!old.el.classList.contains('active')){old.el.style.display='none';clearBgFolderSlot(old);}},Math.max(0,bgFolderCrossfade)*1000+80);
+    }
+    bgFolderActiveSlot=nextSlot;bgFolderCurrentPath=file.path;bgFolderRecent.push(file.path);
+    const maxRecent=Math.min(5,Math.max(1,bgFolderFiles.length-1));while(bgFolderRecent.length>maxRecent)bgFolderRecent.shift();
+    if(file.type==='video'){slot.video.muted=true;slot.video.play().catch(()=>{});}revealBgMediaControls();scheduleBgFolderAdvance(file,slot);updateBgFolderStatus();return true;
+  }catch(error){console.warn('Skipping unreadable background:',file.path,error);clearBgFolderSlot(slot);
+    // Sequential mode must advance past the failed path instead of selecting it again forever.
+    bgFolderCurrentPath=file.path;bgFolderSwitching=false;
+    if(session!==bgFolderSession)return false;
+    return showBgFolderFile(nextBgFolderFile(),attempt+1);
+  }finally{bgFolderSwitching=false;}
+}
+function advanceBgFolder(_reason){if(bgFolderSwitching)return;const file=nextBgFolderFile();if(file)showBgFolderFile(file);}
+function stopBgFolderPlayback(clearMedia){
+  clearTimeout(bgFolderTimer);if(clearMedia)bgFolderSession++;
+  bgFolderSlots.forEach(s=>{s.video.onended=null;if(clearMedia){s.el.classList.remove('active');s.el.style.display='none';clearBgFolderSlot(s);}});
+  bgFolderAuto=false;if(clearMedia){bgFolderActive=false;bgFolderActiveSlot=-1;bgFolderCurrentPath='';}saveBgFolderSettings();syncBgFolderUi();
+}
+async function applyBgFolderScan(result,autoStart){
+  if(!result||result.error){updateBgFolderStatus(true);return false;}
+  bgFolderPath=result.folder;bgFolderFiles=Array.isArray(result.files)?result.files:[];resetBgFolderBag();updateBgFolderStatus();saveBgFolderSettings();
+  if(autoStart&&bgFolderFiles.length){const current=bgFolderFiles.find(f=>f.path===bgFolderCurrentPath);if(!current)await showBgFolderFile(nextBgFolderFile());}
+  return true;
+}
+async function loadBackgroundFolder(folderPath,autoStart=true){
+  if(!window.subRemixDesktop)return false;const result=await window.subRemixDesktop.watchBackgroundFolder(folderPath);
+  return applyBgFolderScan(result,autoStart);
+}
+async function ensureBackgroundReadyForRecording(){try{return await bgFolderReadyPromise;}catch(_e){return false;}}
+window.subRemixDesktop?.onBackgroundFolderChanged(result=>applyBgFolderScan(result,bgFolderActive));
+async function restoreBgFolderSettings(){
+  let s=null;try{s=JSON.parse(localStorage.getItem(BG_FOLDER_KEY)||'null');}catch(_e){}if(!s){syncBgFolderUi();return;}
+  bgFolderPath=s.folder||'';bgFolderAuto=!!s.auto;bgFolderOrder=s.order==='sequential'?'sequential':'shuffle';bgFolderInterval=Math.max(1,Number(s.interval)||10);
+  bgFolderVideoPolicy=s.videoPolicy==='timed'?'timed':'ended';bgFolderFit=['cover','contain','fill'].includes(s.fit)?s.fit:'cover';
+  bgFolderCrossfade=[0,.5,1.2,2].includes(Number(s.crossfade))?Number(s.crossfade):1.2;bgFolderAvoidRepeat=s.avoidRepeat!==false;syncBgFolderUi();
+  if(bgFolderPath)await loadBackgroundFolder(bgFolderPath,true);
+}
 function revealBgMediaControls(){
   const toggleBtn = document.getElementById('bgToggleBtn');
   const removeBtn = document.getElementById('bgRemoveBtn');
@@ -16939,6 +17287,11 @@ function revealBg3DControls(){
   if(removeBtn) removeBtn.style.display = '';
 }
 function syncBgVideo(){
+  if(bgFolderActive&&bgFolderActiveSlot>=0){
+    const slot=bgFolderSlots[bgFolderActiveSlot];
+    if(slot.type==='video'){if(playing)slot.video.play().catch(()=>{});else slot.video.pause();}
+    return;
+  }
   if(!hasBgVideo) return;
   if(playing) bgVideoEl.play().catch(()=>{});
   else bgVideoEl.pause();
@@ -24452,6 +24805,9 @@ function ensureStreamDest(){
 async function startRecording(){
   ensureStreamDest();
   if(!cv.captureStream){ console.error('captureStream not supported in this browser'); return false; }
+  // A folder item may be preloading into the hidden crossfade slot. Do not start capture on a
+  // transient black frame: recording begins only after that exact composite source is ready.
+  await ensureBackgroundReadyForRecording();
   enterRecordingResolution();   // force the canvas buffer to 4K just for the recording — see comment above
   const canvasStream = composeCaptureFrame().captureStream(60);
   const audioTracks = streamDest ? streamDest.stream.getAudioTracks() : [];
@@ -25201,6 +25557,7 @@ document.getElementById('logoAutoRemoveBgBtn').onclick = ()=>{
 document.getElementById('bgIn').onchange = e=>{
   const f = e.target.files[0];
   if(!f) return;
+  stopBgFolderPlayback(true);
   const reader = new FileReader();
   reader.onload = ev=>{
     if(f.type.startsWith('image/')) loadBgImage(ev.target.result);
@@ -25208,17 +25565,47 @@ document.getElementById('bgIn').onchange = e=>{
   };
   reader.readAsDataURL(f);
 };
+document.getElementById('bgFolderSelectBtn').onclick=async()=>{
+  const picked=await window.subRemixDesktop?.selectBackgroundFolder();
+  if(!picked)return;
+  const watched=await window.subRemixDesktop?.watchBackgroundFolder(picked.folder);
+  await applyBgFolderScan(watched||picked,false);
+  bgFolderAuto=true;saveBgFolderSettings();syncBgFolderUi();advanceBgFolder('select');
+};
+document.getElementById('bgFolderAutoBtn').onclick=()=>{
+  if(!bgFolderFiles.length){document.getElementById('bgFolderSelectBtn').click();return;}
+  bgFolderAuto=!bgFolderAuto;saveBgFolderSettings();syncBgFolderUi();
+  if(bgFolderAuto){if(!bgFolderActive)advanceBgFolder('enable');else rescheduleBgFolderAdvanceIfActive();}
+  else clearTimeout(bgFolderTimer);
+};
+document.getElementById('bgFolderNextBtn').onclick=()=>advanceBgFolder('manual');
+document.getElementById('bgFolderOrderSel').onchange=e=>{bgFolderOrder=e.target.value==='sequential'?'sequential':'shuffle';resetBgFolderBag();saveBgFolderSettings();};
+document.getElementById('bgFolderIntervalSel').onchange=e=>{
+  const custom=document.getElementById('bgFolderCustomInterval');custom.style.display=e.target.value==='custom'?'block':'none';
+  if(e.target.value!=='custom')bgFolderInterval=Number(e.target.value);saveBgFolderSettings();
+  rescheduleBgFolderAdvanceIfActive();
+};
+document.getElementById('bgFolderCustomInterval').onchange=e=>{bgFolderInterval=Math.max(1,Math.min(3600,Number(e.target.value)||10));e.target.value=String(bgFolderInterval);saveBgFolderSettings();
+  rescheduleBgFolderAdvanceIfActive();};
+document.getElementById('bgFolderVideoPolicySel').onchange=e=>{bgFolderVideoPolicy=e.target.value==='timed'?'timed':'ended';saveBgFolderSettings();
+  rescheduleBgFolderAdvanceIfActive();};
+document.getElementById('bgFolderFitSel').onchange=e=>{bgFolderFit=['cover','contain','fill'].includes(e.target.value)?e.target.value:'cover';applyBgFolderFit();saveBgFolderSettings();};
+document.getElementById('bgFolderCrossfadeSel').onchange=e=>{bgFolderCrossfade=Math.max(0,Number(e.target.value)||0);applyBgFolderFit();saveBgFolderSettings();};
+document.getElementById('bgFolderAvoidRepeatBtn').onclick=()=>{bgFolderAvoidRepeat=!bgFolderAvoidRepeat;saveBgFolderSettings();syncBgFolderUi();};
+restoreBgFolderSettings();
 document.getElementById('bgToggleBtn').onclick = ()=>{
   bgVisible = !bgVisible;
   const btn = document.getElementById('bgToggleBtn');
   btn.textContent = bgVisible ? '👁 Show' : '🚫 Hidden';
   btn.classList.toggle('active', bgVisible);
-  if(hasBgVideo) bgVideoEl.style.display = bgVisible ? 'block' : 'none';
+  if(bgFolderActive) bgFolderSlots.forEach(s=>s.el.style.display=bgVisible&&(s.el.classList.contains('active')||s.path)?'block':'none');
+  else if(hasBgVideo) bgVideoEl.style.display = bgVisible ? 'block' : 'none';
   else if(hasBgMedia) bgImageEl.style.display = bgVisible ? 'block' : 'none';
 };
 document.getElementById('bgRemoveBtn').onclick = ()=>{
   if(!confirm('Remove the photo/video background? This can be undone with Ctrl+Z.')) return;
   pushUndo();
+  stopBgFolderPlayback(true);
   bgImageEl.style.display = 'none'; bgImageEl.src = '';
   bgVideoEl.pause(); bgVideoEl.style.display = 'none'; bgVideoEl.src = '';
   hasBgMedia = false; hasBgVideo = false; bgVisible = true;
@@ -26444,6 +26831,7 @@ document.getElementById('bgOpacitySel').addEventListener('input', e=>{
   const f = `brightness(${pct}%) saturate(1.15)`;
   bgImageEl.style.filter = f;
   bgVideoEl.style.filter = f;
+  bgFolderSlots.forEach(s=>s.el.style.filter=f);
   // 3D 那边不直接写 filter —— 只记下基准，由 applyBg3DFilter() 跟可选 Bounce/Director 合成
   bg3DBaseBrightness = parseFloat(pct)/100;
   bg3DBaseSaturate = 1.15;

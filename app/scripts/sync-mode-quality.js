@@ -68,7 +68,10 @@ try {
   const end = target.indexOf(END);
   if (start < 0 || end < start) throw new Error('generated block markers are missing or malformed');
   const expected = render(config);
-  const actual = target.slice(start, end + END.length);
+  /* 生成块一律以 \n 写入，而 61.html 在 Windows 检出后整体是 CRLF。任何会统一
+     换行符的编辑器保存一次，就会把这些块翻成 CRLF，逐字节比较随即误报 stale。
+     比较前先归一化——其余 7 个 sync 脚本都是这么做的，这里之前漏了。          */
+  const actual = target.slice(start, end + END.length).replace(/\r\n/g, '\n');
   if (write) {
     fs.writeFileSync(targetPath, target.slice(0, start) + expected + target.slice(end + END.length));
     console.log('mode-quality: synchronized 61.html from src/config/mode-quality.json');

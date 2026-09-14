@@ -1,6 +1,44 @@
-const { app, BrowserWindow, Menu, dialog } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const { pathToFileURL } = require('url');
+const BG_MEDIA_EXTS = new Set(['.jpg','.jpeg','.png','.webp','.mp4','.webm']);
+let bgFolderWatcher = null, bgFolderWatchTimer = null;
+function scanBackgroundFolder(folderPath) {
+  if (!folderPath || typeof folderPath !== 'string') return { folder:null, files:[], error:'invalid-folder' };
+  try {
+    const stat = fs.statSync(folderPath);
+    if (!stat.isDirectory()) return { folder:folderPath, files:[], error:'not-a-folder' };
+    const files = fs.readdirSync(folderPath, { withFileTypes:true })
+      .filter(entry => entry.isFile() && BG_MEDIA_EXTS.has(path.extname(entry.name).toLowerCase()))
+      .map(entry => { const filePath=path.join(folderPath,entry.name); return { name:entry.name,path:filePath,url:pathToFileURL(filePath).href,
+        type:['.mp4','.webm'].includes(path.extname(entry.name).toLowerCase())?'video':'image' }; })
+      .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
+    return { folder:folderPath, files };
+  } catch (error) { return { folder:folderPath, files:[], error:error.code || 'scan-failed' }; }
+}
+
+ipcMain.handle('background-folder:select', async event => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const result = await dialog.showOpenDialog(win, { properties:['openDirectory'], title:'Select Background Folder' });
+  return result.canceled || !result.filePaths[0] ? null : scanBackgroundFolder(result.filePaths[0]);
+});
+ipcMain.handle('background-folder:scan', (_event, folderPath) => scanBackgroundFolder(folderPath));
+ipcMain.handle('background-folder:watch', (event, folderPath) => {
+  if (bgFolderWatcher) { try { bgFolderWatcher.close(); } catch (_) {} bgFolderWatcher = null; }
+  clearTimeout(bgFolderWatchTimer);
+  const scanned = scanBackgroundFolder(folderPath);
+  if (scanned.error) return scanned;
+  try {
+    bgFolderWatcher = fs.watch(folderPath, () => {
+      clearTimeout(bgFolderWatchTimer);
+      bgFolderWatchTimer = setTimeout(() => {
+        if (!event.sender.isDestroyed()) event.sender.send('background-folder:changed', scanBackgroundFolder(folderPath));
+      }, 250);
+    });
+  } catch (error) { return {...scanned, watchError:error.code || 'watch-failed'}; }
+  return scanned;
+});
 
 // 开发时 61.html 在仓库根目录；打包后由 extraResources 放进 resources/app/
 // 这里刻意不复制该文件——它是唯一事实来源。
@@ -31,6 +69,7 @@ if (!gotSingleInstanceLock) {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js'),
       },
     });
 
@@ -120,6 +159,7 @@ if (!gotSingleInstanceLock) {
   });
 
   app.on('window-all-closed', () => {
+    if (bgFolderWatcher) { try { bgFolderWatcher.close(); } catch (_) {} bgFolderWatcher = null; }
     app.quit();
   });
 }
