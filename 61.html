@@ -260,6 +260,7 @@
   #bgImage{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:130%;height:130%;object-fit:cover;display:none;filter:brightness(.72) saturate(1.15);touch-action:none;cursor:grab}
   .bg-playlist-slot{position:absolute;inset:0;opacity:0;transition:opacity 1.2s ease;pointer-events:none;overflow:hidden}
   .bg-playlist-slot.active{opacity:1}
+  body.bg-adjusting .bg-playlist-slot.active{pointer-events:auto}
   .bg-playlist-slot img,.bg-playlist-slot video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}
   .bg-folder-status{padding:5px 9px;font-size:11px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #bgThree{position:absolute;left:0;top:0;width:100%;height:100%;display:none}
@@ -5104,8 +5105,7 @@ function resize(){
   visualStage.style.top = '0px';
   visualStage.style.width = cssW + 'px';
   visualStage.style.height = cssH + 'px';
-  ['bgImage','bgVideo'].forEach(id=>{
-    const el = document.getElementById(id);
+  ['bgImage','bgVideo','bgPlaylistSlotA','bgPlaylistSlotB'].map(id=>document.getElementById(id)).forEach(el=>{
     if(el?.dataset.positioned && el._transform?.reflow) el._transform.reflow();
   });
   /* 录制中画布缓冲区锁死在 4K，任何 resize 都不许动它。
@@ -5169,24 +5169,30 @@ function captureObjectFitSource(el, boxW, boxH){
   const cropH = sw/boxAspect;
   return {sx:0,sy:(sh-cropH)/2,sw,sh:cropH,dx:0,dy:0,dw:boxW,dh:boxH};
 }
-function drawCaptureElement(el, targetRect, replacedElement, parentStyle){
+function drawCaptureElement(el, targetRect, replacedElement, parentLayer){
   if(!el) return;
   const cs = getComputedStyle(el);
+  const parentEl=parentLayer&&parentLayer.nodeType===1?parentLayer:null;
+  const parentStyle=parentEl?getComputedStyle(parentEl):parentLayer;
   if(cs.display==='none' || cs.visibility==='hidden' || parseFloat(cs.opacity)===0) return;
   const boxW = el.offsetWidth, boxH = el.offsetHeight;
   if(!boxW || !boxH || !targetRect.width || !targetRect.height) return;
 
   const sx = captureCanvas.width/targetRect.width;
   const sy = captureCanvas.height/targetRect.height;
-  const origin = cs.transformOrigin.split(/\s+/).map(parseFloat);
+  /* 文件夹媒体本身只是槽内的 img/video；位置、缩放、旋转都在外层槽上。
+     录制时以槽作为几何来源，媒体仍作为 drawImage/object-fit 的像素来源。 */
+  const transformEl=parentEl||el;
+  const transformStyle=parentEl?parentStyle:cs;
+  const origin = transformStyle.transformOrigin.split(/\s+/).map(parseFloat);
   const ox = Number.isFinite(origin[0]) ? origin[0] : boxW/2;
   const oy = Number.isFinite(origin[1]) ? origin[1] : boxH/2;
-  const matrix = cs.transform && cs.transform!=='none' ? new DOMMatrix(cs.transform) : new DOMMatrix();
+  const matrix = transformStyle.transform && transformStyle.transform!=='none' ? new DOMMatrix(transformStyle.transform) : new DOMMatrix();
   // offsetLeft/Top are stage-local now. Convert them back to viewport CSS coordinates before the
   // existing viewport -> recording-pixel mapping, otherwise portrait/square captures shift left.
-  const parentRect = el.offsetParent ? el.offsetParent.getBoundingClientRect() : {left:0,top:0};
-  const layoutLeft = parentRect.left + el.offsetLeft;
-  const layoutTop = parentRect.top + el.offsetTop;
+  const parentRect = transformEl.offsetParent ? transformEl.offsetParent.getBoundingClientRect() : {left:0,top:0};
+  const layoutLeft = parentRect.left + transformEl.offsetLeft;
+  const layoutTop = parentRect.top + transformEl.offsetTop;
 
   captureCtx.save();
   // viewport CSS coordinates -> the visible #cv rectangle -> recording pixels
@@ -5232,7 +5238,7 @@ function composeCaptureFrame(){
     bgFolderSlots.forEach(slot=>{
       const media=slot.type==='video'?slot.video:slot.image;
       const slotStyle=getComputedStyle(slot.el);
-      if(slot.el.classList.contains('active') || parseFloat(slotStyle.opacity)>0) drawCaptureElement(media,targetRect,true,slotStyle);
+      if(slot.el.classList.contains('active') || parseFloat(slotStyle.opacity)>0) drawCaptureElement(media,targetRect,true,slot.el);
     });
   }else if(hasBgMedia && bgVisible){
     drawCaptureElement(hasBgVideo ? bgVideoEl : bgImageEl, targetRect, true);
@@ -26559,6 +26565,14 @@ function makeTransformable(el){
       }
       return;
     }
+    /* Playlist 槽原本用 inset:0 铺满舞台。把它转换成可拖动状态时继续保留百分比
+       尺寸，只把定位改成 left/top；这样 resize 后仍铺满新舞台，X/Y 也仍以 0 为默认。 */
+    if(el.classList.contains('bg-playlist-slot')){
+      homeX=0;homeY=0;elX=0;elY=0;
+      el.style.inset='auto';el.style.left='0px';el.style.top='0px';
+      el.style.width='100%';el.style.height='100%';
+      el.dataset.positioned='1';applyPosition();applyTransform();return;
+    }
     const r = el.getBoundingClientRect();
     const cx = r.left + r.width/2, cy = r.top + r.height/2;
     const parentRect = el.offsetParent ? el.offsetParent.getBoundingClientRect() : {left:0,top:0};
@@ -26572,7 +26586,9 @@ function makeTransformable(el){
   }
   function applyPosition(){
     if(homeX===null) return;
-    if(el.id==='bgImage' || el.id==='bgVideo'){
+    if(el.classList.contains('bg-playlist-slot')){
+      el.style.left=elX+'px';el.style.top=elY+'px';
+    }else if(el.id==='bgImage' || el.id==='bgVideo'){
       // Background dimensions are percentages of the stage and change with every aspect/sidebar
       // resize. Keep X/Y relative to the current stage centre instead of a stale pixel-sized home.
       el.style.left = (visualStage.clientWidth/2 - el.offsetWidth/2 + elX) + 'px';
@@ -26636,7 +26652,7 @@ function makeTransformable(el){
   el.addEventListener('dblclick', ()=>{
     // 背景不在这里重置。调整背景时误双击一下就把辛苦调好的缩放/角度清掉太伤，
     // 而且背景已经有明确的 ↺ Reset Position 按钮了。文字层保持原有行为。
-    if(el.id==='bgImage' || el.id==='bgVideo') return;
+    if(el.id==='bgImage' || el.id==='bgVideo' || el.classList.contains('bg-playlist-slot')) return;
     pushUndo(); elScale=1; elRotation=0; applyTransform(); notify();
     if(el.id==='titleDisplay' || el.id==='textADisplay' || el.id==='textBDisplay') openTextStylePanel();
   });
@@ -26710,13 +26726,25 @@ document.querySelectorAll('[data-text-layer]').forEach(btn=>{
 applyTextLayerOrder();
 makeTransformable(bgImageEl);
 makeTransformable(bgVideoEl);
+/* Crossfade 时两个槽同时在屏幕和录制画面里可见，所以它们必须共享完全相同的变换。
+   各自保留事件处理器，再用 guarded mirror 同步状态；这样切换媒体不会重置或跳位。 */
+const bgPlaylistTransforms=bgFolderSlots.map(s=>makeTransformable(s.el));
+let syncingBgPlaylistTransform=false;
+bgPlaylistTransforms.forEach((t,i)=>t.onChange(st=>{
+  if(!syncingBgPlaylistTransform){
+    syncingBgPlaylistTransform=true;
+    bgPlaylistTransforms.forEach((other,j)=>{if(j!==i)other.set(st);});
+    syncingBgPlaylistTransform=false;
+  }
+  if(activeBgTransform()===t)syncBgPosControls(st);
+}));
 
 /* ---------- Position BG 的数值控制 ----------
    拖动/滚轮是粗调，这组滑杆用来精确到具体数值，同时也让当前参数看得见。
    X/Y 的 0 点是背景的默认居中位置（ensurePositioned() 记下的 home）。 */
 function activeBgTransform(){
-  /* 文件夹播放的槽没有 makeTransformable，这里会拿到 undefined 从而返回 null，
-     滑杆随之停用 —— 好过以前那样去移动一个看不见的手动背景元素。 */
+  /* 手动背景和文件夹当前槽都由 activeBgMediaEl() 统一选择；文件夹两槽的 controller
+     会镜像状态，因此 Crossfade 中调任一槽都不会让另一层跳位。 */
   const el = activeBgMediaEl();
   return (el && el._transform) ? el._transform : null;
 }
@@ -26770,7 +26798,7 @@ document.getElementById('bgPosResetBtn').onclick = ()=>{
 function clampPositionedElements(){
   const MARGIN = 48;   // 比可视区大的元素，至少要留这么多还压在可视区里，才抓得回来
   const stageRect = visualStage.getBoundingClientRect();
-  [titleDisplay, textADisplay, textBDisplay, bgImageEl, bgVideoEl].forEach(el=>{
+  [titleDisplay, textADisplay, textBDisplay, bgImageEl, bgVideoEl,...bgFolderSlots.map(s=>s.el)].forEach(el=>{
     if(!el || !el.dataset.positioned || !el._transform) return;
     const r = el.getBoundingClientRect();
 

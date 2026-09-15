@@ -53,6 +53,47 @@ test('Crossfade 两层都进入录制 composite，视频层始终静音',async()
   }finally{await closeApp(app,win);cleanupUserDataDir(user);fs.rmSync(folder,{recursive:true,force:true});}
 });
 
+test('Position BG 同时控制两个 Crossfade 槽，切换后保留且录制使用同一变换',async()=>{
+  const user=newUserDataDir('bg-folder-position'),folder=makeFolder();let app,win;
+  try{({app,win}=await launch(user));const r=await win.evaluate(async folder=>{
+      await loadBackgroundFolder(folder,false);bgFolderCrossfade=2;applyBgFolderFit();
+      await showBgFolderFile(bgFolderFiles[0]);
+      const first=activeBgTransform();first.set({x:120,y:-45,scale:1.6,rotation:0.3});
+      const before=bgPlaylistTransforms.map(t=>t.state());
+      await showBgFolderFile(bgFolderFiles[1]);
+      const after=bgPlaylistTransforms.map(t=>t.state());
+      const activeIsNew=activeBgTransform()===bgPlaylistTransforms[bgFolderActiveSlot];
+
+      // 真实拖动当前槽；mirror 必须让另一槽跟着走，面板数值也要同步。
+      setBgAdjust(true);const el=bgFolderSlots[bgFolderActiveSlot].el;
+      // Synthetic PointerEvent 没有浏览器分配的 active pointer，测试里把 capture 变成 no-op；
+      // 生产中的真实鼠标/触控仍使用原生 setPointerCapture。
+      el.setPointerCapture=()=>{};
+      const p={bubbles:true,pointerId:7,clientX:400,clientY:300,isPrimary:true};
+      el.dispatchEvent(new PointerEvent('pointerdown',p));
+      el.dispatchEvent(new PointerEvent('pointermove',p));
+      el.dispatchEvent(new PointerEvent('pointermove',{...p,clientX:460,clientY:325}));
+      el.dispatchEvent(new PointerEvent('pointerup',p));
+      const dragged=bgPlaylistTransforms.map(t=>t.state());
+      const pointerEvents=bgFolderSlots.map(s=>getComputedStyle(s.el).pointerEvents);
+
+      // recorder 必须采用槽的 transform，而不是只画未变换的 img/video。
+      composeCaptureFrame();const matrices=[],original=captureCtx.transform;
+      captureCtx.transform=function(...m){matrices.push(m);return original.apply(this,m);};
+      composeCaptureFrame();captureCtx.transform=original;setBgAdjust(false);
+      return {before,after,dragged,activeIsNew,pointerEvents,
+        sliderX:parseFloat(document.getElementById('bgPosXSel').value),matrices};
+    },folder);
+    for(const st of [...r.before,...r.after])expect(st).toMatchObject({x:120,y:-45,scale:1.6,rotation:0.3});
+    expect(r.activeIsNew).toBe(true);
+    for(const st of r.dragged){expect(st.x).toBeCloseTo(180,0);expect(st.y).toBeCloseTo(-20,0);expect(st.scale).toBeCloseTo(1.6,3);expect(st.rotation).toBeCloseTo(.3,3);}
+    expect(r.sliderX).toBeCloseTo(180,0);
+    expect(r.pointerEvents.filter(v=>v==='auto')).toHaveLength(1);
+    const expectedA=1.6*Math.cos(.3),expectedB=1.6*Math.sin(.3);
+    expect(r.matrices.some(m=>Math.abs(m[0]-expectedA)<.01&&Math.abs(m[1]-expectedB)<.01)).toBe(true);
+  }finally{await closeApp(app,win);cleanupUserDataDir(user);fs.rmSync(folder,{recursive:true,force:true});}
+});
+
 test('损坏媒体自动跳过，视频可选择播完或按时间切换',async()=>{
   const user=newUserDataDir('bg-folder-skip'),folder=makeFolder();let app,win;
   try{fs.writeFileSync(path.join(folder,'00-broken.png'),'not an image');({app,win}=await launch(user));
