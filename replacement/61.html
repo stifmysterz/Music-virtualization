@@ -5916,7 +5916,6 @@ const UI_STRINGS = {
     redoBtn:"↷ Redo",
     snapshotBtn:"📷 Snapshot",
     fullscreenBtn:"⛶ Full",
-    exitFullscreenBtn:"⛶ Exit Full",
     helpBtn:"❓ Help",
     startBtn:"Start",
     introTagline:"music visualizer · synth · file",
@@ -6208,7 +6207,6 @@ const UI_STRINGS = {
     redoBtn:"↷ 重做",
     snapshotBtn:"📷 截图",
     fullscreenBtn:"⛶ 全屏",
-    exitFullscreenBtn:"⛶ 退出全屏",
     helpBtn:"❓ 帮助",
     startBtn:"开始",
     introTagline:"音乐可视化器 · 合成器 · 文件",
@@ -6436,7 +6434,8 @@ const T2 = {
       helpFocusScale:'Controls the size of whichever effect you currently have selected/focused.',
       waitPad:'Press a pad…',waitKnob:'Move a knob…',
       notMapped:'not mapped',notePrefix:'Note ',ccPrefix:'CC ',
-      searchFonts:'Search fonts, mood, or category…'},
+      searchFonts:'Search fonts, mood, or category…',
+      fullscreenBtn:'⛶ Full',exitFullscreenBtn:'⛶ Exit Full'},
   zh:{play:'播放',pause:'暂停',show:'显示',hidden:'已隐藏',front:'前',back:'后',
       liveBlackoutBtn:'⬛ 黑屏',liveBlackoutRestore:'⬛ 恢复',
       midiHelpText:'<b>1.</b> 只能用 Chrome 或 Edge 浏览器——其他浏览器不支持 MIDI 功能。<br><br><b>2.</b> 先用 USB 线把 MIDI 设备接上这台电脑。接上后，上面"还没侦测到 MIDI 设备"那行字会变成显示你设备的名字。<br><br><b>3.</b> 这两个区块不一样：「按键 / 打击垫」是按一下触发一次；「旋钮 / 推子」是持续的——转到哪就是哪，不是按一下触发一次那种。<br><br><b>4.</b> 怎么绑定：按一下 Learn（会变成"按一下打击垫…"或"转一下旋钮…"）——然后去按/转你想用的那个实体按键或旋钮，马上就会记住。<br><br><b>5.</b> 绑定会自动存起来，下次打开这个网页还在。<br><br><b>6.</b> 如果某个按键怎么都学不会，可能它发的信号类型跟预期的不一样（有些控件发的是 Note 信号，有些发的是 CC 信号）。<br><br><b>7.</b> 想重新来过，用上面的"清除所有映射"。<br><br><b>8.</b> 点每一行旁边的"?"可以看这个功能具体是做什么用的。',
@@ -6474,7 +6473,8 @@ const T2 = {
       helpFocusScale:'只控制你目前选中/聚焦的那个特效的大小。',
       waitPad:'按一下打击垫…',waitKnob:'转一下旋钮…',
       notMapped:'尚未设定',notePrefix:'按键 ',ccPrefix:'CC ',
-      searchFonts:'搜索字体、风格或分类…'}
+      searchFonts:'搜索字体、风格或分类…',
+      fullscreenBtn:'⛶ 全屏',exitFullscreenBtn:'⛶ 退出全屏'}
 };
 function t2(key){ return (T2[currentLang] && T2[currentLang][key]) || T2.en[key] || key; }
 

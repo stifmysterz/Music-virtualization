@@ -176,7 +176,11 @@ test('Fullscreen 按钮：文案随状态切换，且不属于 visualStage（不
       return { insideStage, normalLabel, fsLabel, fsMenuLabel, restoredLabel };
     });
     expect(r.insideStage).toBe(false);
-    expect(r.fsLabel).not.toBe(r.normalLabel);
+    // 断言具体文案，不只是"变了"——只比较不等式曾经放过 t2() 查错表、退化成返回字面 key
+    // 字符串（"fullscreenBtn"/"exitFullscreenBtn"）这种 bug：那种情况下两次文案依然
+    // "不相等"，但都是错的。截图核验实测抓到过这个问题。
+    expect(r.normalLabel).toBe('⛶ Full');
+    expect(r.fsLabel).toBe('⛶ Exit Full');
     expect(r.fsLabel).toBe(r.fsMenuLabel);   // 悬浮按钮和菜单里那份文案必须同步
     expect(r.restoredLabel).toBe(r.normalLabel);
   } finally {
