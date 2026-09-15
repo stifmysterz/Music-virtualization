@@ -92,6 +92,35 @@ test('Background 和 Text 即使移动到 Outline 外也会被硬裁掉', async 
   });
 });
 
+test('右侧面板打开后，所有图层仍完整裁在(缩放后的)舞台矩形内', async () => {
+  await withApp('canvas-boundary-panel-open', async win => {
+    await win.evaluate(() => document.getElementById('bgMenuBtn').click());
+    await expect.poll(() => win.evaluate(() => document.getElementById('bgMenu').classList.contains('show'))).toBe(true);
+    const result = await win.evaluate(() => {
+      const stage = visualStage.getBoundingClientRect();
+      const EPS = 1;
+      // 只查画布层的几何——它们按设计跟舞台同宽同高，面板打开后应该继续和舞台严丝合缝。
+      // 文字/Logo 允许被用户拖出逻辑舞台（overflow:hidden 负责裁，见另一条测试），
+      // 不属于这里要守的"面板打开会不会让图层跟着错位"这件事。
+      // bgThree 默认 display:none（没开 3D/VJ），getBoundingClientRect() 全 0——
+      // 不是在测它有没有跑出舞台，跳过没有实际渲染尺寸的层。
+      const layers = ['bgThree','cvBack','cvFx','cv']
+        .map(id => document.getElementById(id).getBoundingClientRect())
+        .filter(r => r.width > 0 && r.height > 0);
+      return {
+        scale: previewScale(),
+        layerCount: layers.length,
+        allInside: layers.every(r =>
+          r.left >= stage.left - EPS && r.right <= stage.right + EPS &&
+          r.top >= stage.top - EPS && r.bottom <= stage.bottom + EPS),
+      };
+    });
+    expect(result.scale).toBeLessThan(0.999);   // 确认面板确实挤压了预览，不是没测到东西
+    expect(result.layerCount).toBeGreaterThan(0);   // 确认真的测到了有渲染尺寸的层
+    expect(result.allInside).toBe(true);
+  });
+});
+
 test('截图/录制 composite 的像素尺寸始终等于当前 Outline', async () => {
   await withApp('canvas-boundary-capture', async win => {
     const rows = await win.evaluate(() => ['free','portrait','square','landscape'].map(mode=>{

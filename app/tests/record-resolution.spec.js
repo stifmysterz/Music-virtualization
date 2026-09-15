@@ -86,7 +86,11 @@ test('录制分辨率生效期间，打开 dock 菜单不会把画布打回窗�
   });
 });
 
-test('录制期间三层画布的 CSS 显示尺寸仍然跟着窗口/侧栏走', async () => {
+test('录制期间三层画布的 CSS 尺寸不随侧栏变化——面板只缩编辑预览，不动逻辑构图', async () => {
+  // 「固定逻辑输出舞台 + 自适应编辑预览」上线后，cv/cvFx/cvBack 的 style.width/left
+  // 本身就是逻辑分辨率，不再随侧栏变化；侧栏挤压的是 visualStage 外面那层预览 transform。
+  // 这条测试原本断言"侧栏打开 CSS 显示尺寸必须变窄"，那正是这次要修掉的行为——现在改成
+  // 断言反过来的那半才是对的：CSS 尺寸不变，previewScale() 才应该跟着侧栏变。
   await withApp('recres-2', async (win) => {
     const res = await win.evaluate(async () => {
       const frames = n => new Promise(r => { let k = n; const t = () => (--k <= 0 ? r() : requestAnimationFrame(t)); requestAnimationFrame(t); });
@@ -94,26 +98,29 @@ test('录制期间三层画布的 CSS 显示尺寸仍然跟着窗口/侧栏走',
 
       enterRecordingResolution();
       await frames(3);
-      const before = css();
+      const before = { css: css(), scale: previewScale() };
 
-      document.getElementById('bgMenuBtn').click();   // 侧栏一开，可用宽度少 300px
+      document.getElementById('bgMenuBtn').click();   // 侧栏一开，编辑预览要让位
       await frames(4);
-      const during = css();
+      const during = { css: css(), scale: previewScale() };
 
       document.querySelectorAll('.dock-dd.show').forEach(m => m.classList.remove('show'));
       await frames(4);
-      const after = css();
+      const after = { css: css(), scale: previewScale() };
       exitRecordingResolution();
       await frames(2);
       return { before, during, after };
     });
 
     // 三层的 CSS 尺寸/位置任何时候都必须完全一致，否则合成会错位
-    [res.before, res.during, res.after].forEach(trio => {
+    [res.before.css, res.during.css, res.after.css].forEach(trio => {
       expect(new Set(trio).size, '三层画布的 CSS 尺寸/位置不一致: ' + JSON.stringify(trio)).toBe(1);
     });
-    // 侧栏打开时显示区确实变窄了 —— 缓冲区锁死不等于显示尺寸也冻住
-    expect(res.during[0]).not.toBe(res.before[0]);
-    expect(res.after[0]).toBe(res.before[0]);
+    // 逻辑分辨率/CSS 尺寸不受侧栏影响——这是本次架构改动的核心断言。
+    expect(res.during.css[0]).toBe(res.before.css[0]);
+    expect(res.after.css[0]).toBe(res.before.css[0]);
+    // 让位这件事没有消失，只是换成了编辑预览缩放。
+    expect(res.during.scale).toBeLessThan(res.before.scale - 0.001);
+    expect(res.after.scale).toBeCloseTo(res.before.scale, 5);
   });
 });

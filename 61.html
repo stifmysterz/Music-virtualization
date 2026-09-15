@@ -111,6 +111,22 @@
   }
   body.is-fullscreen #fsPlayBtn{display:flex}
   body.is-fullscreen.fs-idle #fsPlayBtn{opacity:0;pointer-events:none}
+  /* 普通窗口里一直露出一个小按钮（清楚但不抢画面），全屏后复用 fsPlayBtn 那套
+     自动淡出/鼠标唤出逻辑——没有它，dock 一藏就再没有任何可点的退出入口了。
+     位置在右上角，避开 Logo/文字最常见的居中和右下角热区。 */
+  #fsToggleBtn{
+    /* top 留够空间躲开 #fpsHud（同样贴右上角，8px/z-index 99999）打开时的高度，
+       两个都开着也不会叠在一起。 */
+    display:flex;position:fixed;top:calc(56px + env(safe-area-inset-top,0px));right:14px;z-index:10;
+    align-items:center;gap:6px;
+    appearance:none;border:1px solid rgba(125,243,255,.5);background:rgba(8,10,20,.55);color:var(--cyan);
+    font:inherit;font-size:12px;font-weight:600;letter-spacing:.04em;
+    padding:7px 12px;border-radius:9px;cursor:pointer;white-space:nowrap;
+    opacity:.7;transition:opacity .25s,background .2s;
+  }
+  #fsToggleBtn:hover{opacity:1;background:rgba(8,10,20,.8)}
+  body.is-fullscreen #fsToggleBtn{opacity:.5}
+  body.is-fullscreen.fs-idle #fsToggleBtn{opacity:0;pointer-events:none}
   .dock button.primary:hover{background:#a5f7ff}
   .dock button.active{border-color:var(--magenta);color:var(--magenta)}
   /* group colour-coding — subtle tint so related dock controls are easy to scan at a glance */
@@ -766,6 +782,10 @@
   <button id="liveMidiBtn" class="dock-dd-item" title="Map MIDI controller pads/buttons to actions">🎛 MIDI</button>
 </div>
 <button id="fsPlayBtn" aria-label="Play or pause">▶ Play</button>
+<!-- 编辑器 UI，不在 visualStage 里，天然不会进 composeCaptureFrame()。普通窗口一直可见（清楚但
+     不抢画面），全屏后跟 #fsPlayBtn 一样的自动淡出/唤出逻辑，Esc 依旧能退出，这个按钮只是补上
+     一个"看得见、点得到"的退出入口，避免全屏时 dock 一起被藏起来后完全没有 UI 可点。 -->
+<button id="fsToggleBtn" aria-label="Toggle fullscreen" title="Toggle fullscreen">⛶ Full</button>
 <div id="dockBrand">SUB REMIX Visualizer - A Saturn Technology Product -</div>
 
 <div id="logoMenu" class="dock-dd">
@@ -961,7 +981,7 @@
   </select>
   <div class="dock-dd-slider-row" id="bg3DSpeedRow" title="Playback speed of the 3D background animation">
     <span>⏩</span>
-    <input type="range" id="bg3DSpeedSel" class="mode-bright-slider" min="20" max="300" value="100" step="5">
+    <input type="range" id="bg3DSpeedSel" class="mode-bright-slider" min="10" max="300" value="100" step="5">
   </div>
   <select id="bg3DCameraMotionSel" class="dock-dd-select" title="Camera movement layered on top of whatever the current 3D style already does">
     <option value="off">🎥 Camera: Off</option>
@@ -1030,7 +1050,7 @@
        还要跳去另一个菜单找，太绕，所以直接在这里也放一个，跟那边双向同步。 -->
   <div class="dock-dd-slider-row" id="vjSpeedRow" title="Playback speed of the VJ tunnel (same control as the 3D background's speed)">
     <span>⏩</span>
-    <input type="range" id="vjSpeedSel" class="mode-bright-slider" min="20" max="300" value="100" step="5">
+    <input type="range" id="vjSpeedSel" class="mode-bright-slider" min="10" max="300" value="100" step="5">
   </div>
   <div id="vjMenuHint" style="padding:8px 2px 0;font-size:11px;opacity:.6;cursor:default">💡 Camera and opacity live in the 🌌 3D menu</div>
 </div>
@@ -5041,7 +5061,7 @@ function applyTwoDPost(now, dt){
   cvFx.style.filter = `brightness(${brightness.toFixed(4)}) contrast(${contrast.toFixed(4)}) saturate(${saturation.toFixed(4)})${gradeTail}`;
 }
 let W,H,CX,CY,DPR;
-let DOCK_SAFE_ZONE = 100;   // CSS px reserved at the bottom of the canvas so effects don't render under the dock — recalculated from the dock's real on-screen size, see updateDockSafeZone()
+let DOCK_SAFE_ZONE = 100;   // CSS px the dock actually occupies on screen right now — purely an editor-preview-fit input, see applyEditorPreviewFit()
 let PANEL_SAFE_ZONE = 0;    // CSS px reserved on the right while a right-side panel (mode panel / dock dropdown, desktop only) is open — see updatePanelSafeZone()
 function updatePanelSafeZone(){
   const isDesktopPanel = matchMedia('(hover:hover) and (pointer:fine)').matches;
@@ -5050,22 +5070,9 @@ function updatePanelSafeZone(){
   const panelOpen = isDesktopPanel && (document.querySelector('.mode-panel.show') || document.querySelector('.dock-dd.show:not(#modeMenu)'));
   PANEL_SAFE_ZONE = panelOpen ? 300 : 0;   // 300 matches the sidebar width in the (hover:hover) and (pointer:fine) CSS block
 }
-function updateDockSafeZone(){
-  updatePanelSafeZone();
-  const dockEl = document.querySelector('.dock');
-  if(!dockEl) return;
-  if(document.fullscreenElement){
-    DOCK_SAFE_ZONE = 0;   // dock is hidden while fullscreen — nothing to avoid, and its rect would read as all-zero anyway
-  }else{
-    const gapAboveDock = innerHeight - dockEl.getBoundingClientRect().top;
-    if(gapAboveDock > 0) DOCK_SAFE_ZONE = Math.ceil(gapAboveDock);   // hugs the dock's top edge, no extra buffer
-  }
-  applyBgDockSafeCentering();
-  applyTextPanelSafeCentering();
-}
 function applyTextPanelSafeCentering(){
-  // The stage itself is centred in the panel-free region. Unpositioned text is therefore always 50%
-  // of the output frame — subtracting PANEL_SAFE_ZONE again would double-shift it.
+  // Unpositioned text centres on the logical stage itself — the stage no longer shrinks for
+  // Dock/panel, so 50%/50% is always correct without any safe-zone math here.
   ['titleDisplay','textADisplay','textBDisplay'].forEach(id=>{
     const el = document.getElementById(id);
     if(el && !el.dataset.positioned) el.style.left = '50%';
@@ -5073,7 +5080,7 @@ function applyTextPanelSafeCentering(){
 }
 function applyBgDockSafeCentering(){
   // Background is a child of the clipped output stage, so its default centre is simply the stage
-  // centre. The stage already excludes the dock and any open sidebar.
+  // centre, independent of Dock/panel (see applyBgDockSafeCentering's callers).
   ['bgImage','bgVideo'].forEach(id=>{
     const el = document.getElementById(id);
     if(el && !el.dataset.positioned){
@@ -5083,11 +5090,22 @@ function applyBgDockSafeCentering(){
   });
 }
 let aspectMode = 'free';   // 'free' | 'portrait' | 'square' | 'landscape'
-function resize(){
-  updateDockSafeZone();
+/* ---------- 固定逻辑输出舞台 + 自适应编辑预览 ----------
+   两件事分开做，别再合成一步：
+     1) computeLogicalStage() —— 「输出画面本身长什么样」，只看窗口本身和 aspectMode，
+        Dock 和右侧面板一概不参与。这就是普通窗口、全屏、录制永远拿到同一份构图的原因：
+        它们看到的、录到的都是这同一份没被任何编辑器 UI 动过的逻辑分辨率。
+     2) applyEditorPreviewFit() —— 「编辑器里怎么显示这份输出」，把上面那份逻辑舞台
+        原封不动地整体缩放 + 平移，塞进「窗口减去 Dock、减去右侧面板」之后剩下的空间，
+        居中显示。这一步只改 visualStage 的 CSS transform，不碰它的 width/height，
+        所以舞台内部所有基于 clientWidth/clientHeight 做定位的东西（Position BG、
+        文字、文件夹播放槽、Logo 的 CX/CY）完全不用跟着改。
+   面板/Dock 开关只需要重新跑第 2 步；只有窗口尺寸、全屏状态、aspectMode 真的变了，
+   才需要重新跑第 1 步（resize() 两步都跑，图省事且开销可忽略）。 */
+function computeLogicalStage(){
   DPR = Math.min(window.devicePixelRatio||1, 2);
-  const availH = Math.max(1, innerHeight - DOCK_SAFE_ZONE);   // the canvas itself stops above the dock now, not just its drawn content
-  const availW = Math.max(1, innerWidth - PANEL_SAFE_ZONE);   // ditto for an open right-side panel
+  const availW = Math.max(1, innerWidth);
+  const availH = Math.max(1, innerHeight);
   let cssW = availW, cssH = availH;
   if(aspectMode==='portrait'){
     const ratio = 9/16;
@@ -5101,20 +5119,20 @@ function resize(){
     if(availW/availH > ratio){ cssH = availH; cssW = availH*ratio; }
     else{ cssW = availW; cssH = availW/ratio; }
   }
-  visualStage.style.left = ((availW-cssW)/2) + 'px';
+  // 逻辑舞台自己永远贴在视口左上角、以自身尺寸居中的活儿交给 applyEditorPreviewFit() 的
+  // translate 去做 —— 这里不再需要按 Dock/面板算 left/top。
+  visualStage.style.left = '0px';
   visualStage.style.top = '0px';
   visualStage.style.width = cssW + 'px';
   visualStage.style.height = cssH + 'px';
   ['bgImage','bgVideo','bgPlaylistSlotA','bgPlaylistSlotB'].map(id=>document.getElementById(id)).forEach(el=>{
     if(el?.dataset.positioned && el._transform?.reflow) el._transform.reflow();
   });
-  /* 录制中画布缓冲区锁死在 4K，任何 resize 都不许动它。
-     resize() 的触发点比想象中多得多 —— 窗口变化、进出全屏，还有那个监听
-     .mode-panel / .dock-dd class 变化的 MutationObserver。于是录制途中随手打开
-     一个 dock 菜单，缓冲区就被打回窗口分辨率：实测 3840 → 开 Mode drop-up 后 1352、
-     开 Background 菜单后 1007（侧栏让位又多缩 300px），而且不会自己恢复，
-     exitRecordingResolution() 要停止录制才跑。
-     CSS 显示尺寸照常跟着走 —— 冻住的是缓冲区，不是屏幕上那块画面。 */
+  applyBgDockSafeCentering();
+  applyTextPanelSafeCentering();
+  /* 录制中画布缓冲区锁死在选定的录制分辨率，任何 resize 都不许动它 —— 这条历史教训依旧成立，
+     只是现在面板/Dock 开关根本不会再触发这个分支的「窗口分辨率」判断了，因为它们已经不
+     参与逻辑分辨率计算。CSS 显示尺寸照常跟着走，冻住的只是缓冲区。 */
   if(recordingResolutionActive){
     syncCanvasLayers(cssW, cssH, availW, true);
     resizeBg3D(cssW, cssH);
@@ -5125,6 +5143,39 @@ function resize(){
   syncCanvasLayers(cssW, cssH, availW);
   CX = W/2; CY = H/2;
   resizeBg3D(cssW, cssH);
+}
+/* previewScale()：当前逻辑舞台被编辑器预览缩小/放大了多少倍。任何要把一次鼠标/触控的
+   屏幕像素位移换算成舞台本地像素位移的地方（拖拽、命中测试）都必须除以这个数，否则
+   面板打开、预览变小之后，「鼠标动 10px」在舞台本地坐标里就不再等于 10px 了。
+   直接从当前渲染结果反推，而不是缓存一个变量 —— 不会因为漏更新而和实际显示脱节。 */
+function previewScale(){
+  const w = visualStage.clientWidth;
+  return w ? (visualStage.getBoundingClientRect().width / w) : 1;
+}
+function applyEditorPreviewFit(){
+  updatePanelSafeZone();
+  const dockEl = document.querySelector('.dock');
+  let dockH = 0;
+  if(dockEl && !document.fullscreenElement){
+    const gapAboveDock = innerHeight - dockEl.getBoundingClientRect().top;
+    if(gapAboveDock > 0) dockH = Math.ceil(gapAboveDock);
+  }
+  DOCK_SAFE_ZONE = dockH;
+  const safeW = Math.max(1, innerWidth - PANEL_SAFE_ZONE);
+  const safeH = Math.max(1, innerHeight - dockH);
+  const logicalW = visualStage.clientWidth || 1;
+  const logicalH = visualStage.clientHeight || 1;
+  // 不放大：面板关闭、窗口够大时 scale 会算出 1，画面维持原生清晰度；只在编辑器空间
+  // 变小时才等比例缩小，绝不拉伸成新的长宽比。
+  const scale = Math.min(safeW/logicalW, safeH/logicalH, 1);
+  const tx = (safeW - logicalW*scale)/2;
+  const ty = (safeH - logicalH*scale)/2;
+  visualStage.style.transformOrigin = '0 0';
+  visualStage.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+}
+function resize(){
+  computeLogicalStage();
+  applyEditorPreviewFit();
 }
 /* resize() 在下面就会被立即调用一次，而 enterRecordingResolution() 那一整块在文件很后面 ——
    这个标志必须在这里声明，否则首次 resize() 会撞上 let 的 TDZ（连 typeof 都会抛）。 */
@@ -5178,8 +5229,15 @@ function drawCaptureElement(el, targetRect, replacedElement, parentLayer){
   const boxW = el.offsetWidth, boxH = el.offsetHeight;
   if(!boxW || !boxH || !targetRect.width || !targetRect.height) return;
 
-  const sx = captureCanvas.width/targetRect.width;
-  const sy = captureCanvas.height/targetRect.height;
+  /* 录制合成要的是「逻辑输出舞台」上的几何，跟编辑器里 visualStage 当前被预览缩放成
+     多大完全无关——这正是「普通窗口/全屏/录制必须是同一份构图」的落地点。
+     所以这里不走 getBoundingClientRect()（那是缩放后的屏幕矩形），而是直接用
+     visualStage.clientWidth/Height（逻辑、未缩放）算 sx/sy，且所有被拖拽/合成的元素
+     全都是 visualStage 的直接子节点，offsetLeft/Top 本来就是相对 visualStage 本地
+     坐标系的值，不需要再加任何父级矩形去做「换算回 viewport」这一步——那一步正是
+     previewScale() 不为 1（现在只要 Dock 占了地方就会发生，不需要开面板）时算错的地方。 */
+  const sx = captureCanvas.width/visualStage.clientWidth;
+  const sy = captureCanvas.height/visualStage.clientHeight;
   /* 文件夹媒体本身只是槽内的 img/video；位置、缩放、旋转都在外层槽上。
      录制时以槽作为几何来源，媒体仍作为 drawImage/object-fit 的像素来源。 */
   const transformEl=parentEl||el;
@@ -5188,15 +5246,12 @@ function drawCaptureElement(el, targetRect, replacedElement, parentLayer){
   const ox = Number.isFinite(origin[0]) ? origin[0] : boxW/2;
   const oy = Number.isFinite(origin[1]) ? origin[1] : boxH/2;
   const matrix = transformStyle.transform && transformStyle.transform!=='none' ? new DOMMatrix(transformStyle.transform) : new DOMMatrix();
-  // offsetLeft/Top are stage-local now. Convert them back to viewport CSS coordinates before the
-  // existing viewport -> recording-pixel mapping, otherwise portrait/square captures shift left.
-  const parentRect = transformEl.offsetParent ? transformEl.offsetParent.getBoundingClientRect() : {left:0,top:0};
-  const layoutLeft = parentRect.left + transformEl.offsetLeft;
-  const layoutTop = parentRect.top + transformEl.offsetTop;
+  const layoutLeft = transformEl.offsetLeft;
+  const layoutTop = transformEl.offsetTop;
 
   captureCtx.save();
-  // viewport CSS coordinates -> the visible #cv rectangle -> recording pixels
-  captureCtx.setTransform(sx, 0, 0, sy, -targetRect.left*sx, -targetRect.top*sy);
+  // 逻辑舞台坐标 -> 录制缓冲区像素
+  captureCtx.setTransform(sx, 0, 0, sy, 0, 0);
   captureCtx.translate(layoutLeft + ox, layoutTop + oy);
   captureCtx.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
   captureCtx.translate(-ox, -oy);
@@ -5861,6 +5916,7 @@ const UI_STRINGS = {
     redoBtn:"↷ Redo",
     snapshotBtn:"📷 Snapshot",
     fullscreenBtn:"⛶ Full",
+    exitFullscreenBtn:"⛶ Exit Full",
     helpBtn:"❓ Help",
     startBtn:"Start",
     introTagline:"music visualizer · synth · file",
@@ -6152,6 +6208,7 @@ const UI_STRINGS = {
     redoBtn:"↷ 重做",
     snapshotBtn:"📷 截图",
     fullscreenBtn:"⛶ 全屏",
+    exitFullscreenBtn:"⛶ 退出全屏",
     helpBtn:"❓ 帮助",
     startBtn:"开始",
     introTagline:"音乐可视化器 · 合成器 · 文件",
@@ -6427,6 +6484,8 @@ const STATEFUL_LABELS = {
   // 加上 ▶/⏸ 图标 —— 纯文字的 "Play" 夹在十几个按钮中间很难一眼认出是播放控制
   playBtn: ()=> (typeof playing!=='undefined' && playing) ? ('⏸ '+t2('pause')) : ('▶ '+t2('play')),
   fsPlayBtn: ()=> (typeof playing!=='undefined' && playing) ? ('⏸ '+t2('pause')) : ('▶ '+t2('play')),
+  fullscreenBtn: ()=> document.fullscreenElement ? t2('exitFullscreenBtn') : t2('fullscreenBtn'),
+  fsToggleBtn: ()=> document.fullscreenElement ? t2('exitFullscreenBtn') : t2('fullscreenBtn'),
   logoToggleBtn: ()=> (typeof logoVisible==='undefined' || logoVisible) ? ('👁 '+t2('show')) : ('🚫 '+t2('hidden')),
   logoLayerBtn: ()=> (typeof logoLayer==='undefined' || logoLayer==='front') ? ('⤒ '+t2('front')) : ('⤓ '+t2('back')),
   logoBounceToggle: ()=> (typeof logoBounceOn==='undefined' || logoBounceOn) ? t2('bounceOn') : t2('bounceOff'),
@@ -7254,20 +7313,31 @@ const BG3D_GRADE_SHADER = {
 /* VJ highlight guard. Several tunnels deliberately pack bright solid geometry into
    a bloom chain; once those layers overlap, an unsigned render target has already
    clipped the colour to white before the optional grade pass can recover it.
-   Apply a gentle shoulder only above 70% brightness. Dark/mid tones and geometry
-   stay untouched, while a full-white input lands at 82.9% and retains headroom for
-   the music-driven CSS flash that follows the WebGL render. */
+   Apply a gentle shoulder starting lower (62%, was 70%) and compress harder above it
+   (ratio 0.32, was 0.43), so large near-white areas shrink further and a full-white
+   input now lands around 74% instead of 82.9% — more headroom for the music-driven
+   CSS flash that follows the WebGL render, and less raw white on screen.
+   Pure luminance compression alone still leaves peak-white pixels a flat neutral
+   grey/white, which reads as "dimmed" rather than "soft" — so on top of the shoulder,
+   blend in a small cool tint (slightly less red, slightly more blue) that only kicks
+   in near the very top of the range (t→0 at the knee, t→1 at full white), at a low
+   35% max mix so it never desaturates or tints anything but the actual clipped zone. */
 const VJ_HIGHLIGHT_SHADER = {
   uniforms: { tDiffuse:{ value:null } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
   fragmentShader: [
     'uniform sampler2D tDiffuse;',
     'varying vec2 vUv;',
+    'const float KNEE=0.62;',
+    'const float RATIO=0.32;',
+    'const vec3 TINT=vec3(0.90,0.97,1.06);',
     'void main(){',
     '  vec4 c=texture2D(tDiffuse,vUv);',
     '  float peak=max(c.r,max(c.g,c.b));',
-    '  float compressed=peak>0.70 ? 0.70+(peak-0.70)*0.43 : peak;',
+    '  float compressed=peak>KNEE ? KNEE+(peak-KNEE)*RATIO : peak;',
     '  vec3 rgb=peak>0.0001 ? c.rgb*(compressed/peak) : c.rgb;',
+    '  float t=clamp((peak-KNEE)/(1.0-KNEE),0.0,1.0);',
+    '  rgb=mix(rgb, rgb*TINT, t*0.35);',
     '  gl_FragColor=vec4(rgb,c.a);',
     '}'
   ].join('\n')
@@ -13635,8 +13705,18 @@ function buildBg3DFrequencyGalaxy(){
    ============================================================================ */
 const VJ_LEN   = 220;   // 一个循环的长度（场景单位）
 const VJ_FRONT = 14;    // 越过镜头多远才回收 —— 留一段，免得在画面边缘凭空消失
-/* 巡航速度 + 低音推进。dt 的单位是「16.7ms 一帧」，所以 60fps 下静音时每帧走 0.9 */
-function vjSpeed(bass, dt){ return (0.9 + bass*3.2) * dt; }
+/* 巡航速度 + 低音推进。dt 的单位是「16.7ms 一帧」，所以 60fps 下静音时每帧走多少就是这两个
+   常数定的。整体调慢：基准 0.9→0.6、低音增益 3.2→2.2，同比例收紧，不改变彼此的相对节奏——
+   这个助手被几乎全部 49 个 VJ 效果共用，改这一处就等于全部一起变慢，不用逐个效果改常数。
+   bass 是逐帧瞬时值，鼓点一下能从 0 跳到 1；不做平滑的话推进速度会跟着一帧一帧地抖。
+   这里加一个和 dt 挂钩的单极低通（半衰期约几帧，独立于 bg3DSpeed 的取值），
+   让「加速」本身也有一个短暂的过程，而不是随手一个瞬态鼓点就把镜头瞬间拽到顶速。 */
+let vjSpeedBassSmooth = 0;
+function vjSpeed(bass, dt){
+  const rate = 1 - Math.pow(0.9, Math.max(dt, 0));   // 60fps 下约 22 帧(~360ms) 收敛到 90%
+  vjSpeedBassSmooth += (bass - vjSpeedBassSmooth) * rate;
+  return (0.6 + vjSpeedBassSmooth*2.2) * dt;
+}
 /* 圆角方管的截面 —— LiquidGrids 那种「网格方管」靠这个，n 越大越方 */
 function vjSuperXY(theta, r, n, out){
   const c = Math.cos(theta), s = Math.sin(theta);
@@ -24695,8 +24775,8 @@ document.getElementById('fsPlayBtn').onclick = ()=>{ nudgeFsPlayBtn(); togglePla
 updatePlayBtn();   // 让它一开始就带上正确的图标和文字
 
 document.addEventListener('fullscreenchange', applyBrandVisibility);
-document.addEventListener('fullscreenchange', applyDockVisibility);   // must run before resize()/updateDockSafeZone so the dock's restored/hidden display is settled before its rect gets measured
-document.addEventListener('fullscreenchange', resize);   // recomputes DOCK_SAFE_ZONE (via updateDockSafeZone) AND resizes #cv itself with the fresh value — don't rely on a same-tick window 'resize' event to do this
+document.addEventListener('fullscreenchange', applyDockVisibility);   // must run before resize()/applyEditorPreviewFit so the dock's restored/hidden display is settled before its rect gets measured
+document.addEventListener('fullscreenchange', resize);   // recomputes the logical stage (dock hidden/shown changes nothing there) AND re-fits the editor preview around the dock's fresh rect — don't rely on a same-tick window 'resize' event to do this
 applyBrandVisibility();
 
 function applyUiScale(){
@@ -24705,7 +24785,7 @@ function applyUiScale(){
   if(uiScale==='xl') document.body.classList.add('ui-scale-xl');
   const btn = document.getElementById('uiScaleBtn');
   if(btn) btn.textContent = STATEFUL_LABELS.uiScaleBtn();
-  resize();   // not just updateDockSafeZone() — the dock can now wrap to a second row at this zoom level, so the canvas itself needs to re-fit too
+  resize();   // the dock can now wrap to a second row at this zoom level, so the editor preview needs to re-fit around it
 }
 document.getElementById('uiScaleBtn').onclick = ()=>{
   const i = UI_SCALE_STEPS.indexOf(uiScale);
@@ -24736,13 +24816,25 @@ document.getElementById('snapshotBtn').onclick = ()=>{
 };
 
 /* ---------- fullscreen ---------- */
-document.getElementById('fullscreenBtn').onclick = ()=>{
+// Tools 菜单里那个按钮和右上角常驻的悬浮按钮共用同一个开关/同一份文案刷新——
+// 跟 bg3DSpeedSel/vjSpeedSel 两个入口同步一份状态是同一个思路。
+function toggleFullscreen(){
   if(!document.fullscreenElement){
     document.documentElement.requestFullscreen?.().catch(()=>{});
   }else{
     document.exitFullscreen?.();
   }
-};
+}
+function applyFullscreenBtnLabels(){
+  const menuBtn = document.getElementById('fullscreenBtn');
+  if(menuBtn) menuBtn.textContent = STATEFUL_LABELS.fullscreenBtn();
+  const floatBtn = document.getElementById('fsToggleBtn');
+  if(floatBtn) floatBtn.textContent = STATEFUL_LABELS.fsToggleBtn();
+}
+document.getElementById('fullscreenBtn').onclick = toggleFullscreen;
+document.getElementById('fsToggleBtn').onclick = toggleFullscreen;
+document.addEventListener('fullscreenchange', applyFullscreenBtnLabels);
+applyFullscreenBtnLabels();
 
 /* ---------- record screen + audio to a downloadable video file ---------- */
 let mediaRecorder = null, recordedChunks = [], streamDest = null, isRecording = false;
@@ -26576,8 +26668,12 @@ function makeTransformable(el){
     const r = el.getBoundingClientRect();
     const cx = r.left + r.width/2, cy = r.top + r.height/2;
     const parentRect = el.offsetParent ? el.offsetParent.getBoundingClientRect() : {left:0,top:0};
-    homeX = cx - parentRect.left - el.offsetWidth/2;
-    homeY = cy - parentRect.top - el.offsetHeight/2;
+    // r/parentRect 都是编辑预览缩放后的屏幕矩形，而 offsetWidth/Height 和后面 applyPosition()
+    // 要写的 style.left/top 是舞台本地(未缩放)像素——先除以 previewScale() 把屏幕差值换回
+    // 本地距离，两边单位才一致。面板/Dock 不占地方时 previewScale()===1，等价于原来的写法。
+    const s = previewScale();
+    homeX = (cx - parentRect.left)/s - el.offsetWidth/2;
+    homeY = (cy - parentRect.top)/s - el.offsetHeight/2;
     elX = 0; elY = 0;
     el.style.bottom = 'auto';
     el.dataset.positioned = '1';
@@ -26634,8 +26730,11 @@ function makeTransformable(el){
       applyTransform();
       notify();
     }else if(dragging){
-      elX += e.clientX - lastPX;
-      elY += e.clientY - lastPY;
+      // elX/elY 是舞台本地(未缩放)像素；鼠标位移是屏幕像素——编辑预览缩小时
+      // (面板打开)要除以 previewScale() 才能让拖动跟手，否则会感觉"迟钝"。
+      const s = previewScale();
+      elX += (e.clientX - lastPX) / s;
+      elY += (e.clientY - lastPY) / s;
       lastPX = e.clientX; lastPY = e.clientY;
       applyPosition();
       notify();
@@ -26820,15 +26919,19 @@ function clampPositionedElements(){
     };
     const dx = axis(r.left, r.right, stageRect.left, stageRect.right);
     const dy = axis(r.top, r.bottom, stageRect.top, stageRect.bottom);
-    // 走 API 而不是直接写 style.left —— 否则 Position BG 面板上的数字会和画面脱节
-    if(dx || dy) el._transform.nudge(dx, dy);
+    // r/stageRect 都是缩放后的屏幕矩形，但 nudge() 加的是舞台本地(未缩放)像素——
+    // 编辑预览缩小时不除掉这个比例，拽回来的距离会比实际需要的小。
+    const s = previewScale();
+    if(dx || dy) el._transform.nudge(dx/s, dy/s);
   });
 }
 addEventListener('resize', clampPositionedElements);
 document.addEventListener('fullscreenchange', clampPositionedElements);
-/* also reclamp whenever a right-side panel opens/closes, since that shifts the safe area too */
+/* 右侧面板开关只需要重新贴合编辑预览(缩放/平移)，逻辑舞台本身没变——不用再跑一次
+   完整 resize()（那样会白白重置 3D 渲染器尺寸）。clamp 仍要跟着跑一次，防止收窄后
+   编辑区把已经拖到边缘的元素挤出可视范围。 */
 document.querySelectorAll('.mode-panel, .dock-dd').forEach(el=>{
-  new MutationObserver(()=>{ resize(); clampPositionedElements(); }).observe(el, {attributes:true, attributeFilter:['class']});
+  new MutationObserver(()=>{ applyEditorPreviewFit(); clampPositionedElements(); }).observe(el, {attributes:true, attributeFilter:['class']});
 });
 
 /* ---------- toggle: let pointer gestures reach the background instead of the canvas ---------- */
@@ -26953,7 +27056,11 @@ document.getElementById('bgBounceAmtSel').addEventListener('input', e=>{ bgBounc
 
   function toCanvasXY(e){
     const r = cv.getBoundingClientRect();
-    return { x: (e.clientX - r.left) * DPR, y: (e.clientY - r.top) * DPR };
+    // r 是缩放后的屏幕矩形；用 W/H(缓冲区像素) 除以 r.width/height 算出的真实比例，
+    // 而不是假定固定的 DPR —— 编辑预览缩小(面板打开)时两者不再相等。
+    const sx = r.width ? (W / r.width) : DPR;
+    const sy = r.height ? (H / r.height) : DPR;
+    return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy };
   }
   function currentFocusKey(){
     if(focusModeIdx!=null && MODES[Math.floor(focusModeIdx)]!=null && activeModes.includes(focusModeIdx)) return focusModeIdx;

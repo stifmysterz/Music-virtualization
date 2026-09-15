@@ -117,7 +117,10 @@ test('X / Y / 缩放 / 角度 滑杆能精确设定背景，重置能回到默�
         s.value = String(v);
         s.dispatchEvent(new Event('input', { bubbles: true }));
       };
-      const centre = () => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+      // 滑杆的数值是「逻辑输出画布」坐标（跟 Position BG 的契约一致），
+      // getBoundingClientRect() 读到的是屏幕坐标——两者之间差一个 previewScale()。
+      // 面板/Dock 没有让编辑预览缩小时 scale===1，这里除出来的换算是恒等的。
+      const centre = () => { const r = el.getBoundingClientRect(), s = previewScale(); return { x: (r.left + r.width / 2)/s, y: (r.top + r.height / 2)/s }; };
 
       const home = centre();
       set('bgPosXSel', 150);
@@ -145,7 +148,7 @@ test('X / Y / 缩放 / 角度 滑杆能精确设定背景，重置能回到默�
         scaled, rotated,
         resetDx: afterReset.centre.x - home.x, resetDy: afterReset.centre.y - home.y,
         resetScale: afterReset.scale, resetRotation: afterReset.rotation,
-        sliderAfterDrag
+        sliderAfterDrag, scale: previewScale()
       };
     }, installBackground.toString());
 
@@ -159,8 +162,8 @@ test('X / Y / 缩放 / 角度 滑杆能精确设定背景，重置能回到默�
     expect(Math.abs(res.resetDy)).toBeLessThan(2);
     expect(res.resetScale).toBeCloseTo(1, 3);
     expect(res.resetRotation).toBeCloseTo(0, 3);
-    // 拖了 60px，滑杆读数要跟上
-    expect(res.sliderAfterDrag).toBeCloseTo(60, 0);
+    // 拖了 60 屏幕像素，换算成逻辑像素(除以 previewScale())才是滑杆该显示的数
+    expect(res.sliderAfterDrag).toBeCloseTo(60 / res.scale, 0);
   });
 });
 
@@ -173,9 +176,13 @@ test('resize / 开关 dock 菜单后，背景保持在 Canvas Outline 内的相�
       // 拖到一个明显偏离默认的位置，并放大
       t.set({ x: 260, y: -140, scale: 1.6 });
       const before = el.getBoundingClientRect();
+      // 屏幕坐标里的「相对舞台中心距离」= 逻辑距离 * previewScale()；面板打开后
+      // previewScale() 本身会变小，所以要先除掉当前这一刻的缩放才是真正的逻辑相对位置——
+      // 不除的话，哪怕逻辑位置压根没变，纯因为预览缩放变了也会被误判成"跳位"。
       const relativeCentre = () => {
         const r = el.getBoundingClientRect(), s = document.getElementById('visualStage').getBoundingClientRect();
-        return { x:r.left+r.width/2-(s.left+s.width/2), y:r.top+r.height/2-(s.top+s.height/2) };
+        const scale = previewScale();
+        return { x:(r.left+r.width/2-(s.left+s.width/2))/scale, y:(r.top+r.height/2-(s.top+s.height/2))/scale };
       };
       const beforeRelative = relativeCentre();
 

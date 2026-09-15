@@ -42,9 +42,12 @@ test('每个 VJ 都保留高光余量，不会大面积变成纯白', async () =
       const whiteOfVisible = r.visible ? r.nearWhite/r.visible : 0;
       const clippedOfVisible = r.visible ? r.clipped/r.visible : 0;
       console.log(`${r.kind.padEnd(20)} white=${(whiteOfVisible*100).toFixed(1)}% clipped=${(clippedOfVisible*100).toFixed(1)}%`);
+      // 阈值收紧自 0.18/0.04 —— 高光 shader 把拐点从 0.70 下调到 0.62、压缩比从 0.43 收到
+      // 0.32 之后，实测全部 49 个效果在这个高能场景下 white/clipped 都是 0%，留出安全边际
+      // 而不是维持一个形同虚设的宽松门槛。
       expect.soft(r.guarded, `${r.kind}: 没有经过 VJ 高光保护层`).toBe(true);
-      expect.soft(whiteOfVisible, `${r.kind}: 亮区有 ${(whiteOfVisible*100).toFixed(1)}% 接近纯白`).toBeLessThan(0.18);
-      expect.soft(clippedOfVisible, `${r.kind}: 亮区有 ${(clippedOfVisible*100).toFixed(1)}% 已削顶`).toBeLessThan(0.04);
+      expect.soft(whiteOfVisible, `${r.kind}: 亮区有 ${(whiteOfVisible*100).toFixed(1)}% 接近纯白`).toBeLessThan(0.06);
+      expect.soft(clippedOfVisible, `${r.kind}: 亮区有 ${(clippedOfVisible*100).toFixed(1)}% 已削顶`).toBeLessThan(0.02);
       expect.soft(r.cssBrightness, `${r.kind}: 音乐闪光仍会把画面整体推白`).toBeLessThanOrEqual(1.181);
     }
   } finally {

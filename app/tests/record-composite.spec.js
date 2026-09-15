@@ -140,3 +140,22 @@ test('Background、3D、2D Visualizer、FX/Overlay 按屏幕层序进入同一�
   });
 });
 
+test('右侧面板打开时，录制合成的分辨率和内容跟面板关闭时一致', async () => {
+  await withApp('record-composite-panel-open', async win => {
+    await installSolidBackground(win, '#20a040');
+    const sample = () => win.evaluate(() => {
+      const out = composeCaptureFrame();
+      const px = Array.from(out.getContext('2d').getImageData(out.width >> 1, out.height >> 1, 1, 1).data);
+      return { w: out.width, h: out.height, px, scale: previewScale() };
+    });
+    const closed = await sample();
+    await win.evaluate(() => document.getElementById('bgMenuBtn').click());
+    await expect.poll(() => win.evaluate(() => document.getElementById('bgMenu').classList.contains('show'))).toBe(true);
+    const opened = await sample();
+    expect(opened.scale).toBeLessThan(0.999);   // 面板确实挤压了编辑预览
+    expect(opened.w).toBe(closed.w);
+    expect(opened.h).toBe(closed.h);
+    expect(opened.px).toEqual(closed.px);
+  });
+});
+

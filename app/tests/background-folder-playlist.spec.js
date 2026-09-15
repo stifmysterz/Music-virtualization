@@ -81,13 +81,16 @@ test('Position BG 同时控制两个 Crossfade 槽，切换后保留且录制使
       composeCaptureFrame();const matrices=[],original=captureCtx.transform;
       captureCtx.transform=function(...m){matrices.push(m);return original.apply(this,m);};
       composeCaptureFrame();captureCtx.transform=original;setBgAdjust(false);
-      return {before,after,dragged,activeIsNew,pointerEvents,
+      // 拖动手感是屏幕像素 1:1 跟手；换算成舞台本地(逻辑)像素时要除以当前编辑预览缩放——
+      // 普通窗口里 Dock 会占掉一点高度，previewScale() 天然小于 1，不是 bug。
+      return {before,after,dragged,activeIsNew,pointerEvents,previewScale:previewScale(),
         sliderX:parseFloat(document.getElementById('bgPosXSel').value),matrices};
     },folder);
     for(const st of [...r.before,...r.after])expect(st).toMatchObject({x:120,y:-45,scale:1.6,rotation:0.3});
     expect(r.activeIsNew).toBe(true);
-    for(const st of r.dragged){expect(st.x).toBeCloseTo(180,0);expect(st.y).toBeCloseTo(-20,0);expect(st.scale).toBeCloseTo(1.6,3);expect(st.rotation).toBeCloseTo(.3,3);}
-    expect(r.sliderX).toBeCloseTo(180,0);
+    const expectedX=120+60/r.previewScale, expectedY=-45+25/r.previewScale;
+    for(const st of r.dragged){expect(st.x).toBeCloseTo(expectedX,0);expect(st.y).toBeCloseTo(expectedY,0);expect(st.scale).toBeCloseTo(1.6,3);expect(st.rotation).toBeCloseTo(.3,3);}
+    expect(r.sliderX).toBeCloseTo(expectedX,0);
     expect(r.pointerEvents.filter(v=>v==='auto')).toHaveLength(1);
     const expectedA=1.6*Math.cos(.3),expectedB=1.6*Math.sin(.3);
     expect(r.matrices.some(m=>Math.abs(m[0]-expectedA)<.01&&Math.abs(m[1]-expectedB)<.01)).toBe(true);

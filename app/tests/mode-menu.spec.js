@@ -274,29 +274,34 @@ test('其他 dock 菜单仍然是右侧全高侧栏，没被这次改动波及',
   });
 });
 
-test('打开 Mode drop-up 不会把画布缩窄（那是侧栏才需要的让位）', async () => {
+test('打开 Mode drop-up 不会挤压编辑预览（那是侧栏才需要的让位）', async () => {
+  // 「固定逻辑输出舞台 + 自适应编辑预览」上线后，cv.width(缓冲区/逻辑分辨率)不再随任何
+  // 右侧面板变化——不管是 Mode drop-up 还是真正的侧栏，构图本身都不能被面板打开这件事
+  // 改变。会变的只是 previewScale()：侧栏是真正的全高面板，要让位，Mode drop-up 不是。
   await withApp('modemenu-10', async (win) => {
     const res = await win.evaluate(async () => {
       const settle = () => new Promise(r => setTimeout(r, 350));
-      const widthBefore = cv.width;
+      const widthBefore = cv.width, scaleBefore = previewScale();
       document.getElementById('modeBtn').click();
       await settle();
-      const withMode = { cvWidth: cv.width, safeZone: PANEL_SAFE_ZONE };
+      const withMode = { cvWidth: cv.width, safeZone: PANEL_SAFE_ZONE, scale: previewScale() };
       document.querySelectorAll('.dock-dd.show').forEach(m => m.classList.remove('show'));
       await settle();
 
-      // 对照：侧栏式的菜单该照旧让位
+      // 对照：侧栏式的菜单仍然要让编辑预览缩小，只是不再动逻辑分辨率本身。
       document.getElementById('bgMenuBtn').click();
       await settle();
-      const withSidebar = { cvWidth: cv.width, safeZone: PANEL_SAFE_ZONE };
-      return { widthBefore, withMode, withSidebar };
+      const withSidebar = { cvWidth: cv.width, safeZone: PANEL_SAFE_ZONE, scale: previewScale() };
+      return { widthBefore, scaleBefore, withMode, withSidebar };
     });
 
     expect(res.withMode.safeZone).toBe(0);
     expect(res.withMode.cvWidth).toBe(res.widthBefore);
-    // 侧栏仍然让位，这条逻辑没被改坏
+    expect(res.withMode.scale).toBeCloseTo(res.scaleBefore, 5);
+    // 侧栏仍然让位——但让的是编辑预览的缩放，不再是逻辑分辨率/构图本身。
     expect(res.withSidebar.safeZone).toBeGreaterThan(0);
-    expect(res.withSidebar.cvWidth).toBeLessThan(res.widthBefore);
+    expect(res.withSidebar.cvWidth).toBe(res.widthBefore);
+    expect(res.withSidebar.scale).toBeLessThan(res.scaleBefore - 0.001);
   });
 });
 

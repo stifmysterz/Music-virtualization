@@ -68,11 +68,13 @@ for (const quality of ['low', 'balanced', 'ultra']) {
 
       for (const r of results) {
         expect(r.actualQuality, `画质档没切过去`).toBe(quality);
+        console.log(`${quality}/${r.kind}`.padEnd(28), `white=${((r.white/r.total)*100).toFixed(2)}%`);
         /* 下限刻意放得比 vj-tunnels 的 25% 松：这里守的是「这一档下它还活着」，
            不是「构图够饱满」——后者已经有专门的测试在 balanced 档上守了。
            2% 能抓住真正的事故：全黑、材质编译失败、灯光缺失导致整片死黑。 */
         expect(r.lit / r.total, `${quality}/${r.kind} 几乎全黑`).toBeGreaterThan(0.02);
-        expect(r.white / r.total, `${quality}/${r.kind} 过曝白场`).toBeLessThan(0.06);
+        // 阈值收紧自 0.06 —— 高光 shader 调参后实测这 9 个效果在三档下 white 都是 0.00%。
+        expect(r.white / r.total, `${quality}/${r.kind} 过曝白场`).toBeLessThan(0.02);
       }
 
       /* low 档不受光，逐实例颜色就是最终像素颜色，必须仍然是高饱和的。

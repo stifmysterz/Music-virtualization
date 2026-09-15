@@ -60,7 +60,9 @@ function setupScene() {
       for (let ry = 0.15; ry < 0.9; ry += 0.05) {
         for (let rx = 0.1; rx < 0.9; rx += 0.05) {
           const cx = Math.round(rect.left + rect.width * rx), cy = Math.round(rect.top + rect.height * ry);
-          const p = { x: (cx - rect.left) * DPR, y: (cy - rect.top) * DPR };
+          // rx/ry 是屏幕矩形里的比例，缓冲区里同一个比例的像素就是 L.canvas.width/height * rx/ry——
+          // 直接用比例换算，不用再假定 1 屏幕px = DPR 个缓冲区px（编辑预览缩放不是 1 时那个假设不成立）。
+          const p = { x: L.canvas.width * rx, y: L.canvas.height * ry };
           if (p.x < 0 || p.y < 0 || p.x >= L.canvas.width || p.y >= L.canvas.height) continue;
           if (L.ctx.getImageData(Math.round(p.x), Math.round(p.y), 1, 1).data[3] > 15 && !overLogo(p)) return { cx, cy };
         }
