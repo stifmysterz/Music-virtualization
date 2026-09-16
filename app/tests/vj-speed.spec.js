@@ -5,9 +5,9 @@ const { closeApp } = require('./helpers/close-app');
 
 const APP_DIR = path.join(__dirname, '..');
 
-/* 守的是「49 个 VJ 的默认速度确实降低了，滑杆低速端也真的有用」，以及降速之后
+/* 守的是「50 个 VJ 的默认速度确实降低了，滑杆低速端也真的有用」，以及降速之后
    循环/运动方向没被破坏——不是重新验证每个效果的构图（vj-tunnels.spec.js 已经在
-   守那个），这里只挑一个代表性效果做循环/方向检查，避免和那个文件重复跑 49 遍。 */
+   守那个），这里只挑一个代表性效果做循环/方向检查，避免和那个文件重复跑 50 遍。 */
 
 async function launch(label) {
   const dir = newUserDataDir(label);

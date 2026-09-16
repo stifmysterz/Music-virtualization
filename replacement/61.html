@@ -5783,6 +5783,7 @@ const UI_STRINGS = {
     bg3DVjNeonGeometryTunnelBtn:"🔷 Neon Geometry Infinity",
     bg3DVjBlackGoldFluidBtn:"🖤 Liquid Black Gold",
     bg3DVjUltravioletHiveRushBtn:"🟣 Ultraviolet Hive Rush",
+    bg3DVjNeonReactorDescentBtn:"🔴 Neon Reactor Descent",
     bg3DCatNeon:"🌈 Neon",
     bg3DCatGeometric:"🔺 Geometric",
     bg3DCatArchitecture:"🏛 Architecture",
@@ -6074,6 +6075,7 @@ const UI_STRINGS = {
     bg3DVjNeonGeometryTunnelBtn:"🔷 霓虹几何无限隧道",
     bg3DVjBlackGoldFluidBtn:"🖤 黑金液态流体",
     bg3DVjUltravioletHiveRushBtn:"🟣 紫外蜂巢疾驰",
+    bg3DVjNeonReactorDescentBtn:"🔴 霓虹反应堆坠入",
     bg3DCatNeon:"🌈 霓虹",
     bg3DCatGeometric:"🔺 几何",
     bg3DCatArchitecture:"🏛 建筑",
@@ -13706,7 +13708,7 @@ const VJ_LEN   = 220;   // 一个循环的长度（场景单位）
 const VJ_FRONT = 14;    // 越过镜头多远才回收 —— 留一段，免得在画面边缘凭空消失
 /* 巡航速度 + 低音推进。dt 的单位是「16.7ms 一帧」，所以 60fps 下静音时每帧走多少就是这两个
    常数定的。整体调慢：基准 0.9→0.6、低音增益 3.2→2.2，同比例收紧，不改变彼此的相对节奏——
-   这个助手被几乎全部 49 个 VJ 效果共用，改这一处就等于全部一起变慢，不用逐个效果改常数。
+   这个助手被几乎全部 50 个 VJ 效果共用，改这一处就等于全部一起变慢，不用逐个效果改常数。
    bass 是逐帧瞬时值，鼓点一下能从 0 跳到 1；不做平滑的话推进速度会跟着一帧一帧地抖。
    这里加一个和 dt 挂钩的单极低通（半衰期约几帧，独立于 bg3DSpeed 的取值），
    让「加速」本身也有一个短暂的过程，而不是随手一个瞬态鼓点就把镜头瞬间拽到顶速。 */
@@ -16773,6 +16775,88 @@ function buildBg3DVjUltravioletHiveRush(){
   }};
 }
 
+/* ---------- 50. 霓虹反应堆坠入（Neon Reactor Descent）——
+   参考机械隧道的厚壁板、分段反应堆环和冷暖霓虹，不靠 1px 线框撑画面。
+   所有位置由 16 拍相位直接计算；循环接缝藏在远端雾里，回收时不重新随机化。 */
+function neonReactorDescentSample(ring,phase){
+  const TAU=Math.PI*2,spacing=VJ_LEN/40,t=phase*TAU;
+  return {z:vjLoopZ(phase*VJ_LEN,(ring+.5)*spacing),
+    twist:.095*Math.sin(t*2+ring*.31),
+    pulse:.88+.12*Math.cos(t*4-ring*.63)};
+}
+function buildBg3DVjNeonReactorDescent(){
+  const scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x020311,.0088);
+  const camera=new THREE.PerspectiveCamera(70,window.innerWidth/Math.max(1,window.innerHeight),.1,400);
+  const RINGS=40,SEG=18,TAU=Math.PI*2,N=RINGS*SEG;
+  const wall=new THREE.InstancedMesh(new THREE.BoxGeometry(2.8,3.4,4.6),
+    vjStdMat({metalness:.66,roughness:.38,envMapIntensity:.45,side:THREE.DoubleSide}),N);
+  const ribs=new THREE.InstancedMesh(new THREE.BoxGeometry(1,.46,.56),
+    vjStdMat({metalness:.72,roughness:.24,envMapIntensity:.66}),N);
+  const light=new THREE.InstancedMesh(new THREE.BoxGeometry(1,.24,.34),
+    new THREE.MeshBasicMaterial({color:0xffffff}),N*2);
+  const tiles=new THREE.InstancedMesh(new THREE.BoxGeometry(.8,.65,.42),
+    new THREE.MeshBasicMaterial({color:0xffffff}),N);
+  for(const mesh of [wall,ribs,light,tiles]){
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);mesh.frustumCulled=false;scene.add(mesh);
+  }
+  const PN=420,pos=new Float32Array(PN*3),colors=new Float32Array(PN*3);
+  for(let i=0;i<PN;i++){
+    VJ_C.setHSL(i%3===0?.51:(i%3===1?.83:.94),.95,.43);
+    colors[i*3]=VJ_C.r;colors[i*3+1]=VJ_C.g;colors[i*3+2]=VJ_C.b;
+  }
+  const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  pg.setAttribute('color',new THREE.BufferAttribute(colors,3));
+  const particles=new THREE.Points(pg,new THREE.PointsMaterial({size:.22,map:ensureBg3DDotTexture(),vertexColors:true,
+    transparent:true,opacity:.65,blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true}));
+  particles.frustumCulled=false;scene.add(particles);
+  const rig=vjLightRig(scene,{keyColor:0x5984ff,keyI:.9,rimColor:0xd02b88,rimI:1.1,
+    skyColor:0x151c59,groundColor:0x03030b,fillI:.32});
+  const {composer}=createBg3DBloom(scene,camera,.9,.42,.62);
+  const st={beats:0,bass:0,mid:0,high:0};
+  scene.userData.neonReactorDescent={ringCount:RINGS,wallPanels:N,lightSegments:N*2,particleCount:PN,loopBeats:16};
+  return {scene,camera,composer,update(bass,mid,high,dt){
+    st.bass+=(bass-st.bass)*(1-Math.pow(.78,dt));
+    st.mid +=(mid-st.mid )*(1-Math.pow(.85,dt));
+    st.high+=(high-st.high)*(1-Math.pow(.72,dt));
+    const phase=vjPhase(st,dt,16),t=phase*TAU;
+    for(let i=0;i<RINGS;i++){
+      const p=neonReactorDescentSample(i,phase);
+      /* 近镜头的几何收窄，不让透视把整屏糊满；远处保持完整的厚壁结构。 */
+      const near=p.z>-18?Math.max(.48,Math.min(1,(-p.z+2)/20)):1;
+      for(let j=0;j<SEG;j++){
+        const idx=i*SEG+j,a=j/SEG*TAU+p.twist;
+        const angle=a+Math.PI/2,rad=(17.5+st.bass*.45)*near;
+        const wr=rad*(1+.045*Math.sin(j*2.7+i*.57+t*2));
+        vjPut(wall,idx,Math.cos(a)*wr,Math.sin(a)*wr,p.z,0,0,angle,1,1,1);
+        vjTint(VJ_C,j%4===0?.79:.67,.55,.17,.7,.15);wall.setColorAt(idx,VJ_C);
+        const rr=(10.7+st.bass*.38)*near;
+        vjPut(ribs,idx,Math.cos(a)*rr,Math.sin(a)*rr,p.z+.55,0,0,angle,2.7,p.pulse,1);
+        vjTint(VJ_C,j%3===0?.94:.63,.58,.3,.83,.31);ribs.setColorAt(idx,VJ_C);
+        for(let q=0;q<2;q++){
+          const li=idx*2+q,r=(q?11.35:10.05)*near;
+          vjPut(light,li,Math.cos(a)*r,Math.sin(a)*r,p.z+(q?.9:.25),0,0,angle,
+            2.65,p.pulse*(1+st.mid*.08),1);
+          VJ_C.setHSL(q?.53:.91,.94,Math.min(.51,.4+st.high*.065));light.setColorAt(li,VJ_C);
+        }
+        const active=(j+i*3)%5===0;
+        vjPut(tiles,idx,Math.cos(a)*(17.4*near),Math.sin(a)*(17.4*near),p.z+1.55,
+          0,0,angle,active?1.1:.38,active?1.2:.42,1);
+        VJ_C.setHSL(active?.92:.53,.98,active?.46:.27);tiles.setColorAt(idx,VJ_C);
+      }
+    }
+    for(let i=0;i<PN;i++){
+      const a=i*2.39996+t*2,rad=5.5+(i%29)/29*10;
+      pos[i*3]=Math.cos(a)*rad;pos[i*3+1]=Math.sin(a)*rad;
+      pos[i*3+2]=vjLoopZ(phase*VJ_LEN,((i*131)%PN)/PN*VJ_LEN);
+    }
+    pg.attributes.position.needsUpdate=true;
+    vjFlush(wall);vjFlush(ribs);vjFlush(light);vjFlush(tiles);
+    rig.key.intensity=.82+st.bass*.22;rig.rim.intensity=.96+st.high*.32;
+    scene.rotation.z=Math.sin(t)*.018+st.mid*.012;
+    camera.fov=70-st.bass*1.4;camera.updateProjectionMatrix();
+  }};
+}
+
 /* BG3D_BUILDERS:START */
 /* Generated from background-catalog.json + tunnel-registry.json. Do not edit by hand. */
 const BG3D_BUILDERS = {
@@ -16943,9 +17027,10 @@ const BG3D_BUILDERS = {
   vjVoxelPulseTerrain: buildBg3DVjVoxelPulseTerrain,
   vjNeonGeometryTunnel: buildBg3DVjNeonGeometryTunnel,
   vjBlackGoldFluid: buildBg3DVjBlackGoldFluid,
-  vjUltravioletHiveRush: buildBg3DVjUltravioletHiveRush
+  vjUltravioletHiveRush: buildBg3DVjUltravioletHiveRush,
+  vjNeonReactorDescent: buildBg3DVjNeonReactorDescent
 };
-/* 119 regular 3D backgrounds + 49 VJ tunnels share this builder registry. */
+/* 119 regular 3D backgrounds + 50 VJ tunnels share this builder registry. */
 /* BG3D_BUILDERS:END */
 
 function resizeBg3D(stageW, stageH){
@@ -25893,7 +25978,7 @@ const VJ_TUNNEL_KINDS = Object.freeze([
   "vjChromeDrips","vjMercuryPool","vjFoilCrumple","vjChromeBubbles","vjLiquidSpine",
   "vjAsteroidSlalom","vjWarpJump","vjRingWorldRun","vjIonTrail","vjSolarFlare",
   "vjDerelictHall","vjRustPipes","vjShatteredPanes","vjDustShaft","vjCollapsedGrid",
-  "vjVoxelPulseTerrain","vjNeonGeometryTunnel","vjBlackGoldFluid","vjUltravioletHiveRush"
+  "vjVoxelPulseTerrain","vjNeonGeometryTunnel","vjBlackGoldFluid","vjUltravioletHiveRush","vjNeonReactorDescent"
 ]);
 /* VJ_TUNNEL_REGISTRY:END */
 /* Machine-readable loop contract for every VJ. The geometry scroll can run forever, while
