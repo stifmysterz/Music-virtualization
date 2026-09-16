@@ -5915,7 +5915,7 @@ const UI_STRINGS = {
     undoBtn:"↶ Undo",
     redoBtn:"↷ Redo",
     snapshotBtn:"📷 Snapshot",
-    fullscreenBtn:"⛶ Full",
+    // fullscreenBtn intentionally absent — STATEFUL_LABELS.fullscreenBtn() is the only source now (toggles Full/Exit Full)
     helpBtn:"❓ Help",
     startBtn:"Start",
     introTagline:"music visualizer · synth · file",
@@ -6206,7 +6206,6 @@ const UI_STRINGS = {
     undoBtn:"↶ 撤销",
     redoBtn:"↷ 重做",
     snapshotBtn:"📷 截图",
-    fullscreenBtn:"⛶ 全屏",
     helpBtn:"❓ 帮助",
     startBtn:"开始",
     introTagline:"音乐可视化器 · 合成器 · 文件",
@@ -24920,7 +24919,7 @@ function exitRecordingResolution(){
   resize();   // recomputes W/H/CX/CY correctly for the real on-screen size/DPR/aspect mode
   resetEffectLayoutCaches();
 }
-let fileWritable = null, usingFileSystemWrite = false;
+let fileWritable = null, usingFileSystemWrite = false, recordingWriteFailed = false;
 function ensureStreamDest(){
   if(!streamDest && ctx){
     streamDest = ctx.createMediaStreamDestination();
@@ -24956,6 +24955,7 @@ async function startRecording(){
   }
 
   recordedChunks = [];
+  recordingWriteFailed = false;
   try{
     // picture matters (4K), audio doesn't — it gets replaced with a lossless track later —
     // so video bitrate is generous and audio bitrate is kept low
@@ -24965,7 +24965,19 @@ async function startRecording(){
     if(!e.data || e.data.size===0) return;
     if(usingFileSystemWrite && fileWritable){
       try{ await fileWritable.write(e.data); }
-      catch(err){ console.error('disk write failed:', err); }
+      catch(err){
+        console.error('disk write failed:', err);
+        recordedChunks.push(e.data);   // don't lose this chunk even though the file on disk is now broken
+        // A silent failure here means the user only discovers the recording is corrupt after a long
+        // session — stop immediately and say so instead of letting the HUD keep claiming success.
+        if(!recordingWriteFailed){
+          recordingWriteFailed = true;
+          alert(currentLang==='zh'
+            ? '录制文件写入失败（磁盘已满、已断开或权限被收回？）。录制已停止，文件可能已损坏。'
+            : 'Recording file write failed (disk full, disconnected, or permission revoked?). Recording stopped — the file may be corrupt.');
+          if(mediaRecorder.state === 'recording') mediaRecorder.stop();
+        }
+      }
     }else{
       recordedChunks.push(e.data);
     }
@@ -24976,13 +24988,21 @@ async function startRecording(){
     if(usingFileSystemWrite && fileWritable){
       try{ await fileWritable.close(); } catch(e){ console.error('file close failed:', e); }
       fileWritable = null;
-    }else{
-      const blob = new Blob(recordedChunks, {type:'video/webm'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `sub-remix-${Date.now()}.webm`;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    }
+    if(!usingFileSystemWrite || recordingWriteFailed){
+      // Either full in-memory mode, or a disk-write failure mid-recording — recordedChunks holds
+      // whatever survived (the whole recording in the first case, just the tail in the second).
+      // Offer it rather than silently discarding it; the on-disk file from the failure case is
+      // already unrecoverable, so this is the only copy left.
+      if(recordedChunks.length){
+        const blob = new Blob(recordedChunks, {type:'video/webm'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = recordingWriteFailed ? `sub-remix-${Date.now()}-recovered.webm` : `sub-remix-${Date.now()}.webm`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(()=>URL.revokeObjectURL(url), 4000);
+      }
     }
   };
   mediaRecorder.onerror = e=>{
