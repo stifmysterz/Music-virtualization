@@ -24444,11 +24444,15 @@ function applyPresetState(state){
   Object.assign(modePositions, state.modePositions || {});
   focusModeIdx = (typeof state.focusModeIdx==='number') ? state.focusModeIdx : (activeModes[0] ?? null);
   function applyLogoSlotData(s, ld){
-    s.offX=ld.offX||0; s.offY=ld.offY||0; s.scale=ld.scale||1; s.rotation=ld.rotation||0;
+    // `||` fallbacks don't reject a bad type (a string, an object) the way a NaN check does —
+    // a hand-edited or cross-version preset file could smuggle one in, and it'd only surface much
+    // later as the logo silently vanishing (NaN propagates through the transform math with no error).
+    const numOr = (v, fallback) => Number.isFinite(v) ? v : fallback;
+    s.offX=numOr(ld.offX,0); s.offY=numOr(ld.offY,0); s.scale=numOr(ld.scale,1); s.rotation=numOr(ld.rotation,0);
     s.visible = ld.visible!==false; s.layer = ld.layer==='back' ? 'back' : 'front';
     s.bounceOn = ld.bounceOn!==false; s.bounceStyle = ld.bounceStyle || 'scale';
-    s.bounceAmt = (typeof ld.bounceAmt==='number') ? ld.bounceAmt : 0.6;
-    s.opacity = (typeof ld.opacity==='number') ? ld.opacity : 1;
+    s.bounceAmt = numOr(ld.bounceAmt, 0.6);
+    s.opacity = numOr(ld.opacity, 1);
     s.screenBlend = !!ld.screenBlend;
   }
   if(Array.isArray(state.logos)){
