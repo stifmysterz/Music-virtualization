@@ -1,6 +1,31 @@
-# Handoff to ChatGPT desktop — 新 VJ Loop
+# Handoff to Claude Code — ChatGPT 本轮交回（2026-09-24）
 
-写这份文档时:`main` 已同步到 `origin/main`(`5f4c1ee`),工作树干净。Claude Code 现在停手,`61.html` 交给你独占修改,不要两边同时改。做完后把改了哪些文件、跑了什么验证告诉用户,Claude Code 会用 `git diff` + 测试 + 三方哈希核对,不是假设你做对了。
+用户已确认交给 Claude 接手。请先检查工作树与 `git diff`；ChatGPT 从 `28a4d39` 起的改动尚未 commit，`61.html` 现在交回 Claude 独占修改。下方旧交接内容保留作项目规则参考，其中“工作树干净 / dist 已最新打包”的描述是旧时点状态，不适用于当前工作树。
+
+## 本轮已做
+
+- Background 视频混合模式：Normal / Screen / Overlay / Soft Light / Multiply，预览和录制、文件夹播放一致。相关未提交测试改动在 `app/tests/background-underlay-text-outline.spec.js`。
+- VJ 自动轮换：定时或音乐突变触发后等到下一拍（最长等 750ms），用约 420ms 的上一帧淡出完成切换；录制路径也绘制过渡帧。
+- VJ 预热：自动轮换开启后在空闲时准备下一条场景、composer 和着色器，切换优先使用预热场景，仍受 8 场景缓存上限约束。
+- VJ 自动画质：新增 Auto 档，按连续约 3 秒窗口的真实帧间隔逐级降/升 low、balanced、ultra；15 秒冷却；仅 VJ 活跃时调整，手动档固定。
+- VJ 列表：搜索中英文名称、五组可折叠分类、收藏置顶，搜索和语言切换后保留结果。50 条 registry 顺序和内容未改。
+
+改动文件：`61.html`、`replacement/61.html`、`Music-Visualisation-Claude-Code-Replace.zip`、上述背景测试、三个新测试 `app/tests/vj-beat-switch.spec.js`、`app/tests/vj-adaptive-quality.spec.js`、`app/tests/vj-menu-search.spec.js`，以及本交接文档。没有改 `source/`、`assets/`、`shaders/`。
+
+## 已验证 / 请 Claude 接着做
+
+- VJ 分组、预热、节拍切换、自动画质定向测试通过；VJ loop、GPU 缓存预算、三档画质、FPS/录制定向测试也通过。最近一次组合测试 4/4 通过；上一轮相关组合测试分别 7/7、10/10 通过。
+- `npm run verify:vj-registry` 和 `git diff --check` 通过。
+- `scripts/generate-replace.ps1` 已重新生成 ZIP，内置 protected-path、replacement 与 ZIP SHA256 核对通过；当前 `61.html` SHA256 为 `71E0534AFF913936ECA2BDFB34F9F2422625B7A42EF6CF1390E4ADBDDECE7598`。
+- 尚未跑完整 Playwright suite，尚未重新打 `dist/` 安装包，尚未 commit 或 push。请先 review diff，再跑完整验证、重打包、核对哈希并按项目发布流程提交。
+
+## 旧交接记录（保留参考）
+
+# Handoff to ChatGPT desktop — 下一批
+
+写这份文档时:`main` 已同步到 `origin/main`(`28a4d39`),工作树干净,`dist/` 已用最新源码重新打包并通过哈希核对。Claude Code 现在停手,`61.html` 交给你独占修改,不要两边同时改。这一批还没定具体方向 —— 按你判断挑一个视觉/质感改动来做即可。做完后把改了哪些文件、跑了什么验证告诉用户,Claude Code 会用 `git diff` + 测试 + 三方哈希核对,不是假设你做对了。
+
+上一批(视频后叠图 / 文字描边 / 浏览器文件夹选择)已经 commit + 重新打包 + 验证完毕并推送到远端。
 
 ## 必须保留(不能减少/破坏)
 

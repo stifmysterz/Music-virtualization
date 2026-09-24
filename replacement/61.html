@@ -444,6 +444,9 @@
   #modePanelList .mode-cat-header{cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px}
   #modePanelList .mode-cat-header:hover{opacity:1}
   #bg3DMenuList, #vjMenuList{display:flex;flex-direction:column;gap:5px}
+  #vjSearchIn{margin:0 0 10px;width:100%;box-sizing:border-box}
+  #vjMenuList .mode-cat-header{cursor:pointer;display:flex;align-items:center;gap:7px;user-select:none}
+  #vjMenuList .mode-cat-header:hover{opacity:1}
   #nowPlayingList{display:flex;flex-direction:column;gap:4px}
   /* 每一层的小标题，右边挂着这一层的轮换状态 */
   .np-group{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:8px 2px 2px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;opacity:.72;cursor:default}
@@ -842,6 +845,13 @@
   <div class="dock-dd-slider-row" title="Video opacity — lower it to reveal the picture behind it">
     <span id="bgVideoOpacityLabel">🎞 Video opacity</span><input type="range" id="bgVideoOpacitySel" class="mode-bright-slider" min="0" max="100" value="100" step="1"><span class="dock-dd-val" id="bgVideoOpacityVal">100%</span>
   </div>
+  <select id="bgVideoBlendSel" class="dock-dd-select" title="How the video colours combine with the picture behind it">
+    <option value="normal">Video Blend: Normal</option>
+    <option value="screen">Video Blend: Screen</option>
+    <option value="overlay">Video Blend: Overlay</option>
+    <option value="soft-light">Video Blend: Soft Light</option>
+    <option value="multiply">Video Blend: Multiply</option>
+  </select>
   <button id="bgFolderSelectBtn" class="dock-dd-item" title="Build a playlist from JPG, PNG, WebP, MP4 and WebM files">📁 Select Folder</button>
   <input id="bgFolderIn" type="file" webkitdirectory multiple style="display:none">
   <div id="bgFolderStatus" class="bg-folder-status">No background folder selected</div>
@@ -1021,6 +1031,7 @@
      不透明度那些开关还是在 🌌 3D 菜单里统一调），只是列表另开一个，不跟那 120+ 项挤。 -->
 <div id="vjMenu" class="dock-dd">
   <div id="vjMenuTitle" style="padding:2px 2px 8px;font-size:12px;opacity:.75;cursor:default">🌀 VJ Loop Tunnels</div>
+  <input id="vjSearchIn" class="mode-search" type="search" placeholder="Search VJ tunnels…" aria-label="Search VJ tunnels">
   <div id="vjMenuList"></div>
   <!-- vjMenuList 由 buildVjMenu() 按 VJ_TUNNEL_KINDS 生成 -->
   <button id="vjRandomBtn" class="dock-dd-item" style="margin-top:8px;border-top:1px solid var(--line);padding-top:12px" title="Jump to a random tunnel">🎲 Random Tunnel</button>
@@ -1045,6 +1056,7 @@
     <option value="random">Source: Full Random</option>
   </select>
   <select id="vjQualitySel" class="dock-dd-select" title="Render quality for the whole 3D layer (VJ tunnels and 3D backgrounds) — higher tiers add anti-aliasing, real lighting and reflections, at a frame-rate cost">
+    <option value="auto">Quality: Auto (VJ frame rate)</option>
     <option value="low">Quality: Low (fastest)</option>
     <option value="balanced" selected>Quality: Balanced</option>
     <option value="ultra">Quality: Ultra (reflections)</option>
@@ -5333,6 +5345,13 @@ function drawFrontTextsToCapture(){
     captureCtx.restore();
   });
 }
+const VIDEO_BLEND_TO_CANVAS={normal:'source-over',screen:'screen',overlay:'overlay','soft-light':'soft-light',multiply:'multiply'};
+function drawCaptureVideo(el,targetRect,parentLayer){
+  const mode=document.getElementById('bgVideoBlendSel')?.value||'normal';
+  captureCtx.globalCompositeOperation=VIDEO_BLEND_TO_CANVAS[mode]||'source-over';
+  drawCaptureElement(el,targetRect,true,parentLayer);
+  captureCtx.globalCompositeOperation='source-over';
+}
 function composeCaptureFrame(){
   if(!captureCanvas){
     captureCanvas = document.createElement('canvas');
@@ -5352,13 +5371,17 @@ function composeCaptureFrame(){
     bgFolderSlots.forEach(slot=>{
       const media=slot.type==='video'?slot.video:slot.image;
       const slotStyle=getComputedStyle(slot.el);
-      if(slot.el.classList.contains('active') || parseFloat(slotStyle.opacity)>0) drawCaptureElement(media,targetRect,true,slot.el);
+      if(slot.el.classList.contains('active') || parseFloat(slotStyle.opacity)>0){
+        if(slot.type==='video') drawCaptureVideo(media,targetRect,slot.el);
+        else drawCaptureElement(media,targetRect,true,slot.el);
+      }
     });
   }else if(hasBgMedia && bgVisible){
-    if(hasBgVideo) drawCaptureElement(bgVideoEl, targetRect, true);
+    if(hasBgVideo) drawCaptureVideo(bgVideoEl, targetRect);
   }
   if(hasBg3D && bg3DVisible){
     drawCaptureElement(bgThreeCanvas, targetRect, false);
+    if(vjTransitionFrame && vjTransitionFrame.style.display!=='none') drawCaptureElement(vjTransitionFrame, targetRect, false);
   }
   captureCtx.drawImage(cvBack, 0, 0);
   // fxBlendOn 关掉时 #cvFx 也是普通混合，合成帧要跟着走，否则导出和屏幕不一致
@@ -6324,6 +6347,7 @@ const UI_STRINGS = {
 const UI_PLACEHOLDERS = {
   en:{
     modeSearchIn:"Search modes…",
+    vjSearchIn:"Search VJ tunnels…",
     presetNameIn:"Preset name",
     titleIn:"Text A",
     textAIn:"Text B",
@@ -6332,6 +6356,7 @@ const UI_PLACEHOLDERS = {
   },
   zh:{
     modeSearchIn:"搜索模式…",
+    vjSearchIn:"搜索 VJ 隧道…",
     presetNameIn:"预设名称",
     titleIn:"文字 A",
     textAIn:"文字 B",
@@ -6369,8 +6394,8 @@ const SOURCE_OPTION_NAMES = {
   zh:{favorites:'来源：我的收藏',random:'来源：完全随机',presets:'来源：我的预设'}
 };
 const VJ_QUALITY_OPTION_NAMES = {
-  en:{low:'Quality: Low (fastest)',balanced:'Quality: Balanced',ultra:'Quality: Ultra (reflections)'},
-  zh:{low:'画质：低（最流畅）',balanced:'画质：均衡',ultra:'画质：极致（真反射）'}
+  en:{auto:'Quality: Auto',low:'Quality: Low (fastest)',balanced:'Quality: Balanced',ultra:'Quality: Ultra (reflections)'},
+  zh:{auto:'画质：自动',low:'画质：低（最流畅）',balanced:'画质：均衡',ultra:'画质：极致（真反射）'}
 };
 const RANDOM_COUNT_OPTION_NAMES = {
   en:{'1':'Random: 1 effect','2':'Random: 2 effects','3':'Random: 3 effects','4':'Random: 4 effects',
@@ -6407,7 +6432,9 @@ function applyShuffleOptionNames(){
   if(vjQSel){
     [...vjQSel.options].forEach(opt=>{
       const name = (VJ_QUALITY_OPTION_NAMES[currentLang] && VJ_QUALITY_OPTION_NAMES[currentLang][opt.value]) || VJ_QUALITY_OPTION_NAMES.en[opt.value];
-      if(name) opt.textContent = name;
+      if(name) opt.textContent = opt.value==='auto' && typeof vjQualityAuto!=='undefined' && vjQualityAuto
+        ? name + ' (' + ((VJ_QUALITY_OPTION_NAMES[currentLang]||VJ_QUALITY_OPTION_NAMES.en)[vjQuality]||vjQuality).replace(/^.*?:\s*/, '') + ')'
+        : name;
     });
   }
   const rndCountSel = document.getElementById('modeRandomCountSel');
@@ -13808,6 +13835,7 @@ function vjDynAttr(count, itemSize){
      balanced —— 受光 MeshStandardMaterial + 灯组 + 缓存环境反射
      ultra    —— 再加 PMREM 环境贴图，金属／玻璃才有真反射                        */
 let vjQuality = 'balanced';
+let vjQualityAuto = false;
 
 /* 共享环境贴图。程序化棚灯：天顶冷、地平线一条最亮的窄带、地面压到近黑。
    金属面上那条能读出来的地平线，是「这是金属」最关键的线索 —— 比任何高光都管用。
@@ -17414,6 +17442,9 @@ function syncBgFolderUi(){
   document.getElementById('bgUnderlayLabel').textContent=zh?'🖼 视频后方图片':'🖼 Image Behind Video';
   document.getElementById('bgVideoOpacityLabel').textContent=zh?'🎞 视频透明度':'🎞 Video opacity';
   document.querySelectorAll('.text-outline-label').forEach(el=>el.textContent=zh?'描边':'Outline');
+  const blendNames=zh?['视频混合：正常','视频混合：滤色','视频混合：叠加','视频混合：柔光','视频混合：正片叠底']:
+    ['Video Blend: Normal','Video Blend: Screen','Video Blend: Overlay','Video Blend: Soft Light','Video Blend: Multiply'];
+  [...document.getElementById('bgVideoBlendSel').options].forEach((option,i)=>option.textContent=blendNames[i]);
   document.getElementById('bgFolderSelectBtn').textContent=zh?'📁 选择背景文件夹':'📁 Select Folder';
   document.getElementById('bgFolderNextBtn').textContent=zh?'⏭ 下一个背景':'⏭ Next Background';
   document.getElementById('bgFolderAutoBtn').textContent=(bgFolderAuto?'⏸ ':'▶ ')+(currentLang==='zh'?'文件夹轮播：':'Folder Playlist: ')+(bgFolderAuto?(currentLang==='zh'?'开':'On'):(currentLang==='zh'?'关':'Off'));
@@ -17808,6 +17839,7 @@ function draw(now){
   requestAnimationFrame(draw);
   const dt = Math.min((now-t0)/16.7, 3); t0 = now;
   updateFpsHud(now);
+  updateAdaptiveVjQuality(now);
 
   if(analyser){
     analyser.getByteFrequencyData(freq);
@@ -17824,6 +17856,7 @@ function draw(now){
   lastBass=musicState.bass; lastMid=musicState.mid; lastHigh=musicState.high; beat=musicState.beat;
 
   renderBg3D(musicState.bass, musicState.mid, musicState.high, dt);
+  updateVjAutoSwitch(now);
 
   const bg3dDebugEl = bg3dDebugOn ? document.getElementById('bg3dDebug') : null;   // 关掉时连字符串拼接都省了
   if(bg3dDebugEl){
@@ -25929,6 +25962,17 @@ document.getElementById('bgVideoOpacitySel').oninput = e=>{
   bgFolderSlots.forEach(slot=>slot.video.style.opacity=String(pct/100));
   document.getElementById('bgVideoOpacityVal').textContent=pct+'%';
 };
+function setBgVideoBlend(mode){
+  const allowed=['normal','screen','overlay','soft-light','multiply'];
+  mode=allowed.includes(mode)?mode:'normal';
+  document.getElementById('bgVideoBlendSel').value=mode;
+  const cssMode=mode==='normal'?'normal':mode;
+  bgVideoEl.style.mixBlendMode=cssMode;
+  bgFolderSlots.forEach(slot=>slot.video.style.mixBlendMode=cssMode);
+  try{localStorage.setItem('subremix_bg_video_blend',mode);}catch(_e){}
+}
+document.getElementById('bgVideoBlendSel').onchange=e=>setBgVideoBlend(e.target.value);
+try{setBgVideoBlend(localStorage.getItem('subremix_bg_video_blend')||'normal');}catch(_e){setBgVideoBlend('normal');}
 document.getElementById('bgFolderSelectBtn').onclick=async()=>{
   if(!window.subRemixDesktop){
     const input=document.getElementById('bgFolderIn');
@@ -25988,6 +26032,7 @@ document.getElementById('bgRemoveBtn').onclick = ()=>{
   bgVideoEl.pause(); bgVideoEl.style.display = 'none'; bgVideoEl.src = '';
   document.getElementById('bgVideoOpacitySel').value='100';
   document.getElementById('bgVideoOpacitySel').dispatchEvent(new Event('input'));
+  setBgVideoBlend('normal');
   hasBgMedia = false; hasBgVideo = false; bgVisible = true;
   const toggleBtn = document.getElementById('bgToggleBtn');
   const removeBtn = document.getElementById('bgRemoveBtn');
@@ -26181,33 +26226,74 @@ function createVjItemBtn(kind, skipId){
   row.appendChild(btn);
   return row;
 }
+const VJ_MENU_GROUPS = [
+  {en:'Neon & Geometry',zh:'霓虹与几何',start:0,end:10},
+  {en:'Metal & Motion',zh:'金属与运动',start:10,end:20},
+  {en:'Space & Light',zh:'太空与光影',start:20,end:30},
+  {en:'Fluid & Flight',zh:'流体与飞行',start:30,end:40},
+  {en:'Industrial & Abstract',zh:'工业与抽象',start:40,end:50}
+];
+const vjCollapsedGroups = new Set();
+function vjMenuHeader(label, groupIndex){
+  const header=document.createElement('div');
+  header.className='mode-cat-header expanded';
+  header.setAttribute('role','button');
+  header.tabIndex=0;
+  const expanded=!!document.getElementById('vjSearchIn')?.value.trim() || !vjCollapsedGroups.has(groupIndex);
+  header.setAttribute('aria-expanded',String(expanded));
+  const toggle=()=>{
+    vjCollapsedGroups.has(groupIndex) ? vjCollapsedGroups.delete(groupIndex) : vjCollapsedGroups.add(groupIndex);
+    buildVjMenu();
+  };
+  header.onclick=toggle;
+  header.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } };
+  const arrow=document.createElement('span');
+  arrow.className='mode-cat-arrow';
+  arrow.textContent=expanded?'▼':'▶';
+  header.append(arrow,document.createTextNode(label));
+  return header;
+}
 function buildVjMenu(){
   const list = document.getElementById('vjMenuList');
   if(!list) return;
   list.innerHTML = '';
-  /* 收藏区钉在最上面，不走 🌌 3D/Mode 那种默认收起的分类折叠 —— VJ 列表本来就是
-     一路铺开、不折叠的，收藏区跟着一路铺开更一致，也用不着再管一份展开状态。
-     没收藏任何一条时干脆不出这个区，免得空标题占地方。 */
-  const favKinds = VJ_TUNNEL_KINDS.filter(k=>vjFavorites.has(k));
+  const query=(document.getElementById('vjSearchIn')?.value||'').trim().toLocaleLowerCase();
+  const matches=kind=>{
+    if(!query) return true;
+    const id=bg3DIdFor(kind);
+    return [kind,kind.replace(/([a-z])([A-Z])/g,'$1 $2'),UI_STRINGS.en[id],UI_STRINGS.zh[id]]
+      .some(value=>value?.toLocaleLowerCase().includes(query));
+  };
+  const favKinds = VJ_TUNNEL_KINDS.filter(k=>vjFavorites.has(k) && matches(k));
   if(favKinds.length){
-    // 不给这两个标题设 id：applyLanguage() 按 id 的通用扫描一次只认得到一个同 id 元素，
-    // 🌌 3D 菜单自己那份「★ Favourites」标题已经占着 bg3DCatFavorites 这个 id 了。
-    // 这里跟 bg3D 收藏区里那些跳过 id 的按钮一样，靠 applyLanguage() 显式重调
-    // buildVjMenu() 来跟着换语言，而不是指望通用扫描找到它。
-    const favHeader = document.createElement('div');
-    favHeader.className = 'mode-cat-header expanded';
-    favHeader.textContent = bg3DText('bg3DCatFavorites');   // 复用 🌌 3D 那句「★ Favourites」的翻译文本，不复用它的 id
+    const favHeader=document.createElement('div');
+    favHeader.className='mode-cat-header expanded';
+    favHeader.textContent=bg3DText('bg3DCatFavorites');
     list.appendChild(favHeader);
     favKinds.forEach(kind=> list.appendChild(createVjItemBtn(kind, true)));
-
-    const allHeader = document.createElement('div');
-    allHeader.className = 'mode-cat-header expanded';
-    allHeader.textContent = bg3DText('vjCatAllTunnels');
-    list.appendChild(allHeader);
   }
-  VJ_TUNNEL_KINDS.forEach(kind=> list.appendChild(createVjItemBtn(kind, false)));
+  VJ_MENU_GROUPS.forEach((group,index)=>{
+    const kinds=VJ_TUNNEL_KINDS.slice(group.start,group.end).filter(matches);
+    if(!kinds.length) return;
+    list.appendChild(vjMenuHeader(group[currentLang]||group.en,index));
+    if(query || !vjCollapsedGroups.has(index)) kinds.forEach(kind=>list.appendChild(createVjItemBtn(kind,false)));
+  });
+  // Future registry additions remain discoverable until assigned to a curated group.
+  const remaining=VJ_TUNNEL_KINDS.slice(VJ_MENU_GROUPS[VJ_MENU_GROUPS.length-1].end).filter(matches);
+  if(remaining.length){
+    list.appendChild(vjMenuHeader(currentLang==='zh'?'更多隧道':'More Tunnels',VJ_MENU_GROUPS.length));
+    if(query || !vjCollapsedGroups.has(VJ_MENU_GROUPS.length)) remaining.forEach(kind=>list.appendChild(createVjItemBtn(kind,false)));
+  }
+  if(!list.querySelector('.bg3d-item-row') && query){
+    const empty=document.createElement('div');
+    empty.className='np-empty';
+    empty.textContent=currentLang==='zh'?'没有匹配的 VJ 隧道':'No matching VJ tunnels';
+    list.appendChild(empty);
+  }
 }
 buildVjMenu();
+document.getElementById('vjSearchIn').addEventListener('input',buildVjMenu);
+document.getElementById('vjSearchIn').addEventListener('keydown',e=>e.stopPropagation());
 setupDockDropdown('vjMenuBtn', 'vjMenu');
 document.getElementById('vjNextBtn').onclick = ()=>{
   pushUndo();
@@ -26215,7 +26301,12 @@ document.getElementById('vjNextBtn').onclick = ()=>{
   enableBg3D(VJ_TUNNEL_KINDS[(i+1) % VJ_TUNNEL_KINDS.length]);
 };
 function randomVjTunnel(restrictTo){
+  const kind = pickVjTunnel(restrictTo);
+  if(!kind) return;
   pushUndo();
+  enableBg3D(kind);
+}
+function pickVjTunnel(restrictTo){
   let pool = VJ_TUNNEL_KINDS.filter(k=> k !== bg3DKind);
   // restrictTo 是 Source:「我的收藏」传进来的收藏池，手动点 🎲 Random Tunnel 不传，行为不变；
   // 收藏池跟当前隧道之外的池子没有交集时（比如就收藏了当前这一条），落回未收窄的 pool
@@ -26223,11 +26314,96 @@ function randomVjTunnel(restrictTo){
     const narrowed = pool.filter(k=>restrictTo.includes(k));
     if(narrowed.length) pool = narrowed;
   }
-  enableBg3D(pool[Math.floor(Math.random()*pool.length)]);
+  return pool[Math.floor(Math.random()*pool.length)];
 }
 function runVjShuffleTick(){
-  const source = document.getElementById('vjShuffleSourceSel')?.value || 'favorites';
-  randomVjTunnel(source==='favorites' ? [...vjFavorites] : null);
+  if(!vjShuffleOn || vjPendingSwitch) return;
+  const target = vjPreparedKind && vjPreparedKind !== bg3DKind && vjSourceAllows(vjPreparedKind)
+    ? vjPreparedKind : pickVjTunnel(vjSourceKinds());
+  if(!target) return;
+  vjPendingSwitch = {requestedAt:performance.now(), lastPhase:musicState.beatPhase, target};
+  if(!bg3DScenes[target]) scheduleVjPrewarm(target);
+}
+function vjSourceKinds(){
+  return document.getElementById('vjShuffleSourceSel')?.value === 'favorites' ? [...vjFavorites] : null;
+}
+function vjSourceAllows(kind){
+  const favorites = vjSourceKinds();
+  return !favorites?.length || favorites.includes(kind) || !favorites.some(k=>k!==bg3DKind);
+}
+let vjPreparedKind = null, vjPrewarmJob = 0;
+function scheduleVjPrewarm(kind){
+  const job = ++vjPrewarmJob;
+  const prepare = ()=>{
+    if(job!==vjPrewarmJob || !vjShuffleOn || kind===bg3DKind) return;
+    try{
+      const renderer = ensureBg3DRenderer();
+      if(!bg3DScenes[kind]) bg3DScenes[kind] = buildBg3DScene(kind);
+      const scene = bg3DScenes[kind];
+      ensureBg3DComposer(scene);
+      ensureVjHighlightPass(kind, scene);
+      const size = renderer.getSize(new THREE.Vector2());
+      scene.camera.aspect = size.x/Math.max(1,size.y);
+      scene.camera.updateProjectionMatrix();
+      scene.composer?.setSize(size.x,size.y);
+      renderer.compile(scene.scene,scene.camera);
+      bg3DSceneCacheIndex.touch(kind);
+      pruneBg3DSceneCache(bg3DKind);
+      vjPreparedKind = kind;
+    }catch(e){ console.warn('VJ prewarm skipped:',e); }
+  };
+  if(window.requestIdleCallback) requestIdleCallback(prepare,{timeout:1500});
+  else setTimeout(prepare,80);
+}
+function prepareNextVjTunnel(){
+  if(!vjShuffleOn) return;
+  const next = pickVjTunnel(vjSourceKinds());
+  if(next) scheduleVjPrewarm(next);
+}
+// Keep one bitmap of the outgoing tunnel. The new scene uses the normal renderer and cache.
+const vjTransitionFrame = document.createElement('canvas');
+vjTransitionFrame.style.cssText = 'position:absolute;pointer-events:none;display:none;z-index:0';
+bgThreeCanvas.insertAdjacentElement('afterend', vjTransitionFrame);
+let vjPendingSwitch = null, vjTransitionStart = 0, vjTransitionAlpha = 1;
+const VJ_TRANSITION_MS = 420;
+function clearVjTransition(){
+  vjPendingSwitch = null;
+  vjTransitionStart = 0;
+  vjTransitionFrame.style.display = 'none';
+}
+function updateVjAutoSwitch(now){
+  if(vjPendingSwitch && vjShuffleOn){
+    const pending = vjPendingSwitch;
+    const crossedBeat = musicState.onset || musicState.beatPhase + 0.5 < pending.lastPhase;
+    pending.lastPhase = musicState.beatPhase;
+    // A stalled audio clock must never leave a switch pending indefinitely.
+    if(crossedBeat || now-pending.requestedAt > 750){
+      vjPendingSwitch = null;
+      const canFade = hasBg3D && bg3DVisible && bgThreeCanvas.width && bgThreeCanvas.height;
+      if(canFade){
+        vjTransitionFrame.width = bgThreeCanvas.width;
+        vjTransitionFrame.height = bgThreeCanvas.height;
+        vjTransitionFrame.getContext('2d').drawImage(bgThreeCanvas,0,0);
+        for(const property of ['left','top','width','height','transform','transformOrigin','filter'])
+          vjTransitionFrame.style[property] = bgThreeCanvas.style[property];
+        vjTransitionAlpha = Number(getComputedStyle(bgThreeCanvas).opacity);
+      }
+      pushUndo();
+      enableBg3D(pending.target);
+      if(canFade && hasBg3D){
+        vjTransitionStart = now;
+        vjTransitionFrame.style.opacity = String(vjTransitionAlpha);
+        vjTransitionFrame.style.display = 'block';
+      }
+      vjPreparedKind = null;
+      prepareNextVjTunnel();
+    }
+  }
+  if(vjTransitionStart){
+    const progress = Math.min(1,(now-vjTransitionStart)/VJ_TRANSITION_MS);
+    vjTransitionFrame.style.opacity = String(vjTransitionAlpha*(1-progress));
+    if(progress>=1) clearVjTransition();
+  }
 }
 
 /* 质量档切换。材质是在 builder 里一次性创建的，所以改档必须把缓存的场景丢掉重建，
@@ -26262,12 +26438,59 @@ function vjDropCachedScene(kind){
   bg3DSceneCacheIndex.forget(kind);
   bg3DRenderer?.renderLists?.dispose?.();
 }
-document.getElementById('vjQualitySel').addEventListener('change', e=>{
-  vjQuality = e.target.value;
+function setVjQualityTier(tier){
+  if(tier===vjQuality) return;
+  vjQuality = tier;
+  ++vjPrewarmJob;
+  vjPreparedKind = null;
+  clearVjTransition();
   /* 丢的是全部缓存场景，不只 VJ 那 45 个 —— 抗锯齿的 samples 是在 composer 建的
      时候定死的，3D 背景那 61 个同样受影响，只丢 VJ 的话它们会停在旧档上。 */
   Object.keys(bg3DScenes).forEach(vjDropCachedScene);
   if(bg3DKind) enableBg3D(bg3DKind);
+  if(vjShuffleOn) prepareNextVjTunnel();
+  applyShuffleOptionNames();
+}
+const vjAdaptive = {lastAt:0,windowAt:0,frames:0,totalMs:0,slowWindows:0,fastWindows:0,lastChangeAt:0};
+function resetAdaptiveVjSamples(){
+  vjAdaptive.lastAt=0; vjAdaptive.windowAt=0; vjAdaptive.frames=0; vjAdaptive.totalMs=0;
+  vjAdaptive.slowWindows=0; vjAdaptive.fastWindows=0;
+}
+function updateAdaptiveVjQuality(now){
+  if(!vjQualityAuto || !hasBg3D || !bg3DVisible || !VJ_TUNNEL_KINDS.includes(bg3DKind) || document.hidden){
+    resetAdaptiveVjSamples();
+    return;
+  }
+  const previous=vjAdaptive.lastAt;
+  vjAdaptive.lastAt=now;
+  if(!previous){ vjAdaptive.windowAt=now; return; }
+  const frameMs=now-previous;
+  if(frameMs<=0 || frameMs>100){ resetAdaptiveVjSamples(); return; }
+  vjAdaptive.frames++;
+  vjAdaptive.totalMs+=frameMs;
+  if(now-vjAdaptive.windowAt<3000) return;
+  const average=vjAdaptive.totalMs/Math.max(1,vjAdaptive.frames);
+  vjAdaptive.windowAt=now; vjAdaptive.frames=0; vjAdaptive.totalMs=0;
+  vjAdaptive.slowWindows=average>23 ? vjAdaptive.slowWindows+1 : 0;
+  vjAdaptive.fastWindows=average<17.4 ? vjAdaptive.fastWindows+1 : 0;
+  if(now-vjAdaptive.lastChangeAt<15000) return;
+  const levels=['low','balanced','ultra'];
+  const index=levels.indexOf(vjQuality);
+  let next=null;
+  if(vjAdaptive.slowWindows>=2 && index>0) next=levels[index-1];
+  else if(vjAdaptive.fastWindows>=4 && index<2) next=levels[index+1];
+  if(next){
+    vjAdaptive.lastChangeAt=now;
+    resetAdaptiveVjSamples();
+    setVjQualityTier(next);
+  }
+}
+document.getElementById('vjQualitySel').addEventListener('change', e=>{
+  vjQualityAuto=e.target.value==='auto';
+  resetAdaptiveVjSamples();
+  vjAdaptive.lastChangeAt=performance.now();
+  if(!vjQualityAuto) setVjQualityTier(e.target.value);
+  else applyShuffleOptionNames();
 });
 document.getElementById('vjRandomBtn').onclick = ()=> randomVjTunnel();   // 显式不传参 —— 直接把函数当 handler 挂上去的话，点击事件对象会被当成 restrictTo 收藏池传进去
 
@@ -26290,6 +26513,9 @@ function startVjShuffleTimer(){
 }
 function stopVjShuffleTimer(){
   if(vjShuffleTimer){ clearInterval(vjShuffleTimer); vjShuffleTimer = null; }
+  ++vjPrewarmJob;
+  vjPreparedKind = null;
+  clearVjTransition();
 }
 function syncVjShuffleBtn(){
   const btn = document.getElementById('vjShuffleToggle');
@@ -26300,7 +26526,7 @@ function syncVjShuffleBtn(){
 function setVjShuffle(on){
   vjShuffleOn = on;
   if(on) setBg3DShuffle(false);   // 互斥：VJ 转起来就把 3D 那个停掉
-  if(on) startVjShuffleTimer(); else stopVjShuffleTimer();
+  if(on){ startVjShuffleTimer(); prepareNextVjTunnel(); } else stopVjShuffleTimer();
   syncVjShuffleBtn();
 }
 document.getElementById('vjShuffleToggle').onclick = ()=> setVjShuffle(!vjShuffleOn);
@@ -27531,6 +27757,7 @@ function deleteLastInteracted(){
     bgVideoEl.pause(); bgVideoEl.style.display = 'none'; bgVideoEl.src = '';
     document.getElementById('bgVideoOpacitySel').value='100';
     document.getElementById('bgVideoOpacitySel').dispatchEvent(new Event('input'));
+    setBgVideoBlend('normal');
     hasBgMedia = false; hasBgVideo = false; bgVisible = true;
     const toggleBtn = document.getElementById('bgToggleBtn');
     const removeBtn = document.getElementById('bgRemoveBtn');

@@ -152,6 +152,11 @@ test('突变检测真的会触发对应那一层，没开的层不受影响', as
       lastBass = 0.95;
       for (let i = 0; i < 40; i++) { checkSuddenChangeShuffle(t); t += 16.7; }
 
+      // VJ 轮换现在等下一拍再切（最长 750ms 兜底），不再是 runVjShuffleTick() 里同步调的
+      // enableBg3D —— 真正的切换发生在应用自己那个还在跑的 draw() rAF 循环里，
+      // 要用真实挂钟时间等它，而不是接着喂假时间戳（那条循环不认假时间戳）。
+      await new Promise(resolve => setTimeout(resolve, 900));
+
       return { before, after: bg3DKind, vjFired, modeFired };
     });
     console.log(`  VJ 触发 ${r.vjFired} 次，2D 触发 ${r.modeFired} 次；隧道 ${r.before} → ${r.after}`);

@@ -55,6 +55,37 @@ test('文件夹轮播视频也能显示后方图片',async()=>{
   });
 });
 
+test('视频混合模式同步到预览、文件夹视频和录制合成',async()=>{
+  await withPage(async page=>{
+    const result=await page.evaluate(()=>{
+      const modes={};
+      for(const mode of ['normal','screen','overlay','soft-light','multiply']){
+        setBgVideoBlend(mode);
+        const seen=[];
+        const original=drawCaptureElement;
+        drawCaptureElement=(el,...args)=>{
+          if(el===bgVideoEl)seen.push(captureCtx.globalCompositeOperation);
+          return original(el,...args);
+        };
+        hasBgMedia=true;hasBgVideo=true;bgVisible=true;
+        bgVideoEl.style.display='block';
+        try{composeCaptureFrame();}finally{drawCaptureElement=original;}
+        modes[mode]={preview:bgVideoEl.style.mixBlendMode,folder:bgFolderSlots[0].video.style.mixBlendMode,
+          capture:seen[0],after:captureCtx.globalCompositeOperation};
+      }
+      return {modes,stored:localStorage.getItem('subremix_bg_video_blend')};
+    });
+    expect(result.modes).toEqual({
+      normal:{preview:'normal',folder:'normal',capture:'source-over',after:'source-over'},
+      screen:{preview:'screen',folder:'screen',capture:'screen',after:'source-over'},
+      overlay:{preview:'overlay',folder:'overlay',capture:'overlay',after:'source-over'},
+      'soft-light':{preview:'soft-light',folder:'soft-light',capture:'soft-light',after:'source-over'},
+      multiply:{preview:'multiply',folder:'multiply',capture:'multiply',after:'source-over'}
+    });
+    expect(result.stored).toBe('multiply');
+  });
+});
+
 test('Text A/B/C 描边可调、写入预设，并进入录制帧',async()=>{
   await withPage(async page=>{
     const result=await page.evaluate(()=>{
