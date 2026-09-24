@@ -667,10 +667,10 @@
 <body>
 
 <div id="visualStage">
+  <img id="bgImage" alt="">
   <div id="bgPlaylistSlotA" class="bg-playlist-slot"><img alt=""><video muted playsinline></video></div>
   <div id="bgPlaylistSlotB" class="bg-playlist-slot"><img alt=""><video muted playsinline></video></div>
   <video id="bgVideo" muted loop playsinline></video>
-  <img id="bgImage" alt="">
   <canvas id="bgThree"></canvas>
   <canvas id="cvBack"></canvas>
   <canvas id="cvFx"></canvas>
@@ -838,7 +838,12 @@
 
 <div id="bgMenu" class="dock-dd">
   <label class="dock-dd-item" title="Add a background photo or video">🌄 Upload Background<input type="file" id="bgIn" accept="image/*,video/*"></label>
+  <label class="dock-dd-item" title="Place a picture behind the current background video"><span id="bgUnderlayLabel">🖼 Image Behind Video</span><input type="file" id="bgUnderlayIn" accept="image/*"></label>
+  <div class="dock-dd-slider-row" title="Video opacity — lower it to reveal the picture behind it">
+    <span id="bgVideoOpacityLabel">🎞 Video opacity</span><input type="range" id="bgVideoOpacitySel" class="mode-bright-slider" min="0" max="100" value="100" step="1"><span class="dock-dd-val" id="bgVideoOpacityVal">100%</span>
+  </div>
   <button id="bgFolderSelectBtn" class="dock-dd-item" title="Build a playlist from JPG, PNG, WebP, MP4 and WebM files">📁 Select Folder</button>
+  <input id="bgFolderIn" type="file" webkitdirectory multiple style="display:none">
   <div id="bgFolderStatus" class="bg-folder-status">No background folder selected</div>
   <button id="bgFolderAutoBtn" class="dock-dd-item" title="Automatically advance through the selected folder">🔀 Folder Playlist: Off</button>
   <button id="bgFolderNextBtn" class="dock-dd-item" title="Show the next usable background">⏭ Next Background</button>
@@ -1164,6 +1169,11 @@
       <select id="titleFontSel"></select>
       <input type="range" id="titleSizeSel" class="mode-bright-slider" min="10" max="120" value="32" step="1" title="Text size">
     </div>
+    <div class="style-row" title="Text outline colour and width">
+      <span class="text-outline-label">Outline</span><input type="color" id="titleOutlineColor" value="#000000">
+      <input type="range" id="titleOutlineWidth" class="mode-bright-slider" min="0" max="12" value="0" step="1">
+      <span class="dock-dd-val" id="titleOutlineVal">Off</span>
+    </div>
     <div class="style-row">
       <button id="titleBounceToggle" class="mode-freq-btn" data-txt-bounce="titleDisplay" style="flex:0 0 auto;white-space:nowrap;padding-left:10px;padding-right:10px">Animate: Off</button>
       <select id="titleBounceStyleSel" class="dock-dd-select" style="flex:1">
@@ -1204,6 +1214,11 @@
       <select id="textAFontSel"></select>
       <input type="range" id="textASizeSel" class="mode-bright-slider" min="10" max="120" value="32" step="1" title="Text size">
     </div>
+    <div class="style-row" title="Text outline colour and width">
+      <span class="text-outline-label">Outline</span><input type="color" id="textAOutlineColor" value="#000000">
+      <input type="range" id="textAOutlineWidth" class="mode-bright-slider" min="0" max="12" value="0" step="1">
+      <span class="dock-dd-val" id="textAOutlineVal">Off</span>
+    </div>
     <div class="style-row">
       <button id="textABounceToggle" class="mode-freq-btn" data-txt-bounce="textADisplay" style="flex:0 0 auto;white-space:nowrap;padding-left:10px;padding-right:10px">Animate: Off</button>
       <select id="textABounceStyleSel" class="dock-dd-select" style="flex:1">
@@ -1243,6 +1258,11 @@
       <input type="color" id="textBColorB" value="#ffd27d">
       <select id="textBFontSel"></select>
       <input type="range" id="textBSizeSel" class="mode-bright-slider" min="10" max="120" value="32" step="1" title="Text size">
+    </div>
+    <div class="style-row" title="Text outline colour and width">
+      <span class="text-outline-label">Outline</span><input type="color" id="textBOutlineColor" value="#000000">
+      <input type="range" id="textBOutlineWidth" class="mode-bright-slider" min="0" max="12" value="0" step="1">
+      <span class="dock-dd-val" id="textBOutlineVal">Off</span>
     </div>
     <div class="style-row">
       <button id="textBBounceToggle" class="mode-freq-btn" data-txt-bounce="textBDisplay" style="flex:0 0 auto;white-space:nowrap;padding-left:10px;padding-right:10px">Animate: Off</button>
@@ -5275,6 +5295,44 @@ function drawCaptureElement(el, targetRect, replacedElement, parentLayer){
   }
   captureCtx.restore();
 }
+function drawFrontTextsToCapture(){
+  const styles={titleDisplay:'title',textADisplay:'textA',textBDisplay:'textB'};
+  const sx=captureCanvas.width/visualStage.clientWidth;
+  const sy=captureCanvas.height/visualStage.clientHeight;
+  textLayerOrder.forEach(id=>{
+    if(textBehindCanvas[id])return;
+    const el=document.getElementById(id),cs=getComputedStyle(el);
+    if(!el.textContent || cs.display==='none' || Number(cs.opacity)===0)return;
+    const w=el.offsetWidth,h=el.offsetHeight;
+    if(!w||!h)return;
+    const matrix=cs.transform&&cs.transform!=='none'?new DOMMatrix(cs.transform):new DOMMatrix();
+    const origin=cs.transformOrigin.split(/\s+/).map(parseFloat);
+    const ox=Number.isFinite(origin[0])?origin[0]:w/2;
+    const oy=Number.isFinite(origin[1])?origin[1]:h/2;
+    const prefix=styles[id];
+    captureCtx.save();
+    captureCtx.setTransform(sx,0,0,sy,0,0);
+    captureCtx.translate(el.offsetLeft+ox,el.offsetTop+oy);
+    captureCtx.transform(matrix.a,matrix.b,matrix.c,matrix.d,matrix.e,matrix.f);
+    captureCtx.translate(-ox,-oy);
+    captureCtx.globalAlpha=Number(cs.opacity);
+    captureCtx.filter=cs.filter==='none'?'none':cs.filter;
+    captureCtx.font=`${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    captureCtx.textAlign='center';captureCtx.textBaseline='middle';
+    const outlineWidth=Number(document.getElementById(prefix+'OutlineWidth').value)||0;
+    if(outlineWidth>0){
+      captureCtx.lineWidth=outlineWidth;captureCtx.lineJoin='round';
+      captureCtx.strokeStyle=document.getElementById(prefix+'OutlineColor').value;
+      captureCtx.strokeText(el.textContent,w/2,h/2);
+    }
+    const gradient=captureCtx.createLinearGradient(0,0,w,0);
+    gradient.addColorStop(0,document.getElementById(prefix+'ColorA').value);
+    gradient.addColorStop(1,document.getElementById(prefix+'ColorB').value);
+    captureCtx.fillStyle=gradient;
+    captureCtx.fillText(el.textContent,w/2,h/2);
+    captureCtx.restore();
+  });
+}
 function composeCaptureFrame(){
   if(!captureCanvas){
     captureCanvas = document.createElement('canvas');
@@ -5289,6 +5347,7 @@ function composeCaptureFrame(){
   captureCtx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#05060e';
   captureCtx.fillRect(0,0,captureCanvas.width,captureCanvas.height);
   const targetRect = cv.getBoundingClientRect();
+  if(hasBgMedia && bgVisible && bgImageEl.getAttribute('src')) drawCaptureElement(bgImageEl, targetRect, true);
   if(typeof bgFolderActive!=='undefined' && bgFolderActive && bgVisible){
     bgFolderSlots.forEach(slot=>{
       const media=slot.type==='video'?slot.video:slot.image;
@@ -5296,7 +5355,7 @@ function composeCaptureFrame(){
       if(slot.el.classList.contains('active') || parseFloat(slotStyle.opacity)>0) drawCaptureElement(media,targetRect,true,slot.el);
     });
   }else if(hasBgMedia && bgVisible){
-    drawCaptureElement(hasBgVideo ? bgVideoEl : bgImageEl, targetRect, true);
+    if(hasBgVideo) drawCaptureElement(bgVideoEl, targetRect, true);
   }
   if(hasBg3D && bg3DVisible){
     drawCaptureElement(bgThreeCanvas, targetRect, false);
@@ -5309,6 +5368,7 @@ function composeCaptureFrame(){
   drawCaptureElement(cvFx, targetRect, false);
   captureCtx.globalCompositeOperation = 'source-over';
   captureCtx.drawImage(cv, 0, 0);
+  drawFrontTextsToCapture();
   return captureCanvas;
 }
 
@@ -17284,7 +17344,11 @@ function disableBg3D(){
 }
 
 function loadBgVideo(src){
-  bgImageEl.style.display = 'none';
+  bgImageEl.style.display = bgVisible && bgImageEl.getAttribute('src') ? 'block' : 'none';
+  if(bgImageEl.getAttribute('src') && Number(document.getElementById('bgVideoOpacitySel').value)===100){
+    document.getElementById('bgVideoOpacitySel').value='70';
+    document.getElementById('bgVideoOpacitySel').dispatchEvent(new Event('input'));
+  }
   bgVideoEl.muted = true;
   bgVideoEl.src = src;
   bgVideoEl.load();
@@ -17304,12 +17368,24 @@ function loadBgImage(src){
   revealBgMediaControls();
   applyBgDockSafeCentering();
 }
+function loadBgUnderlay(src){
+  bgImageEl.src = src;
+  bgImageEl.style.display = bgVisible ? 'block' : 'none';
+  hasBgMedia = true;
+  if(hasBgVideo && Number(document.getElementById('bgVideoOpacitySel').value)===100){
+    document.getElementById('bgVideoOpacitySel').value = '70';
+    document.getElementById('bgVideoOpacitySel').dispatchEvent(new Event('input'));
+  }
+  revealBgMediaControls();
+  applyBgDockSafeCentering();
+}
 
 /* ---------- local Background Folder playlist ---------------------------------
-   Folder access/scanning lives in Electron's isolated preload API. The renderer receives only
-   media paths and uses two stage-owned slots, so a real crossfade is visible and is also redrawn
-   by composeCaptureFrame(). No playlist medium sits outside the recording compositor. */
+   Electron scans paths through its isolated preload API. Browsers receive File objects from a
+   directory input and use object URLs. Both feed the same stage-owned crossfade slots and recorder. */
 const BG_FOLDER_KEY='subremix_bg_folder_playlist_v1';
+const BG_FOLDER_MEDIA_EXTS=/\.(jpe?g|png|webp|mp4|webm)$/i;
+let bgFolderObjectUrls=[];
 const bgFolderSlots=['A','B'].map(letter=>{
   const el=document.getElementById('bgPlaylistSlot'+letter);
   return {el,image:el.querySelector('img'),video:el.querySelector('video'),type:null,path:null,gen:0};
@@ -17318,7 +17394,7 @@ let bgFolderFiles=[],bgFolderPath='',bgFolderActive=false,bgFolderAuto=false,bgF
 let bgFolderInterval=10,bgFolderVideoPolicy='ended',bgFolderFit='cover',bgFolderCrossfade=1.2,bgFolderAvoidRepeat=true;
 let bgFolderActiveSlot=-1,bgFolderCurrentPath='',bgFolderShuffleBag=[],bgFolderRecent=[],bgFolderTimer=null,bgFolderSwitching=false;
 let bgFolderReadyPromise=Promise.resolve(true),bgFolderSession=0;
-function bgFolderSettings(){return {folder:bgFolderPath,auto:bgFolderAuto,order:bgFolderOrder,interval:bgFolderInterval,
+function bgFolderSettings(){return {folder:window.subRemixDesktop?bgFolderPath:'',auto:bgFolderAuto,order:bgFolderOrder,interval:bgFolderInterval,
   videoPolicy:bgFolderVideoPolicy,fit:bgFolderFit,crossfade:bgFolderCrossfade,avoidRepeat:bgFolderAvoidRepeat};}
 function saveBgFolderSettings(){try{localStorage.setItem(BG_FOLDER_KEY,JSON.stringify(bgFolderSettings()));}catch(_e){}}
 function bgFolderUrl(file){
@@ -17335,6 +17411,9 @@ function updateBgFolderStatus(error){
 }
 function syncBgFolderUi(){
   const zh=currentLang==='zh';
+  document.getElementById('bgUnderlayLabel').textContent=zh?'🖼 视频后方图片':'🖼 Image Behind Video';
+  document.getElementById('bgVideoOpacityLabel').textContent=zh?'🎞 视频透明度':'🎞 Video opacity';
+  document.querySelectorAll('.text-outline-label').forEach(el=>el.textContent=zh?'描边':'Outline');
   document.getElementById('bgFolderSelectBtn').textContent=zh?'📁 选择背景文件夹':'📁 Select Folder';
   document.getElementById('bgFolderNextBtn').textContent=zh?'⏭ 下一个背景':'⏭ Next Background';
   document.getElementById('bgFolderAutoBtn').textContent=(bgFolderAuto?'⏸ ':'▶ ')+(currentLang==='zh'?'文件夹轮播：':'Folder Playlist: ')+(bgFolderAuto?(currentLang==='zh'?'开':'On'):(currentLang==='zh'?'关':'Off'));
@@ -17402,7 +17481,13 @@ async function showBgFolderFile(file,attempt=0){
   try{
     bgFolderReadyPromise=prepareBgFolderSlot(slot,file);await bgFolderReadyPromise;
     if(session!==bgFolderSession){clearBgFolderSlot(slot);return false;}
-    bgFolderActive=true;hasBgMedia=true;hasBgVideo=file.type==='video';bgImageEl.style.display='none';bgVideoEl.pause();bgVideoEl.style.display='none';
+    bgFolderActive=true;hasBgMedia=true;hasBgVideo=file.type==='video';
+    bgImageEl.style.display=bgVisible && bgImageEl.getAttribute('src')?'block':'none';
+    bgVideoEl.pause();bgVideoEl.style.display='none';
+    if(hasBgVideo && bgImageEl.getAttribute('src') && Number(document.getElementById('bgVideoOpacitySel').value)===100){
+      document.getElementById('bgVideoOpacitySel').value='70';
+      document.getElementById('bgVideoOpacitySel').dispatchEvent(new Event('input'));
+    }
     slot.el.style.display=bgVisible?'block':'none';
     if(!old){
       // First item is the recording lock baseline: it must be fully opaque before callers may
@@ -17441,11 +17526,28 @@ async function loadBackgroundFolder(folderPath,autoStart=true){
   if(!window.subRemixDesktop)return false;const result=await window.subRemixDesktop.watchBackgroundFolder(folderPath);
   return applyBgFolderScan(result,autoStart);
 }
+async function applyBrowserBgFolderFiles(files){
+  const media=Array.from(files).filter(file=>BG_FOLDER_MEDIA_EXTS.test(file.name));
+  if(!media.length){updateBgFolderStatus(true);return false;}
+  const folder=media[0].webkitRelativePath?.split('/')[0]||'Selected Folder';
+  const next=media.map((file,i)=>{
+    const url=URL.createObjectURL(file);
+    return {name:file.name,path:file.webkitRelativePath||`${folder}/${i}/${file.name}`,url,
+      type:/\.(mp4|webm)$/i.test(file.name)?'video':'image'};
+  }).sort((a,b)=>a.path.localeCompare(b.path,undefined,{numeric:true,sensitivity:'base'}));
+  stopBgFolderPlayback(true);
+  const oldUrls=bgFolderObjectUrls;
+  bgFolderObjectUrls=next.map(file=>file.url);
+  await applyBgFolderScan({folder,files:next},false);
+  oldUrls.forEach(url=>URL.revokeObjectURL(url));
+  bgFolderAuto=true;saveBgFolderSettings();syncBgFolderUi();advanceBgFolder('select');
+  return true;
+}
 async function ensureBackgroundReadyForRecording(){try{return await bgFolderReadyPromise;}catch(_e){return false;}}
 window.subRemixDesktop?.onBackgroundFolderChanged(result=>applyBgFolderScan(result,bgFolderActive));
 async function restoreBgFolderSettings(){
   let s=null;try{s=JSON.parse(localStorage.getItem(BG_FOLDER_KEY)||'null');}catch(_e){}if(!s){syncBgFolderUi();return;}
-  bgFolderPath=s.folder||'';bgFolderAuto=!!s.auto;bgFolderOrder=s.order==='sequential'?'sequential':'shuffle';bgFolderInterval=Math.max(1,Number(s.interval)||10);
+  bgFolderPath=window.subRemixDesktop?s.folder||'':'';bgFolderAuto=!!s.auto&&!!bgFolderPath;bgFolderOrder=s.order==='sequential'?'sequential':'shuffle';bgFolderInterval=Math.max(1,Number(s.interval)||10);
   bgFolderVideoPolicy=s.videoPolicy==='timed'?'timed':'ended';bgFolderFit=['cover','contain','fill'].includes(s.fit)?s.fit:'cover';
   bgFolderCrossfade=[0,.5,1.2,2].includes(Number(s.crossfade))?Number(s.crossfade):1.2;bgFolderAvoidRepeat=s.avoidRepeat!==false;syncBgFolderUi();
   if(bgFolderPath)await loadBackgroundFolder(bgFolderPath,true);
@@ -17624,9 +17726,9 @@ function updateBgBounceDom(bass, mid, high, now){
 
 function drawBehindCanvasTexts(){
   const TEXT_CFG = {
-    titleDisplay:  {input:'titleIn',  ca:'titleColorA',  cb:'titleColorB',  font:'titleFontSel',  size:'titleSizeSel'},
-    textADisplay:  {input:'textAIn',  ca:'textAColorA',  cb:'textAColorB',  font:'textAFontSel',  size:'textASizeSel'},
-    textBDisplay:  {input:'textBIn',  ca:'textBColorA',  cb:'textBColorB',  font:'textBFontSel',  size:'textBSizeSel'}
+    titleDisplay:  {input:'titleIn',  ca:'titleColorA',  cb:'titleColorB',  font:'titleFontSel',  size:'titleSizeSel', outline:'title'},
+    textADisplay:  {input:'textAIn',  ca:'textAColorA',  cb:'textAColorB',  font:'textAFontSel',  size:'textASizeSel', outline:'textA'},
+    textBDisplay:  {input:'textBIn',  ca:'textBColorA',  cb:'textBColorB',  font:'textBFontSel',  size:'textBSizeSel', outline:'textB'}
   };
   textLayerOrder.forEach(id=>{
     if(!textBehindCanvas[id]) return;
@@ -17664,6 +17766,13 @@ function drawBehindCanvasTexts(){
     const grad = g2.createLinearGradient(-tw/2, 0, tw/2, 0);
     grad.addColorStop(0, colorA); grad.addColorStop(1, colorB);
     g2.fillStyle = grad;
+    const outlineWidth=Number(document.getElementById(cfg.outline+'OutlineWidth').value)||0;
+    if(outlineWidth>0){
+      g2.lineWidth=outlineWidth*textScale;
+      g2.lineJoin='round';
+      g2.strokeStyle=document.getElementById(cfg.outline+'OutlineColor').value;
+      g2.strokeText(text,0,0);
+    }
     g2.fillText(text, 0, 0);
     g2.restore();
   });
@@ -24424,9 +24533,9 @@ function getPresetState(){
     textA: typeof textAIn!=='undefined' && textAIn ? textAIn.value : '',
     textB: typeof textBIn!=='undefined' && textBIn ? textBIn.value : '',
     textStyle: {
-      title: {a:document.getElementById('titleColorA').value, b:document.getElementById('titleColorB').value, font:document.getElementById('titleFontSel').value, size:document.getElementById('titleSizeSel').value},
-      textA: {a:document.getElementById('textAColorA').value, b:document.getElementById('textAColorB').value, font:document.getElementById('textAFontSel').value, size:document.getElementById('textASizeSel').value},
-      textB: {a:document.getElementById('textBColorA').value, b:document.getElementById('textBColorB').value, font:document.getElementById('textBFontSel').value, size:document.getElementById('textBSizeSel').value}
+      title: {a:document.getElementById('titleColorA').value, b:document.getElementById('titleColorB').value, font:document.getElementById('titleFontSel').value, size:document.getElementById('titleSizeSel').value, outlineColor:document.getElementById('titleOutlineColor').value, outlineWidth:document.getElementById('titleOutlineWidth').value},
+      textA: {a:document.getElementById('textAColorA').value, b:document.getElementById('textAColorB').value, font:document.getElementById('textAFontSel').value, size:document.getElementById('textASizeSel').value, outlineColor:document.getElementById('textAOutlineColor').value, outlineWidth:document.getElementById('textAOutlineWidth').value},
+      textB: {a:document.getElementById('textBColorA').value, b:document.getElementById('textBColorB').value, font:document.getElementById('textBFontSel').value, size:document.getElementById('textBSizeSel').value, outlineColor:document.getElementById('textBOutlineColor').value, outlineWidth:document.getElementById('textBOutlineWidth').value}
     },
     textBounce: JSON.parse(JSON.stringify(textBounce)),
     textBehindCanvas: {...textBehindCanvas},
@@ -24543,15 +24652,21 @@ function setStyleControls(prefix, style){
   const b = document.getElementById(prefix+'ColorB');
   const f = document.getElementById(prefix+'FontSel');
   const s = document.getElementById(prefix+'SizeSel');
+  const outlineColor=document.getElementById(prefix+'OutlineColor');
+  const outlineWidth=document.getElementById(prefix+'OutlineWidth');
   if(!a || !b || !f) return;
   if(style.a) a.value = style.a;
   if(style.b) b.value = style.b;
   if(style.font) f.value = style.font;
   if(s && style.size) s.value = style.size;
+  if(outlineColor && /^#[0-9a-f]{6}$/i.test(style.outlineColor||'')) outlineColor.value=style.outlineColor;
+  if(outlineWidth) outlineWidth.value=String(Number.isFinite(Number(style.outlineWidth)) ? Math.max(0,Math.min(12,Number(style.outlineWidth))) : 0);
   a.dispatchEvent(new Event('input'));
   b.dispatchEvent(new Event('input'));
   f.dispatchEvent(new Event('change'));
   if(s) s.dispatchEvent(new Event('input'));
+  if(outlineColor) outlineColor.dispatchEvent(new Event('input'));
+  if(outlineWidth) outlineWidth.dispatchEvent(new Event('input'));
 }
 function listPresets(){
   const names = [];
@@ -25018,18 +25133,8 @@ function ensureStreamDest(){
 async function startRecording(){
   ensureStreamDest();
   if(!cv.captureStream){ console.error('captureStream not supported in this browser'); return false; }
-  // A folder item may be preloading into the hidden crossfade slot. Do not start capture on a
-  // transient black frame: recording begins only after that exact composite source is ready.
-  await ensureBackgroundReadyForRecording();
-  enterRecordingResolution();   // force the canvas buffer to 4K just for the recording — see comment above
-  const canvasStream = composeCaptureFrame().captureStream(60);
-  const audioTracks = streamDest ? streamDest.stream.getAudioTracks() : [];
-  const combined = new MediaStream([...canvasStream.getVideoTracks(), ...audioTracks]);
-  let mimeType = 'video/webm;codecs=vp9,opus';
-  if(!(window.MediaRecorder && MediaRecorder.isTypeSupported(mimeType))) mimeType = 'video/webm';
-
-  // stream straight to disk when possible — keeps memory flat for long recordings;
-  // falls back to buffering in memory only if the browser doesn't support this
+  // Ask for the destination before allocating the recording canvas or starting the encoder.
+  // Cancelling a supported picker means "do not record", not "buffer the video in memory".
   usingFileSystemWrite = false;
   fileWritable = null;
   if(window.showSaveFilePicker){
@@ -25040,9 +25145,22 @@ async function startRecording(){
       });
       fileWritable = await handle.createWritable();
       usingFileSystemWrite = true;
-    }catch(e){ usingFileSystemWrite = false; }   // user cancelled the picker — fall back
+    }catch(e){
+      if(e?.name !== 'AbortError') console.error('recording destination unavailable:', e);
+      return false;
+    }
   }
+  // A folder item may be preloading into the hidden crossfade slot. Do not start capture on a
+  // transient black frame: recording begins only after that exact composite source is ready.
+  await ensureBackgroundReadyForRecording();
+  enterRecordingResolution();   // force the canvas buffer to 4K just for the recording — see comment above
+  const canvasStream = composeCaptureFrame().captureStream(60);
+  const audioTracks = streamDest ? streamDest.stream.getAudioTracks() : [];
+  const combined = new MediaStream([...canvasStream.getVideoTracks(), ...audioTracks]);
+  let mimeType = 'video/webm;codecs=vp9,opus';
+  if(!(window.MediaRecorder && MediaRecorder.isTypeSupported(mimeType))) mimeType = 'video/webm';
 
+  // Browsers without a file picker still use the existing in-memory download path.
   recordedChunks = [];
   recordingWriteFailed = false;
   try{
@@ -25799,13 +25917,34 @@ document.getElementById('bgIn').onchange = e=>{
   };
   reader.readAsDataURL(f);
 };
+document.getElementById('bgUnderlayIn').onchange = e=>{
+  const f=e.target.files[0];if(!f)return;
+  const reader=new FileReader();
+  reader.onload=ev=>loadBgUnderlay(ev.target.result);
+  reader.readAsDataURL(f);
+};
+document.getElementById('bgVideoOpacitySel').oninput = e=>{
+  const pct=Math.max(0,Math.min(100,Number(e.target.value)));
+  bgVideoEl.style.opacity=String(pct/100);
+  bgFolderSlots.forEach(slot=>slot.video.style.opacity=String(pct/100));
+  document.getElementById('bgVideoOpacityVal').textContent=pct+'%';
+};
 document.getElementById('bgFolderSelectBtn').onclick=async()=>{
-  const picked=await window.subRemixDesktop?.selectBackgroundFolder();
+  if(!window.subRemixDesktop){
+    const input=document.getElementById('bgFolderIn');
+    if(!('webkitdirectory' in input)){
+      updateBgFolderStatus(true);
+      return;
+    }
+    input.value='';input.click();return;
+  }
+  const picked=await window.subRemixDesktop.selectBackgroundFolder();
   if(!picked)return;
-  const watched=await window.subRemixDesktop?.watchBackgroundFolder(picked.folder);
+  const watched=await window.subRemixDesktop.watchBackgroundFolder(picked.folder);
   await applyBgFolderScan(watched||picked,false);
   bgFolderAuto=true;saveBgFolderSettings();syncBgFolderUi();advanceBgFolder('select');
 };
+document.getElementById('bgFolderIn').onchange=e=>applyBrowserBgFolderFiles(e.target.files);
 document.getElementById('bgFolderAutoBtn').onclick=()=>{
   if(!bgFolderFiles.length){document.getElementById('bgFolderSelectBtn').click();return;}
   bgFolderAuto=!bgFolderAuto;saveBgFolderSettings();syncBgFolderUi();
@@ -25832,9 +25971,14 @@ document.getElementById('bgToggleBtn').onclick = ()=>{
   const btn = document.getElementById('bgToggleBtn');
   btn.textContent = bgVisible ? '👁 Show' : '🚫 Hidden';
   btn.classList.toggle('active', bgVisible);
-  if(bgFolderActive) bgFolderSlots.forEach(s=>s.el.style.display=bgVisible&&(s.el.classList.contains('active')||s.path)?'block':'none');
-  else if(hasBgVideo) bgVideoEl.style.display = bgVisible ? 'block' : 'none';
-  else if(hasBgMedia) bgImageEl.style.display = bgVisible ? 'block' : 'none';
+  if(bgFolderActive){
+    bgFolderSlots.forEach(s=>s.el.style.display=bgVisible&&(s.el.classList.contains('active')||s.path)?'block':'none');
+    bgImageEl.style.display=bgVisible && bgImageEl.getAttribute('src')?'block':'none';
+  }
+  else if(hasBgMedia){
+    bgImageEl.style.display = bgVisible && bgImageEl.getAttribute('src') ? 'block' : 'none';
+    bgVideoEl.style.display = bgVisible && hasBgVideo ? 'block' : 'none';
+  }
 };
 document.getElementById('bgRemoveBtn').onclick = ()=>{
   if(!confirm('Remove the photo/video background? This can be undone with Ctrl+Z.')) return;
@@ -25842,6 +25986,8 @@ document.getElementById('bgRemoveBtn').onclick = ()=>{
   stopBgFolderPlayback(true);
   bgImageEl.style.display = 'none'; bgImageEl.src = '';
   bgVideoEl.pause(); bgVideoEl.style.display = 'none'; bgVideoEl.src = '';
+  document.getElementById('bgVideoOpacitySel').value='100';
+  document.getElementById('bgVideoOpacitySel').dispatchEvent(new Event('input'));
   hasBgMedia = false; hasBgVideo = false; bgVisible = true;
   const toggleBtn = document.getElementById('bgToggleBtn');
   const removeBtn = document.getElementById('bgRemoveBtn');
@@ -26621,21 +26767,26 @@ createFontPicker(document.getElementById('titleFontSel'));
 createFontPicker(document.getElementById('textAFontSel'));
 createFontPicker(document.getElementById('textBFontSel'));
 
-function wireTextStyle(displayEl, colorAInput, colorBInput, fontSelect, sizeInput){
+function wireTextStyle(displayEl, colorAInput, colorBInput, fontSelect, sizeInput, outlineColor, outlineWidth, outlineValue){
   function update(){
     displayEl.style.backgroundImage = `linear-gradient(90deg, ${colorAInput.value}, ${colorBInput.value})`;
     displayEl.style.fontFamily = fontSelect.value;
     if(sizeInput) displayEl.style.fontSize = sizeInput.value + 'px';
+    const width=Number(outlineWidth.value);
+    displayEl.style.webkitTextStroke=width>0?`${width}px ${outlineColor.value}`:'0px transparent';
+    outlineValue.textContent=width>0?`${width}px`:'Off';
   }
   colorAInput.addEventListener('input', update);
   colorBInput.addEventListener('input', update);
   fontSelect.addEventListener('change', update);
   if(sizeInput) sizeInput.addEventListener('input', update);
+  outlineColor.addEventListener('input', update);
+  outlineWidth.addEventListener('input', update);
   update();   // apply the default swatch colours/size immediately
 }
-wireTextStyle(titleDisplay, document.getElementById('titleColorA'), document.getElementById('titleColorB'), document.getElementById('titleFontSel'), document.getElementById('titleSizeSel'));
-wireTextStyle(textADisplay, document.getElementById('textAColorA'), document.getElementById('textAColorB'), document.getElementById('textAFontSel'), document.getElementById('textASizeSel'));
-wireTextStyle(textBDisplay, document.getElementById('textBColorA'), document.getElementById('textBColorB'), document.getElementById('textBFontSel'), document.getElementById('textBSizeSel'));
+wireTextStyle(titleDisplay, document.getElementById('titleColorA'), document.getElementById('titleColorB'), document.getElementById('titleFontSel'), document.getElementById('titleSizeSel'), document.getElementById('titleOutlineColor'), document.getElementById('titleOutlineWidth'), document.getElementById('titleOutlineVal'));
+wireTextStyle(textADisplay, document.getElementById('textAColorA'), document.getElementById('textAColorB'), document.getElementById('textAFontSel'), document.getElementById('textASizeSel'), document.getElementById('textAOutlineColor'), document.getElementById('textAOutlineWidth'), document.getElementById('textAOutlineVal'));
+wireTextStyle(textBDisplay, document.getElementById('textBColorA'), document.getElementById('textBColorB'), document.getElementById('textBFontSel'), document.getElementById('textBSizeSel'), document.getElementById('textBOutlineColor'), document.getElementById('textBOutlineWidth'), document.getElementById('textBOutlineVal'));
 
 const textStylePanel = document.getElementById('textStylePanel');
 function openTextStylePanel(){ document.querySelectorAll('.dock-dd.show').forEach(m=>m.classList.remove('show')); closeModePanel(); closePresetPanel(); closeTimingPanel(); closeMidiPanel(); textStylePanel.classList.add('show'); }
@@ -27378,6 +27529,8 @@ function deleteLastInteracted(){
   }else if(lastInteracted==='bgImage' || lastInteracted==='bgVideo'){
     bgImageEl.style.display = 'none'; bgImageEl.src = '';
     bgVideoEl.pause(); bgVideoEl.style.display = 'none'; bgVideoEl.src = '';
+    document.getElementById('bgVideoOpacitySel').value='100';
+    document.getElementById('bgVideoOpacitySel').dispatchEvent(new Event('input'));
     hasBgMedia = false; hasBgVideo = false; bgVisible = true;
     const toggleBtn = document.getElementById('bgToggleBtn');
     const removeBtn = document.getElementById('bgRemoveBtn');
