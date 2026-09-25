@@ -8603,6 +8603,39 @@ function makeBg3DAlphaPass(){
   bg3DAlphaPasses.push(p);
   return p;
 }
+/* ---------- 后处理抗锯齿 ----------
+   MSAA 只管几何边缘;1px 线、着色器画出的边、bloom 之后的高光边都要靠这一道。
+   放在调色之后、写 alpha 之前:alpha 按最终 rgb 算,必须在平滑之后。 */
+let bg3DPostAA = 'smaa';   // 'smaa' | 'fxaa' | 'off' —— Task 5 定下最终方案
+function makeBg3DAAPass(){
+  if(bg3DPostAA === 'off') return null;
+  const size = ensureBg3DRenderer().getDrawingBufferSize(new THREE.Vector2());
+  const w = Math.max(1, size.x), h = Math.max(1, size.y);
+  let p;
+  if(bg3DPostAA === 'smaa'){
+    const A = THREE_R149_ADDONS;
+    p = new A.SMAAPass(w, h);
+    [p.materialEdges, p.materialWeights, p.materialBlend].forEach(m => { m.blending = THREE.NoBlending; });
+    p.areaTexture.image = A.smaaImages.area;
+    p.searchTexture.image = A.smaaImages.search;
+    const upload = () => { p.areaTexture.needsUpdate = true; p.searchTexture.needsUpdate = true; };
+    if(A.smaaImages.area.complete && A.smaaImages.search.complete) upload(); else A.smaaReady.then(upload);
+  }else{
+    p = new THREE.ShaderPass(THREE_R149_ADDONS.FXAAShader);
+    p.material.blending = THREE.NoBlending;
+    // ShaderPass.setSize 在 r149 是空实现;FXAA 需要 1/像素 尺寸
+    p.setSize = (sw, sh) => p.material.uniforms.resolution.value.set(1 / Math.max(1, sw), 1 / Math.max(1, sh));
+    p.setSize(w, h);
+  }
+  p.__bg3dAA = true;
+  return p;
+}
+function setBg3DPostAA(mode){
+  if(!['smaa', 'fxaa', 'off'].includes(mode) || mode === bg3DPostAA) return;
+  bg3DPostAA = mode;
+  Object.keys(bg3DScenes).forEach(vjDropCachedScene);
+  if(bg3DKind) enableBg3D(bg3DKind);
+}
 function ensureBg3DComposer(s){
   if(!s) return;
   if(!s.composer){
@@ -8622,6 +8655,13 @@ function ensureBg3DComposer(s){
     const gp = makeBg3DGradePass();
     const ai = passes.findIndex(p=>p.__bg3dAlpha);
     if(ai >= 0) s.composer.insertPass(gp, ai); else s.composer.addPass(gp);
+  }
+  if(!passes.some(p=>p.__bg3dAA)){
+    const aa = makeBg3DAAPass();
+    if(aa){
+      const ai = passes.findIndex(p=>p.__bg3dAlpha);
+      if(ai >= 0) s.composer.insertPass(aa, ai); else s.composer.addPass(aa);
+    }
   }
   if(!passes.length || !passes[passes.length-1].__bg3dAlpha) s.composer.addPass(makeBg3DAlphaPass());
 }
@@ -18238,7 +18278,8 @@ function resizeBg3D(stageW, stageH){
   if(canvasEl){ canvasEl.style.left = '0px'; canvasEl.style.top = '0px'; canvasEl.style.width = availW + 'px'; canvasEl.style.height = availH + 'px'; }
   Object.values(bg3DScenes).forEach(s=>{
     if(s.camera){ s.camera.aspect = availW/availH; s.camera.updateProjectionMatrix(); }
-    if(s.composer) s.composer.setSize(availW, availH);
+    // 自带 MSAA 渲染目标的合成器在 r149 里把像素比记成 1:不同步的话会按 CSS 尺寸渲染再被拉伸
+    if(s.composer){ s.composer.setPixelRatio(bg3DRenderer ? bg3DRenderer.getPixelRatio() : 1); s.composer.setSize(availW, availH); }
   });
 }
 function applyBgBounceToCamera(camera, p){
