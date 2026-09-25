@@ -14890,7 +14890,7 @@ const VJ_MATCAP_LOOKS = {
   metal:       { paint: 'metal', gain: 1.0 },
   satin:       { paint: 'satin', gain: 1.0 },
   glass:       { paint: 'glass', gain: 1.0 },
-  neonHousing: { paint: 'metal', gain: 0.35 },
+  neonHousing: { paint: 'metal', gain: 1.6 },
 };
 const vjMatcapCache = {};
 function vjMatcapTexture(paint){
@@ -16380,18 +16380,18 @@ function buildBg3DVjNeonTubeRoom(){
   const camera = new THREE.PerspectiveCamera(86, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
   const lights=vjLightRig(scene,{keyColor:0x9fafff,keyI:1.3,rimColor:0xffb35a,rimI:1.1,fillI:0.5});
 
-  const SEGS = 44, SPACING = VJ_LEN/SEGS;
-  // 纵向灯管：四壁各三根，顺着房间往前延伸
-  const tubeGeo = new THREE.BoxGeometry(0.55, 0.55, 5.6);
-  const tubes = new THREE.InstancedMesh(tubeGeo, vjStdMat({metalness:0.2,roughness:0.4,envMapIntensity:0.4}), SEGS*12);
-  tubes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  scene.add(tubes);
-  // 环形灯管：每隔几段一个方环，把房间"分节"
-  const ringGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
-  const RING_PER = 32;
-  const rings = new THREE.InstancedMesh(ringGeo, vjStdMat({metalness:0.2,roughness:0.4,envMapIntensity:0.4}), SEGS*RING_PER);
-  rings.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  scene.add(rings);
+  /* 48 段:方环每 3 段一个、两色每 6 段交替,都按世界编号取 —— 48 能被 3 和 6 整除,循环首尾对得上。 */
+  const SEGS = 48, SPACING = VJ_LEN/SEGS, RING_EVERY = 3, RING_PER = 32;
+  /* 灯管 = 圆柱发光芯 + 倒角灯座。芯随 glow 在截面上等比放大,圆柱不怕这种缩放;
+     灯座尺寸固定、垫在朝墙一侧,边上接得住 key/rim 灯的高光。 */
+  const coreGeo = new THREE.CylinderGeometry(0.24, 0.24, 5.6, vjQuality === 'low' ? 8 : 16);
+  coreGeo.rotateX(Math.PI / 2);
+  const cores = new THREE.InstancedMesh(coreGeo, vjMaterial('neonCore'), SEGS*12);
+  const housings = new THREE.InstancedMesh(vjBevelBox(0.95, 0.95, 5.8, 0.14), vjMaterial('neonHousing'), SEGS*12);
+  // 方环会随脉冲做不等比拉伸,倒角会被拉变形 —— 保留直角,只作发光体
+  const rings = new THREE.InstancedMesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), vjMaterial('neonCore'), SEGS*RING_PER);
+  [cores, housings, rings].forEach(m => { m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); });
+  const WALL_OUT = [[0,-1],[0,1],[-1,0],[1,0]];
   const tmp = {x:0,y:0};
   const HUE_BASE = 0.72;   // 品红-紫-蓝这一段，收紧的配色
 
@@ -16399,12 +16399,11 @@ function buildBg3DVjNeonTubeRoom(){
   let scroll = 0, clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
     clock += dt*0.016; scroll += vjSpeed(bass, dt);
-    const off = scroll % SPACING;
+    const off = scroll % SPACING, wraps = Math.floor(scroll / SPACING);
     const RW = 17;
-    // low 档是不受光材质：同样的亮度会被 bloom 晕成整屏紫雾，要整体压低一档
-    const Lb = tubes.material.isMeshStandardMaterial ? 0.35 : 0.24, Lg = tubes.material.isMeshStandardMaterial ? 0.28 : 0.24;
     for(let i=0;i<SEGS;i++){
       const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
+      const id = ((i + wraps) % SEGS + SEGS) % SEGS;
       for(let w=0;w<4;w++) for(let k=0;k<3;k++){
         const t = (k-1)*7.5;
         let x, y;
@@ -16412,13 +16411,14 @@ function buildBg3DVjNeonTubeRoom(){
         else if(w===2){ x = -RW; y = t; } else { x = RW; y = t; }
         const idx = i*12 + w*3 + k;
         const glow = 0.5 + 0.5*Math.sin(wz*0.05 + w*1.4 + k*0.7 + clock*1.7);
-        vjPut(tubes, idx, x, y, z, 0, 0, 0, 1 + glow*0.5, 1 + glow*0.5, 1);
-        const hue=(w===3 && k===1 ? 0.13 : HUE_BASE + w*0.025 + k*0.015 + Math.sin(clock*0.25)*0.03)%1;
-        VJ_C.setHSL(hue, 0.95, Lb + glow*Lg + high*0.08);
-        tubes.setColorAt(idx, VJ_C);
+        vjPut(cores, idx, x, y, z, 0, 0, 0, 1 + glow*0.5, 1 + glow*0.5, 1);
+        vjPut(housings, idx, x + WALL_OUT[w][0]*0.42, y + WALL_OUT[w][1]*0.42, z, 0, 0, 0, 1, 1, 1);
+        const hue = (w===3 && k===1 ? 0.13 : HUE_BASE + w*0.025 + k*0.015 + Math.sin(clock*0.25)*0.03)%1;
+        VJ_C.setHSL(hue, 0.95, 0.27 + glow*0.24 + high*0.08);
+        vjPresetJitter(VJ_C, id*12 + w*3 + k, 0.05);
+        cores.setColorAt(idx, VJ_C);
       }
-      // 每隔 3 段来一个方环
-      const isRing = (i % 3 === 0);
+      const isRing = id % RING_EVERY === 0;
       for(let j=0;j<RING_PER;j++){
         const idx = i*RING_PER + j;
         if(!isRing){ vjPut(rings, idx, 0, 0, 9999, 0,0,0, 0.0001,0.0001,0.0001); continue; }
@@ -16426,11 +16426,11 @@ function buildBg3DVjNeonTubeRoom(){
         vjSuperXY(a, RW*1.02, 10, tmp);
         const pulse = 0.4 + 0.6*Math.pow(Math.max(0, Math.sin(wz*0.06 + clock*2.4)), 2);
         vjPut(rings, idx, tmp.x, tmp.y, z, 0, 0, a, 1 + pulse*1.1 + bass*0.7, 1 + pulse*1.1, 1);
-        VJ_C.setHSL((i%2===0 ? 0.54 : HUE_BASE+0.08+Math.sin(clock*0.2)*0.02)%1, 0.95, Lb + pulse*Lg);
+        VJ_C.setHSL((id % (RING_EVERY*2) === 0 ? 0.54 : HUE_BASE+0.08+Math.sin(clock*0.2)*0.02)%1, 0.95, 0.27 + pulse*0.24);
         rings.setColorAt(idx, VJ_C);
       }
     }
-    vjFlush(tubes); vjFlush(rings);
+    vjFlush(cores); vjFlush(housings); vjFlush(rings);
     lights.key.intensity=1.25+bass*0.2;
     camera.fov = 86 + bass*13;
   }};

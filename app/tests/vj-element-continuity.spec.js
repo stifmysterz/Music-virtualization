@@ -74,7 +74,7 @@ function zTrack({ kind, frames, dt }) {
   return { kind, pops, flips, pairs };
 }
 
-for (const kind of ['vjSpeedGates']) {
+for (const kind of ['vjSpeedGates', 'vjNeonTubeRoom']) {
   test(`${kind}: 按槽位编号取的外观不能在每次退格时跳变`, async () => {
     await withApp(`continuity-${kind}`, async win => {
       const r = await win.evaluate(zTrack, { kind, frames: 160, dt: 0.25 });
