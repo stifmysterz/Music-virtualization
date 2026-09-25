@@ -39,16 +39,6 @@ function capture({ tier, kind, aa, record, measure, cropsOnly, crop }) {
   enableBg3D(kind);
   for (let i = 0; i < 42; i++) renderBg3D(0.5, 0.4, 0.3, 1);
   const gl = bg3DRenderer.getContext();
-  let frameMs = null;
-  if (measure) {
-    // gl.finish() 在 ANGLE 下不等 GPU 画完,量到的只是提交时间;读回 1 个像素才是真正的同步点
-    const px = new Uint8Array(4), t = [];
-    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
-    for (let i = 0; i < 30; i++) { const a = performance.now(); renderBg3D(0.5, 0.4, 0.3, 1); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); t.push(performance.now() - a); }
-    t.sort((x, y) => x - y);
-    frameMs = +t[15].toFixed(2);
-    renderBg3D(0.5, 0.4, 0.3, 1);
-  }
   const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
   const buf = new Uint8Array(w * h * 4);
   gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, buf);
@@ -73,6 +63,16 @@ function capture({ tier, kind, aa, record, measure, cropsOnly, crop }) {
   const zoom = document.createElement('canvas'); zoom.width = CW * 3; zoom.height = CH * 3;
   const zc = zoom.getContext('2d'); zc.imageSmoothingEnabled = false;
   zc.drawImage(src, sx, sy, CW, CH, 0, 0, CW * 3, CH * 3);
+  // 先截图再计时:带不带 --measure,截到的都是第 42 帧
+  let frameMs = null;
+  if (measure) {
+    // gl.finish() 在 ANGLE 下不等 GPU 画完,量到的只是提交时间;读回 1 个像素才是真正的同步点
+    const px = new Uint8Array(4), t = [];
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    for (let i = 0; i < 30; i++) { const a = performance.now(); renderBg3D(0.5, 0.4, 0.3, 1); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); t.push(performance.now() - a); }
+    t.sort((x, y) => x - y);
+    frameMs = +t[15].toFixed(2);
+  }
   if (record) exitRecordingResolution();
   return {
     tier: vjQuality, kind, aa: typeof bg3DPostAA === 'string' ? bg3DPostAA : 'n/a', record,

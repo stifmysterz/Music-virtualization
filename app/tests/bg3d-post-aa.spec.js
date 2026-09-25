@@ -18,7 +18,7 @@ async function withApp(label, fn) {
     try { cleanupUserDataDir(dir); } catch (_e) {}
   }
 }
-const MODES = ['smaa', 'fxaa'];
+const MODES = ['smaa'];
 
 test('三档 × 两种模式:恰好一道 AA pass,位于调色之后、写 alpha 之前,出图正常', async () => {
   test.setTimeout(120_000);
@@ -73,6 +73,13 @@ test('off 时没有 AA pass;关掉透出背景时 AA 成为最后一道 pass 仍
     expect(r.offCount).toBe(0);
     expect(r.lastIsAA).toBe(true);
     expect(r.lit).toBeGreaterThan(0.2);
+  });
+});
+
+test('只接受选定的 SMAA 和 off,已移除的 FXAA 不能被切进来', async () => {
+  await withApp('post-aa-modes', async win => {
+    const r = await win.evaluate(() => { setBg3DPostAA('fxaa'); return bg3DPostAA; });
+    expect(r).toBe('smaa');
   });
 });
 
@@ -143,7 +150,7 @@ test('同一帧上 AA 明显减少硬台阶(low 档 StarLane:细光带最容易�
       for (const m of modes) out[m] = frame(m);
       return out;
     }, MODES);
-    console.log(`hard-step ratio  off=${r.off.toFixed(4)}  smaa=${r.smaa.toFixed(4)}  fxaa=${r.fxaa.toFixed(4)}`);
+    console.log('hard-step ratio  ' + Object.entries(r).map(([k, v]) => `${k}=${v.toFixed(4)}`).join('  '));
     expect(r.off, '基准帧本身应该有明显锯齿,否则这条测不出东西').toBeGreaterThan(0.1);
     for (const m of MODES) expect(r[m], m).toBeLessThan(r.off * 0.25);
   });

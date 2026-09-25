@@ -52,7 +52,7 @@ test('移植代码在应用里可用:圆角面数正确,SMAA 接在合成链中�
       return { keys: Object.keys(A).sort(), tris1: tris(1), tris2: tris(2), glErr: gl.getError(),
                needsSwap: p.needsSwap, imagesDecoded: A.smaaImages.area.complete && A.smaaImages.search.complete };
     });
-    expect(r.keys).toEqual(['FXAAShader', 'RoundedBoxGeometry', 'SMAAPass', 'smaaImages', 'smaaReady']);
+    expect(r.keys).toEqual(['RoundedBoxGeometry', 'SMAAPass', 'smaaImages', 'smaaReady']);
     expect(r.tris1).toBe(108);
     expect(r.tris2).toBe(300);
     expect(r.glErr).toBe(0);
