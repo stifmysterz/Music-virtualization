@@ -14874,6 +14874,90 @@ function vjChamferBoxGeometry(w, h, d, bevel){
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   return g;
 }
+/* ---------- 材质预设库 ----------
+   每个预设都明确避开「塑料区」(中等粗糙、非金属、无反射、整片同色):
+   要么真金属带环境反射,要么哑光面靠逆光勾轮廓,要么玻璃,要么真正的发光体。
+   档位由预设自己处理:low 用 matcap(一次贴图查找就有明暗和高光),受光档用 PBR。 */
+const VJ_MATERIAL_PRESETS = ['metal', 'satin', 'glass', 'neonCore', 'neonHousing'];
+const VJ_LIT_LOOKS = {
+  metal:       { metalness: 0.72, roughness: 0.22, envMapIntensity: 0.6 },
+  satin:       { metalness: 0.05, roughness: 0.62, envMapIntensity: 0.25 },
+  glass:       { metalness: 0.0,  roughness: 0.08, envMapIntensity: 0.9, opacity: 0.45 },
+  neonHousing: { metalness: 0.85, roughness: 0.3,  envMapIntensity: 0.5, color: 0x2a2e36 },
+};
+// gain:low 档 matcap 的整体亮度倍率,由示范隧道的三档画面判据校准
+const VJ_MATCAP_LOOKS = {
+  metal:       { paint: 'metal', gain: 1.0 },
+  satin:       { paint: 'satin', gain: 1.0 },
+  glass:       { paint: 'glass', gain: 1.0 },
+  neonHousing: { paint: 'metal', gain: 0.35 },
+};
+const vjMatcapCache = {};
+function vjMatcapTexture(paint){
+  if(vjMatcapCache[paint]) return vjMatcapCache[paint];
+  const S = 256, R = S / 2, cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, S, S);
+  g.save(); g.beginPath(); g.arc(R, R, R, 0, Math.PI * 2); g.clip();
+  const radial = (x, y, r0, r1, stops) => {
+    const gr = g.createRadialGradient(x, y, r0, x, y, r1);
+    stops.forEach(([t, c]) => gr.addColorStop(t, c));
+    g.fillStyle = gr; g.fillRect(0, 0, S, S);
+  };
+  if(paint === 'metal'){
+    radial(R * 0.8, R * 0.7, 0, R * 1.3, [[0, '#6a6e76'], [0.6, '#2a2c32'], [1, '#0b0c0f']]);
+    // 一条亮地平线 —— 跟 vjEnvMap 一样,这是「这是金属」最关键的线索
+    const band = g.createLinearGradient(0, R * 0.80, 0, R * 1.05);
+    band.addColorStop(0, 'rgba(235,240,250,0)'); band.addColorStop(0.5, 'rgba(235,240,250,0.9)'); band.addColorStop(1, 'rgba(235,240,250,0)');
+    g.fillStyle = band; g.fillRect(0, R * 0.80, S, R * 0.25);
+    radial(R * 0.62, R * 0.52, 0, R * 0.3, [[0, 'rgba(255,255,255,0.95)'], [1, 'rgba(255,255,255,0)']]);
+    radial(R, R, R * 0.8, R, [[0, 'rgba(150,175,210,0)'], [1, 'rgba(150,175,210,0.6)']]);
+  }else if(paint === 'satin'){
+    radial(R * 0.7, R * 0.6, 0, R * 1.4, [[0, '#e6e6e6'], [0.55, '#8a8a8a'], [1, '#2e2e2e']]);
+    radial(R, R, R * 0.78, R, [[0, 'rgba(255,255,255,0)'], [1, 'rgba(255,255,255,0.45)']]);
+  }else{
+    radial(R, R, 0, R, [[0, '#101216'], [0.7, '#1c2026'], [1, '#9fb4cc']]);
+    radial(R * 0.6, R * 0.45, 0, R * 0.22, [[0, 'rgba(255,255,255,0.95)'], [1, 'rgba(255,255,255,0)']]);
+    radial(R * 1.35, R * 1.4, 0, R * 0.2, [[0, 'rgba(255,255,255,0.5)'], [1, 'rgba(255,255,255,0)']]);
+  }
+  g.restore();
+  return (vjMatcapCache[paint] = new THREE.CanvasTexture(cv));
+}
+function vjMaterial(preset, o){
+  if(!VJ_MATERIAL_PRESETS.includes(preset)) throw new Error(`unknown VJ material preset: ${preset}`);
+  o = o || {};
+  const lit = VJ_LIT_LOOKS[preset] || {};
+  const color = o.color !== undefined ? o.color : (lit.color !== undefined ? lit.color : 0xffffff);
+  const opacity = o.opacity !== undefined ? o.opacity : (lit.opacity !== undefined ? lit.opacity : 1);
+  const side = o.side !== undefined ? o.side : THREE.FrontSide;
+  let m;
+  if(preset === 'neonCore'){
+    m = new THREE.MeshBasicMaterial({ color, side, transparent: opacity < 1 || !!o.additive, opacity,
+      blending: o.additive ? THREE.AdditiveBlending : THREE.NormalBlending, depthWrite: !o.additive });
+  }else if(vjQuality === 'low'){
+    const look = VJ_MATCAP_LOOKS[preset];
+    m = new THREE.MeshMatcapMaterial({ matcap: vjMatcapTexture(look.paint), color: new THREE.Color(color).multiplyScalar(look.gain),
+      side, transparent: opacity < 1, opacity });
+  }else{
+    const Ctor = preset === 'glass' ? THREE.MeshPhysicalMaterial : THREE.MeshStandardMaterial;
+    m = new Ctor({ color, side, transparent: opacity < 1, opacity,
+      metalness: o.metalness !== undefined ? o.metalness : lit.metalness,
+      roughness: o.roughness !== undefined ? o.roughness : lit.roughness });
+    if(preset === 'glass'){ m.clearcoat = 1; m.clearcoatRoughness = 0.06; }
+    m.envMap = vjEnvMap();
+    m.envMapIntensity = o.envMapIntensity !== undefined ? o.envMapIntensity : lit.envMapIntensity;
+  }
+  m.userData.vjPreset = preset;
+  return m;
+}
+/* 确定性的逐实例亮度微差,避免整片同色的塑料感。key 必须是元素的「世界编号」
+   (槽位编号 + 已退格次数,取模槽位总数),不能用槽位编号 —— 否则每次退格花纹都会跳。 */
+function vjPresetJitter(c, key, amount){
+  const a = amount === undefined ? 0.06 : amount;
+  const h = Math.sin(key * 12.9898 + 78.233) * 43758.5453;
+  return c.multiplyScalar(1 + a * (2 * (h - Math.floor(h)) - 1));
+}
 function vjTint(c, hue, litSat, litLum, rawSat, rawLum){
   const lit = vjQuality !== 'low';
   return c.setHSL(hue, lit ? litSat : rawSat, lit ? litLum : rawLum);
