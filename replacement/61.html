@@ -8675,7 +8675,20 @@ function ensureBg3DComposer(s){
    samples 挂在画质档上：low 完全走原来的默认路径（零额外成本）。            */
 function bg3DMsaaSamples(){
   if(vjQuality === 'low') return 0;
-  return vjQuality === 'ultra' ? 4 : 2;
+  const tier = vjQuality === 'ultra' ? 4 : 2;
+  // 录制时 3D 层可能是 4K:多重采样限 2×,其余交给后处理抗锯齿
+  return recordingResolutionActive ? Math.min(tier, 2) : tier;
+}
+function applyBg3DMsaaSamples(){
+  const samples = bg3DMsaaSamples();
+  Object.values(bg3DScenes).forEach(s=>{
+    const c = s.composer;
+    if(!c) return;
+    [c.renderTarget1, c.renderTarget2].forEach(rt=>{
+      // samples 只在分配时读取:改完 dispose,下一次渲染按新倍数重建,不用重建场景
+      if(rt && rt.samples !== samples){ rt.samples = samples; rt.dispose(); }
+    });
+  });
 }
 function bg3DComposer(){
   const renderer = ensureBg3DRenderer();
@@ -18270,16 +18283,25 @@ const BG3D_BUILDERS = {
 /* 119 regular 3D backgrounds + 50 VJ tunnels share this builder registry. */
 /* BG3D_BUILDERS:END */
 
+function bg3DTargetPixelRatio(stageW){
+  // 录制时按录制分辨率渲染(跟 2D 画布的 W 对齐),而不是渲染屏幕尺寸再被放大进成片
+  if(recordingResolutionActive) return W / Math.max(1, stageW);
+  return Math.min(window.devicePixelRatio || 1, 2);
+}
 function resizeBg3D(stageW, stageH){
   const availW = Math.max(1, stageW || visualStage.clientWidth || window.innerWidth - PANEL_SAFE_ZONE);
   const availH = Math.max(1, stageH || visualStage.clientHeight || window.innerHeight - DOCK_SAFE_ZONE);
-  if(bg3DRenderer) bg3DRenderer.setSize(availW, availH, false);
+  const pr = bg3DTargetPixelRatio(availW);
+  if(bg3DRenderer){
+    if(bg3DRenderer.getPixelRatio() !== pr) bg3DRenderer.setPixelRatio(pr);
+    bg3DRenderer.setSize(availW, availH, false);
+  }
   const canvasEl = document.getElementById('bgThree');   // resize() runs once at page load, before the bgThreeCanvas const below is initialized — look it up fresh instead
   if(canvasEl){ canvasEl.style.left = '0px'; canvasEl.style.top = '0px'; canvasEl.style.width = availW + 'px'; canvasEl.style.height = availH + 'px'; }
   Object.values(bg3DScenes).forEach(s=>{
     if(s.camera){ s.camera.aspect = availW/availH; s.camera.updateProjectionMatrix(); }
     // 自带 MSAA 渲染目标的合成器在 r149 里把像素比记成 1:不同步的话会按 CSS 尺寸渲染再被拉伸
-    if(s.composer){ s.composer.setPixelRatio(bg3DRenderer ? bg3DRenderer.getPixelRatio() : 1); s.composer.setSize(availW, availH); }
+    if(s.composer){ s.composer.setPixelRatio(pr); s.composer.setSize(availW, availH); }
   });
 }
 function applyBgBounceToCamera(camera, p){
@@ -26299,12 +26321,17 @@ function enterRecordingResolution(){
   CX = W/2; CY = H/2;
   resetEffectLayoutCaches();
   recordingResolutionActive = true;
+  applyBg3DMsaaSamples();
+  resizeBg3D();
+  // 改缓冲尺寸会清空 WebGL 画布;马上补画一帧,startRecording 接着合成的第一帧里 3D 才不是空的
+  renderBg3D(musicState.bass, musicState.mid, musicState.high, 0);
 }
 function exitRecordingResolution(){
   if(!recordingResolutionActive) return;
   recordingResolutionActive = false;   // 必须先清掉，否则下面这句 resize() 会被自己的录制守卫挡回去
   resize();   // recomputes W/H/CX/CY correctly for the real on-screen size/DPR/aspect mode
   resetEffectLayoutCaches();
+  applyBg3DMsaaSamples();
 }
 let fileWritable = null, usingFileSystemWrite = false, recordingWriteFailed = false;
 function ensureStreamDest(){
