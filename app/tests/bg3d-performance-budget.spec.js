@@ -91,3 +91,25 @@ test('渲染器像素比有上限，性能快照包含发布所需指标', async
     expect(result.keys).toEqual(['maxCachedScenes','maxDrawCalls','maxTriangles']);
   });
 });
+
+test('全部 50 条 VJ 在三档画质下都不超过 draw-call / triangle 预算', async () => {
+  test.setTimeout(300_000);
+  await withApp('bg3d-budget-all', async win => {
+    const rows = await win.evaluate(() => {
+      document.getElementById('intro')?.classList.add('hidden');
+      const out = [];
+      for (const tier of ['low', 'balanced', 'ultra']) {
+        const sel = document.getElementById('vjQualitySel'); sel.value = tier; sel.dispatchEvent(new Event('change'));
+        for (const kind of VJ_TUNNEL_KINDS) {
+          enableBg3D(kind); renderBg3D(0.5, 0.4, 0.3, 1);
+          out.push({ tier, ...bg3DPerformanceSnapshot(), budget: BG3D_PERFORMANCE_BUDGET[tier] });
+        }
+      }
+      return out;
+    });
+    for (const r of rows) {
+      expect.soft(r.calls, `${r.tier}/${r.kind}: draw calls`).toBeLessThanOrEqual(r.budget.maxDrawCalls);
+      expect.soft(r.triangles, `${r.tier}/${r.kind}: triangles`).toBeLessThanOrEqual(r.budget.maxTriangles);
+    }
+  });
+});

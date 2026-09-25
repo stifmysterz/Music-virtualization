@@ -15979,39 +15979,46 @@ function buildBg3DVjSpeedGates(){
   const camera = new THREE.PerspectiveCamera(86, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
   const lights = vjLightRig(scene,{keyColor:0x9bdcff,keyI:1.4,rimColor:0xff638e,rimI:1.2,fillI:0.45});
 
-  const GATES = 26, SPACING = VJ_LEN/GATES;
-  const gates = [];
-  for(let i=0;i<GATES;i++){
-    const g = new THREE.Group();
-    const mat = vjStdMat({metalness:0.68,roughness:0.32,envMapIntensity:0.24,side:THREE.DoubleSide});
-    // 四条边拼成一个方框
-    const h = new THREE.BoxGeometry(30, 1.7, 1.7), v = new THREE.BoxGeometry(1.7, 19, 1.7);
-    [[0, 9.5, h], [0, -9.5, h]].forEach(([x,y,gg])=>{ const m = new THREE.Mesh(gg, mat); m.position.set(x,y,0); g.add(m); });
-    [[-14.2, 0, v], [14.2, 0, v]].forEach(([x,y,gg])=>{ const m = new THREE.Mesh(gg, mat); m.position.set(x,y,0); g.add(m); });
-    scene.add(g);
-    gates.push({ g, mat });
-  }
+  /* 强调色按世界编号(槽位 + 已退格次数)取:按槽位取的话每次退格都留在原地,橙色门会原地频闪。
+     门数 25 能被 5 整除,一圈循环首尾的强调色位置才对得上。 */
+  const GATES = 25, SPACING = VJ_LEN/GATES, ACCENT_EVERY = 5;
+  const mat = vjStdMat({metalness:0.68,roughness:0.32,envMapIntensity:0.24,side:THREE.DoubleSide});
+  // 四条边各进一个 InstancedMesh:以前 26×4 个独立 Mesh 是 119 次 draw call
+  const hBars = new THREE.InstancedMesh(new THREE.BoxGeometry(30, 1.7, 1.7), mat, GATES*2);
+  const vBars = new THREE.InstancedMesh(new THREE.BoxGeometry(1.7, 19, 1.7), mat, GATES*2);
+  [hBars, vBars].forEach(m => { m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); });
+  const H_OFF = [[0, 9.5], [0, -9.5]], V_OFF = [[-14.2, 0], [14.2, 0]];
+  const gateM = new THREE.Matrix4(), localM = new THREE.Matrix4(), barM = new THREE.Matrix4();
+  const q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), sc = new THREE.Vector3();
 
   const { composer } = createBg3DBloom(scene, camera, 1.35, 0.42, 0.46);
   let scroll = 0, clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
     clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.45;
-    const off = scroll % SPACING;
-    gates.forEach((gate, i)=>{
+    const off = scroll % SPACING, wraps = Math.floor(scroll / SPACING);
+    const lit = mat.isMeshStandardMaterial;
+    for(let i=0;i<GATES;i++){
       const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
-      gate.g.position.z = z;
-      gate.g.position.x = Math.sin(wz*0.03 + clock*0.8)*4.5*(0.4+mid);
-      gate.g.position.y = Math.cos(wz*0.041 + clock*0.6)*2.8*(0.4+mid);
-      gate.g.rotation.z = wz*0.014 + clock*0.25;
       const k = 1 + bass*0.22 + 0.12*Math.sin(wz*0.1 + clock*4);
-      gate.g.scale.set(k, k, 1);
+      gateM.compose(
+        p.set(Math.sin(wz*0.03 + clock*0.8)*4.5*(0.4+mid), Math.cos(wz*0.041 + clock*0.6)*2.8*(0.4+mid), z),
+        q.setFromEuler(e.set(0, 0, wz*0.014 + clock*0.25)),
+        sc.set(k, k, 1));
       // 越靠近镜头越亮 —— 门迎面压过来时会「点亮」
       const near = Math.max(0, 1 - Math.abs(z)/70);
-      const hue=((i%5===0 ? 0.06 : 0.58) + wz*0.002 + clock*0.04 + 1)%1;
+      const accent = ((i + wraps) % ACCENT_EVERY + ACCENT_EVERY) % ACCENT_EVERY === 0;
+      const hue = ((accent ? 0.06 : 0.58) + wz*0.002 + clock*0.04 + 1)%1;
       // low 档退回不受光材质，颜色直接上屏 —— 沿用受光档的亮度会朝白收敛再被 bloom 糊成灰
-      if(gate.mat.isMeshStandardMaterial) gate.mat.color.setHSL(hue, 0.9, 0.4 + near*0.28 + high*0.08);
-      else gate.mat.color.setHSL(hue, 1, 0.12 + near*0.3 + high*0.06);
-    });
+      if(lit) VJ_C.setHSL(hue, 0.9, 0.4 + near*0.28 + high*0.08);
+      else VJ_C.setHSL(hue, 1, 0.12 + near*0.3 + high*0.06);
+      for(let b=0;b<2;b++){
+        hBars.setMatrixAt(i*2+b, barM.multiplyMatrices(gateM, localM.makeTranslation(H_OFF[b][0], H_OFF[b][1], 0)));
+        vBars.setMatrixAt(i*2+b, barM.multiplyMatrices(gateM, localM.makeTranslation(V_OFF[b][0], V_OFF[b][1], 0)));
+        hBars.setColorAt(i*2+b, VJ_C);
+        vBars.setColorAt(i*2+b, VJ_C);
+      }
+    }
+    vjFlush(hBars); vjFlush(vBars);
     lights.key.intensity=1.3+bass*0.2;
     camera.fov = 86 + bass*17;
   }};
@@ -18330,6 +18337,7 @@ function renderBg3D(bass, mid, high, dt){
   if(bg3DDirectorOn) dirDropPunch *= 0.9;   // 它的亮度冲击由 applyBg3DFilter 一并合成，不再单独改写 filter
 }
 const BG3D_PERFORMANCE_BUDGET = Object.freeze({
+  low:      Object.freeze({maxCachedScenes:BG3D_SCENE_CACHE_LIMIT, maxDrawCalls:80, maxTriangles:1500000}),
   balanced: Object.freeze({maxCachedScenes:BG3D_SCENE_CACHE_LIMIT, maxDrawCalls:80, maxTriangles:1500000}),
   ultra:    Object.freeze({maxCachedScenes:BG3D_SCENE_CACHE_LIMIT, maxDrawCalls:80, maxTriangles:1500000})
 });
