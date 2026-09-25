@@ -1089,6 +1089,7 @@
   <button id="snapshotBtn" class="dock-dd-item" title="Save the current frame as a PNG">📷 Snapshot</button>
   <button id="recordBtn" class="dock-dd-item" title="Record screen + audio — pick a save location for long recordings">⏺ Record</button>
   <button id="recordQualityBtn" class="dock-dd-item" title="Recording resolution. Lower it if the FPS meter drops while recording — 4K is the sharpest but the heaviest">🎬 Quality: 4K</button>
+  <button id="record3DSharpBtn" class="dock-dd-item" title="How sharp the 3D/VJ layer is in recordings. Screen Size is as fast as before; Recording Quality renders it at the recording resolution for the sharpest edges, but is much heavier on the GPU">🧊 3D in Recording: Screen Size</button>
   <button id="fullscreenBtn" class="dock-dd-item" title="Toggle fullscreen">⛶ Full</button>
   <div class="tools-section-header" style="color:#0d2b6b;font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin:8px 4px 0">Other</div>
   <button id="liveBarToggleBtn" class="dock-dd-item" title="Show/hide the live-performance quick bar">⚡ Live Bar</button>
@@ -7312,6 +7313,7 @@ const T2 = {
       fpsTipQuality:'Recording is dropping frames — try a lower Quality in Tools.',
       fpsTipLayers:'Still dropping frames at 1080p — try using fewer modes at once.',
       recordQualityLocked:'Stop the recording before changing quality.',
+      record3DLabel:'3D in Recording',record3DScreen:'Screen Size',record3DMatch:'Recording Quality',
       bgAdjustBanner:'🎯 Adjusting background — click here or press Esc to finish',
       bgAdjustOnLabel:'🎯 Adjusting…',bgAdjustOffLabel:'🎯 Position BG',
       screenBlendOn:'✳ Remove Black BG: On',screenBlendOff:'✳ Remove Black BG: Off',
@@ -7352,6 +7354,7 @@ const T2 = {
       fpsTipQuality:'录制掉帧了 —— 到 Tools 里把录制画质调低一档试试。',
       fpsTipLayers:'1080p 还是掉帧 —— 试试同时少开几个 mode。',
       recordQualityLocked:'先停止录制，再改画质。',
+      record3DLabel:'录制时 3D',record3DScreen:'屏幕尺寸',record3DMatch:'跟随录制画质',
       bgAdjustBanner:'🎯 正在调整背景 — 点这里或按 Esc 结束',
       bgAdjustOnLabel:'🎯 调整中…',bgAdjustOffLabel:'🎯 调整背景位置',
       shuffleOff:'🔀 自动轮换：关',shuffleOn:'🔀 自动轮换：开',
@@ -7409,6 +7412,7 @@ const STATEFUL_LABELS = {
   },
   twoDGradeBtn: ()=> '🎞 2D ' + t2('filmGradeLabel') + ': ' + t2((typeof twoDGradeOn!=='undefined' && twoDGradeOn) ? 'onWord' : 'offWord'),
   recordQualityBtn: ()=> '🎬 ' + t2('recordQualityLabel') + ': ' + ({'4k':'4K','1440p':'1440p','1080p':'1080p'})[typeof recordQuality!=='undefined'?recordQuality:'4k'],
+  record3DSharpBtn: ()=> '🧊 ' + t2('record3DLabel') + ': ' + t2((typeof record3DSharp!=='undefined' && record3DSharp) ? 'record3DMatch' : 'record3DScreen'),
   micBtn: ()=> (typeof micActive!=='undefined' && micActive) ? ('🎤 '+t2('micOn')) : ('🎤 '+t2('mic')),
   micShuffleToggle: ()=> (typeof micShuffleOn!=='undefined' && micShuffleOn) ? t2('shuffleOn') : t2('shuffleOff'),
   blackoutBtn: ()=> (typeof blackoutOn!=='undefined' && blackoutOn) ? t2('blackoutRestore') : t2('blackout'),
@@ -8384,8 +8388,8 @@ function ensureBg3DComposer(s){
 function bg3DMsaaSamples(){
   if(vjQuality === 'low') return 0;
   const tier = vjQuality === 'ultra' ? 4 : 2;
-  // 录制时 3D 层可能是 4K:多重采样限 2×,其余交给后处理抗锯齿
-  return recordingResolutionActive ? Math.min(tier, 2) : tier;
+  // 按录制分辨率渲染时 3D 层可能是 4K:多重采样限 2×,其余交给后处理抗锯齿
+  return (recordingResolutionActive && record3DSharp) ? Math.min(tier, 2) : tier;
 }
 function applyBg3DMsaaSamples(){
   const samples = bg3DMsaaSamples();
@@ -17992,8 +17996,8 @@ const BG3D_BUILDERS = {
 /* BG3D_BUILDERS:END */
 
 function bg3DTargetPixelRatio(stageW){
-  // 录制时按录制分辨率渲染(跟 2D 画布的 W 对齐),而不是渲染屏幕尺寸再被放大进成片
-  if(recordingResolutionActive) return W / Math.max(1, stageW);
+  // 用户打开「录制时 3D:跟随录制画质」时,按录制分辨率渲染(跟 2D 画布的 W 对齐),而不是渲染屏幕尺寸再被放大进成片
+  if(recordingResolutionActive && record3DSharp) return W / Math.max(1, stageW);
   return Math.min(window.devicePixelRatio || 1, 2);
 }
 function resizeBg3D(stageW, stageH){
@@ -26020,6 +26024,14 @@ const RECORD_QUALITY_ORDER = ['4k', '1440p', '1080p'];
 let recordQuality = '4k';
 try{ if(RECORD_QUALITIES[localStorage.getItem('subremix_recordquality')]) recordQuality = localStorage.getItem('subremix_recordquality'); }catch(e){}
 function recordDims(){ return RECORD_QUALITIES[recordQuality] || RECORD_QUALITIES['4k']; }
+/* 录制时 3D 层按录制分辨率渲染,成片边缘最锐利 —— 但集显上录 4K 只剩约 6–8 fps,所以默认关,由用户选 */
+let record3DSharp = false;
+try{ record3DSharp = localStorage.getItem('subremix_record3dsharp') === '1'; }catch(e){}
+function setRecord3DSharp(on){
+  record3DSharp = !!on;
+  try{ localStorage.setItem('subremix_record3dsharp', record3DSharp ? '1' : '0'); }catch(e){}
+  applyRecord3DSharpBtn();
+}
 // recordingResolutionActive 在 resize() 旁边声明 —— 它要在那里就能读到，见那边的说明
 function enterRecordingResolution(){
   const [rw, rh] = recordDims();
@@ -26409,6 +26421,18 @@ document.getElementById('recordQualityBtn').onclick = ()=>{
   applyRecordQualityBtn();
 };
 applyRecordQualityBtn();
+function applyRecord3DSharpBtn(){
+  const btn = document.getElementById('record3DSharpBtn');
+  if(!btn) return;
+  btn.textContent = STATEFUL_LABELS.record3DSharpBtn();
+  btn.classList.toggle('active', record3DSharp);
+}
+document.getElementById('record3DSharpBtn').onclick = ()=>{
+  // 录制中不许改:3D 缓冲尺寸一变,成片中途清晰度会跳
+  if(isRecording){ alert(t2('recordQualityLocked')); return; }
+  setRecord3DSharp(!record3DSharp);
+};
+applyRecord3DSharpBtn();
 document.getElementById('helpDoneBtn').onclick = closeHelpPanel;
 helpPanel.querySelector('.mode-backdrop').onclick = closeHelpPanel;
 

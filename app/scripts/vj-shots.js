@@ -2,7 +2,7 @@
 'use strict';
 /* 截图 + 指标。对比网页和每批验收都用它:
    node scripts/vj-shots.js --out ../vj-shots/baseline --kinds vjChromeFlow,vjNeonTubeRoom
-     [--tiers low,balanced,ultra] [--aa off|fxaa|smaa] [--record 4k|1440p|1080p]
+     [--tiers low,balanced,ultra] [--aa off|smaa] [--record 4k|1440p|1080p] [--record-sharp]
      [--measure] [--crop 0.62,0.35] [--crops-only]
    每张图都是固定种子、全新建场景、固定音频输入下的第 42 帧,不同批次之间可直接对比。 */
 const fs = require('fs');
@@ -21,18 +21,23 @@ const tiers = arg('tiers', 'low,balanced,ultra').split(',');
 const opts = {
   aa: arg('aa', null),
   record: arg('record', null),
+  recordSharp: flag('record-sharp'),
   measure: flag('measure'),
   cropsOnly: flag('crops-only'),
   crop: arg('crop', '0.5,0.5').split(',').map(Number),
 };
 if (!kinds.length) { console.error('--kinds is required'); process.exit(2); }
 
-function capture({ tier, kind, aa, record, measure, cropsOnly, crop }) {
+function capture({ tier, kind, aa, record, recordSharp, measure, cropsOnly, crop }) {
   document.getElementById('intro')?.classList.add('hidden');
   const sel = document.getElementById('vjQualitySel');
   if (sel.value !== tier) { sel.value = tier; sel.dispatchEvent(new Event('change')); }
   if (aa && typeof setBg3DPostAA === 'function') setBg3DPostAA(aa);
-  if (record) { recordQuality = record; enterRecordingResolution(); }
+  if (record) {
+    // 录制时 3D 清晰度是用户开关(默认按屏幕尺寸):--record-sharp 拍打开后的成片
+    if (typeof setRecord3DSharp === 'function') setRecord3DSharp(recordSharp);
+    recordQuality = record; enterRecordingResolution();
+  }
   vjDropCachedScene(kind);
   seedBg3DBuilds(0x5EED);
   vjSpeedBassSmooth = 0;
