@@ -29,19 +29,27 @@
 - **6 条用 1px 线**(`LineBasicMaterial` / `LineSegments`),最容易出锯齿。
 - 抗锯齿只有 EffectComposer 的 MSAA:low=0、balanced=2、ultra=4(`bg3DMsaaSamples()`)。像素比上限 2,1080p 显示器/投影/LED 墙上是 1。
 - 内嵌 three.js r149 **没有** `RoundedBoxGeometry`、`SMAAPass`、`FXAAShader`、`TAARenderPass`、`OutputPass`,需要自行内联。
-- 录制时画布切到 4K;ultra 的 4× MSAA 在 4K 下仅颜色+深度缓冲就约 260 MB 显存。
+- **录制时只有 2D 三层画布(`cv`/`cvFx`/`cvBack`)切到录制分辨率;3D/VJ 画布始终按舞台 CSS 尺寸 × 像素比(≤2)渲染**(`resize()` 在录制中也调用 `resizeBg3D(cssW, cssH)`,61.html:5168-5170),合成时由 `drawCaptureElement(bgThreeCanvas, …)` 放大贴进录制帧。1080p 显示器录 4K 时,VJ 层是约 1920×1080 被放大一倍 —— 成片里边缘偏软。
 
 ## 3. 设计
 
 ### 3.1 抗锯齿(全局,不需要美术判断)
 
-- **不提高 MSAA 倍数**:4K 录制时显存成本翻倍,对慢机器风险大。
+- **不提高平时的 MSAA 倍数**:高分屏上像素比为 2 时,3D 画布本身就接近 4K 像素量,balanced 从 2× 提到 4× 的显存与填充成本对慢机器风险大;细线与着色器边缘本来也不在 MSAA 能处理的范围内。
 - **三档都加一道后处理抗锯齿 pass**,位置:调色 pass(`__bg3dGrade`)之后、写 alpha 的 pass(`__bg3dAlpha`)之前 —— alpha 按最终 rgb 的最大通道算,必须在抗锯齿之后。
 - 候选:FXAA(最便宜,细节略软)与 SMAA(细节保留更好,需要内联 area/search 查找纹理,成本略高)。**在 1080p 与 4K 录制下实测画面与帧时间后选定**,以截图对比交用户确认。
 - 挂载方式与现有 grade/alpha pass 一致:由 `ensureBg3DComposer` 统一插入,所有 3D 背景与 VJ 共用;回收走 `vjDropCachedScene`,pass 的 `dispose()` 必须释放全部材质和渲染目标(参照 bloom `materialHighPassFilter` 泄漏的教训)。
-- pass 的分辨率 uniform 必须跟随 `resizeBg3D` 与录制分辨率切换(`enterRecordingResolution`)。
+- pass 的分辨率 uniform 必须跟随合成器尺寸(`composer.setSize`),包括窗口缩放与 3.2 的录制分辨率切换。
 
-### 3.2 圆角 / 倒角几何:`vjBevelBox(w, h, d, radius)`
+### 3.2 录制时按录制画质渲染 3D 层(用户 2026-09-25 决定)
+
+- 录制期间 3D 画布的绘制缓冲 = 录制分辨率(与 2D 画布的 `W×H` 一致),CSS 显示尺寸不变:`resizeBg3D` 在 `recordingResolutionActive` 时把渲染器与各合成器的像素比设为 `W / 舞台CSS宽`;停止录制后恢复 `min(devicePixelRatio, 2)`。跟随现有"录制画质"选项(4K / 1440p / 1080p),慢机器由用户选低一档。
+- 录制期间 MSAA 上限 2×(高分辨率下显存与填充成本),其余交给后处理抗锯齿;已缓存场景的合成器渲染目标在进入/退出录制时调整 samples 并重建,不重建场景。
+- Auto 画质在录制期间已冻结(`e79223c`),不会因 4K 渲染变慢而中途降档。
+- 进入录制是一次性的缓冲重建,不能在录制帧里造成黑帧或闪烁:切换发生在 `startRecording` 取流之前。
+- 实测:VJ 在 4K / 1440p / 1080p 录制分辨率下的帧时间,与现状对比,结果写进 HANDOFF。
+
+### 3.3 圆角 / 倒角几何:`vjBevelBox(w, h, d, radius)`
 
 | 档位 | 形状 | 三角面/个(直角方块=12) |
 |---|---|---|
@@ -54,7 +62,7 @@
 - 圆角/倒角必须配受光或 matcap 材质才看得见 —— 几何与材质一起换。
 - **不等比拉伸规则**(写进 HANDOFF):很多效果用单位方块再按实例拉伸,圆角会随之变形。按实际尺寸建几何;或细长部件改用圆柱/胶囊;或保留直角,只靠抗锯齿与材质改善。
 
-### 3.3 材质预设库:`vjMaterial(preset, opts)`
+### 3.4 材质预设库:`vjMaterial(preset, opts)`
 
 原则:每个预设都明确避开"塑料区";发光体保留发光,改为"发光芯 + 实体外壳"。
 
@@ -80,9 +88,10 @@
 1. **预设覆盖棘轮**:测试内维护"已改造隧道"清单,清单内隧道的所有可见 mesh 材质必须带 `userData.vjPreset`;清单只增不减。
 2. **三档画面判据**:已改造隧道在 low/balanced/ultra 下 lit 40%~90%、vivid > 50%、hues > 5(沿用 `vj-five-depth.spec.js` 的做法,soft 断言一次报全)。
 3. **性能预算**:扩展 `bg3d-performance-budget.spec.js` 到 50 条 × 三档的三角面与绘制调用上限;抗锯齿 pass 加入前后的帧时间对比。
-4. **抗锯齿**:pass 在三档中存在、位于 grade 与 alpha 之间;分辨率随窗口缩放与 4K 录制变化。
-5. **回收**:`vj-long-session-soak.spec.js` 继续通过(新几何缓存、matcap 贴图、抗锯齿 pass 切档时回收干净)。
-6. **原有测试全部保留**:循环无缝、z 推进方向、全循环不塌、金属组 PBR 判据等。
+4. **抗锯齿**:pass 在三档中存在、位于 grade 与 alpha 之间;分辨率随窗口缩放与录制分辨率变化。
+5. **录制分辨率**:录制期间 3D 绘制缓冲等于录制分辨率(4K / 1440p / 1080p 各测一次)、MSAA ≤ 2;退出录制后恢复原尺寸与原 samples;切换不产生黑帧(录制合成帧的 3D 区域非空)。
+6. **回收**:`vj-long-session-soak.spec.js` 继续通过(新几何缓存、matcap 贴图、抗锯齿 pass 切档时回收干净)。
+7. **原有测试全部保留**:循环无缝、z 推进方向、全循环不塌、金属组 PBR 判据等。
 
 人工验收:每批生成一个对比网页(改前 / 改后 × 三档,外加边缘放大裁切),**用户确认通过才算该批完成**。
 
@@ -91,10 +100,11 @@
 **第 0 轮(Claude Code;期间 ChatGPT 不碰 `61.html`)**
 
 1. 抗锯齿:实测 FXAA / SMAA,对比截图交用户选定。
-2. `vjBevelBox` + 材质预设库 + 第 4 节测试。
-3. 两条示范隧道:`vjChromeFlow`(方块金属,把注释里的倒角做成真的)与 `vjNeonTubeRoom`(发光芯 + 外壳,演示拉伸部件处理)。
-4. 对比网页交用户看质感方向;**认可后才开始批量**。
-5. HANDOFF.md 写入预设用法、拉伸规则、验收标准;全量测试通过后提交推送,交给 ChatGPT。
+2. 录制时按录制画质渲染 3D 层(3.2),实测三种录制分辨率下的帧时间。
+3. `vjBevelBox` + 材质预设库 + 第 4 节测试。
+4. 两条示范隧道:`vjChromeFlow`(方块金属,把注释里的倒角做成真的)与 `vjNeonTubeRoom`(发光芯 + 外壳,演示拉伸部件处理)。
+5. 对比网页交用户看质感方向;**认可后才开始批量**。
+6. HANDOFF.md 写入预设用法、拉伸规则、验收标准;全量测试通过后提交推送,交给 ChatGPT。
 
 **第 1~5 轮(ChatGPT,每轮约 10 条)**
 
