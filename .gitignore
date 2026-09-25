@@ -27,3 +27,4 @@ sub-remix-claude-code/
 node_modules/
 dist/
 test-results/
+vj-shots/
