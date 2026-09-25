@@ -26431,6 +26431,9 @@ function vjDropCachedScene(kind){
   if(s.composer){
     s.composer.passes?.forEach(p=>{
       p.dispose?.();
+      /* r149 的 UnrealBloomPass.dispose() 漏了亮部提取材质：它留在 WebGLShaderCache 里，
+         连带拽住 bloom 渲染目标的纹理 —— 每回收一个带 bloom 的场景就漏一组。重复 dispose 无害。 */
+      p.materialHighPassFilter?.dispose?.();
       /* 还要从两个开关注册表里摘掉。它们存在是为了「场景建好就缓存、开关要能改到
          已经建过的那些」—— 但场景原本从不回收，所以从没有摘除的需要。是这个函数
          的重建把问题引出来的：不摘的话每切一次画质数组就长一截，applyBg3DSeeThrough

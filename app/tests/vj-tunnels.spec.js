@@ -59,6 +59,18 @@ function harness() {
   window.__vj = {
     // 直接驱动 renderBg3D()，绕开主循环，bass/mid/high 由测试给定
     step(n, bass, mid, high) { for (let i = 0; i < n; i++) renderBg3D(bass, mid, high, 1); },
+    /* 同样走完整的 renderBg3D()（场景 update、premium 编舞、相机运动全照跑），只是不往 GPU 画。
+       VJ 场景没有跨帧反馈 pass，跳过中间帧的绘制不改变之后画出来的样子 —— 只省掉 GPU 时间。
+       WebGLRenderer.render 在 r149 里是实例自有属性，所以按原描述符还原，不能 delete。 */
+    advance(n, bass, mid, high) {
+      const targets = [bg3DRenderer, bg3DScenes[bg3DKind]?.composer].filter(Boolean);
+      const saved = targets.map(t => Object.getOwnPropertyDescriptor(t, 'render'));
+      targets.forEach(t => { t.render = () => {}; });
+      try { for (let i = 0; i < n; i++) renderBg3D(bass, mid, high, 1); }
+      finally {
+        targets.forEach((t, i) => { if (saved[i]) Object.defineProperty(t, 'render', saved[i]); else delete t.render; });
+      }
+    },
     // 把当前场景里所有 Object3D 的 z（含 InstancedMesh 的实例）收成一个数组
     zs() {
       const s = bg3DScenes[bg3DKind];
@@ -99,9 +111,20 @@ function harness() {
        单帧取样一次高一次低，比出来的是相位差不是循环有没有接上。 */
     avgLit(n, bass, mid, high) {
       let sum = 0;
-      for (let i = 0; i < n; i++) { window.__vj.step(1, bass, mid, high); sum += window.__vj.pixels().lit; }
+      for (let i = 0; i < n; i++) { window.__vj.step(1, bass, mid, high); sum += window.__vj.litCount(); }
       return sum / n;
-    }
+    },
+    // 跟 pixels().lit 同一个判据（最大通道 ≥ 40），但不算饱和度和色相 —— 逐像素 atan2 是这条测试的大头
+    litCount() {
+      const gl = bg3DRenderer.getContext();
+      const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+      const buf = new Uint8Array(w * h * 4);
+      gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+      let lit = 0;
+      for (let i = 0; i < buf.length; i += 4) if (buf[i] >= 40 || buf[i + 1] >= 40 || buf[i + 2] >= 40) lit++;
+      return lit;
+    },
+    totalPixels() { const gl = bg3DRenderer.getContext(); return gl.drawingBufferWidth * gl.drawingBufferHeight; }
   };
 }
 
@@ -291,13 +314,49 @@ test('每个隧道都画得出鲜艳的画面，而且元素是从后面往镜�
   });
 });
 
+/* 下面那条全循环测试靠 advance() 跳过中间帧的 GPU 绘制来提速，前提是「绘制不改变场景状态」。
+   以后谁在 render 阶段改场景（例如某个 pass 回写位置），这条会先报出来，而不是让全循环测试悄悄失真。 */
+test('advance() 推进的场景状态与逐帧真实渲染逐位相同', async () => {
+  test.setTimeout(120_000);
+  await withApp('vj-advance-equiv', async (win) => {
+    await win.evaluate(harness);
+    const res = await win.evaluate((kinds) => kinds.map(k => {
+      const state = () => {
+        const s = bg3DScenes[k], zs = [];
+        s.scene.traverse(o => {
+          if (o.isInstancedMesh) { for (let i = 0; i < o.count; i++) zs.push(o.instanceMatrix.array[i * 16 + 14]); }
+          else if (o !== s.scene) zs.push(o.position.z);
+        });
+        const c = s.camera;
+        return { zs, cam: [c.position.x, c.position.y, c.position.z, c.rotation.z, c.fov] };
+      };
+      const run = useAdvance => {
+        vjDropCachedScene(k); seedBg3DBuilds(0xC0FFEE); vjSpeedBassSmooth = 0;
+        enableBg3D(k); window.__vj.step(30, 0.5, 0.4, 0.3);
+        window.__vj[useAdvance ? 'advance' : 'step'](200, 0.5, 0.4, 0.3);
+        return state();
+      };
+      const a = run(false), b = run(true);
+      window.__vj.step(1, 0.5, 0.4, 0.3);   // advance 还原之后照常能画
+      return { k, n: a.zs.length, zsEqual: a.zs.length === b.zs.length && a.zs.every((z, i) => z === b.zs[i]),
+               camEqual: a.cam.every((v, i) => v === b.cam[i]) };
+    }), ['vjStarLane', 'vjTentacleTunnel', 'vjChromeFlow']);
+    for (const r of res) {
+      expect(r.n, `${r.k}: 没取到场景元素`).toBeGreaterThan(0);
+      expect(r.zsEqual, `${r.k}: advance 推进的元素位置和真实渲染不一致`).toBe(true);
+      expect(r.camEqual, `${r.k}: advance 推进的相机和真实渲染不一致`).toBe(true);
+    }
+  });
+});
+
 test('跑满一整个循环之后画面还在 —— 元素没有飞光，也没有堆到一处', async () => {
-  /* 50 条 VJ × 450 帧，这套里最重的一条。原本 180 秒的预算只剩三分之一余量，
-     composer 挂上 MSAA render target 之后每帧成本涨了约一成，它就骑到线上了。
-     同一份代码实测跨度 126 秒 ~ 270 秒（差两倍，取决于机器上还有什么在跑），
-     所以按慢的那一端再留余量。断言一条没动 —— 只是把一个早就绷太紧的预算
-     调到实际水位，而不是靠降画质让它跑快、顺带丢掉对默认渲染路径的覆盖。 */
-  test.setTimeout(420_000);
+  /* 50 条 VJ × 470 帧。以前每帧都真画、每次测亮度都连色相一起逐像素算（atan2），
+     跑 6~7 分钟，贴着 420 秒的预算线，一有别的进程抢 GPU 就假性超时。
+     现在中间 400 帧用 advance()：renderBg3D 全路径照跑、只跳过 GPU 绘制 —— 实测 5 条
+     风格各异的隧道、7000+ 个元素的 z 和相机，与逐帧真画的结果逐位相同；
+     测亮度的 40 帧仍然真实渲染，只改用只数亮像素的扫描。断言一条没动。
+     实测约 1.2 分钟；机器负载曾造成约 2 倍的波动，预算按慢端再留余量。 */
+  test.setTimeout(240_000);
   await withApp('vj-loop', async (win) => {
     await win.evaluate(harness);
     for (const kind of KINDS) {
@@ -305,11 +364,11 @@ test('跑满一整个循环之后画面还在 —— 元素没有飞光，也没
         enableBg3D(k);
         window.__vj.step(30, 0.5, 0.4, 0.3);
         const warmLit = window.__vj.avgLit(20, 0.5, 0.4, 0.3);   // 热身之后的平均亮度，当基准
-        // 有音乐时每帧走 2.5 —— 400 帧 = 1000 单位 = 四圈半
-        window.__vj.step(400, 0.5, 0.4, 0.3);
+        // 有音乐时每帧走 2.5 —— 400 帧 = 1000 单位 = 四圈半。状态完整推进，只是中间不画
+        window.__vj.advance(400, 0.5, 0.4, 0.3);
         const lit = window.__vj.avgLit(20, 0.5, 0.4, 0.3);
         const zs = window.__vj.zs();
-        return { lit, warmLit, total: window.__vj.pixels().total, spread: Math.max(...zs) - Math.min(...zs) };
+        return { lit, warmLit, total: window.__vj.totalPixels(), spread: Math.max(...zs) - Math.min(...zs) };
       }, kind);
       /* 跟热身时的亮度比，而不是定一个绝对阈值 —— 不同效果的密度差很多，
          绝对阈值卡的是密度，不是循环接没接上。

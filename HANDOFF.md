@@ -1,11 +1,13 @@
 # 交接状态 — 5 条 VJ 质感升级已完成并发布（2026-09-25）
 
-**当前状态**:本轮已由 Claude Code 审查、修复、全量验证并提交推送(commit `feat(vj): deepen five over-bright tunnels…`)。之后 Claude Code 又做了一轮工程修复(见下方"工程修复")。工作树干净,`61.html` / `replacement/61.html` / 安装包内 `61.html` 三份 SHA256 一致(`DBC4AF8D6D77B766B0F1B2D9389B511B9EF48D82313C92DC2899B00D83B8844A`),Replace ZIP 与发布完整性脚本全部 PASS,全量 Playwright **260/260 通过**。下一轮方向还没定 —— 用户指定之前,`61.html` 不归任何一方独占,开工前先确认轮到谁。
+**当前状态**:本轮已由 Claude Code 审查、修复、全量验证并提交推送(commit `feat(vj): deepen five over-bright tunnels…`)。之后 Claude Code 又做了一轮工程修复(见下方"工程修复")。工作树干净,`61.html` / `replacement/61.html` / 安装包内 `61.html` 三份 SHA256 一致(`0244BA94DF76F340F6830049CC98D3A27605ACA53F52D0E49E05590759EF99E5`),Replace ZIP 与发布完整性脚本全部 PASS,全量 Playwright **262/262 通过(约 13 分钟)**。下一轮方向还没定 —— 用户指定之前,`61.html` 不归任何一方独占,开工前先确认轮到谁。
 
 ## 工程修复(Claude Code,2026-09-25)
 
 - **录制期间 Auto 画质不再调档。** 4K 录制本身会拉长帧时间,Auto 以前会把它当成"机器太慢"去降档,丢掉全部场景重建 —— 成片里卡一下、前后画质不一样。现在 `updateAdaptiveVjQuality` 在 `isRecording` 时不采样也不调档,停录后从干净窗口重新计。测试:`vj-adaptive-quality.spec.js` 第二条。
 - **测试收尾不再留下 Electron 进程。** 录制中关闭会弹同步原生对话框(`showMessageBoxSync`),测试里没人点,`closeApp` 以前会永远等下去,进程留在后台抢 GPU。现在 `app/tests/helpers/close-app.js` 等 15 秒没退出就结束整棵进程树并打印 `closeApp: Electron (pid …) did not exit…` 警告。**全量输出里如果出现这行,说明对应那条测试没有正常关闭,要去查原因,不要忽略。** 测试:`close-app-helper.spec.js`(它故意触发一次,所以全量里固定会有这一行)。
+- **修了一个长时间演出的内存泄漏。** 内嵌 three.js r149 的 `UnrealBloomPass.dispose()` 漏了亮部提取材质 `materialHighPassFilter`,它留在 three.js 的着色器缓存里并拽着 bloom 渲染目标的纹理 —— 每回收一个带 bloom 的场景就漏一个 ShaderMaterial + 一个 Texture,960 次自动轮换涨 1.9 MB 且不趋平。在 `vjDropCachedScene` 里补释放(没改第三方压缩代码)。修后同样 960 次只剩 V8 JIT 代码和浏览器计时条目的正常增长。测试:`vj-long-session-soak.spec.js`(自动轮换 + 预热 + 切档 480 次,数活着的 ShaderMaterial/Texture;去掉修复时它报 +316)。**以后新建效果如果自己写 pass,回收路径在 `vjDropCachedScene`,那里只会调 `pass.dispose()` —— 你的 pass 必须在 dispose 里释放全部材质和渲染目标。**
+- **VJ 全循环测试从 6~7 分钟降到 1.3 分钟**(整个 `vj-tunnels.spec.js` 从 7~9 分钟降到 2.8 分钟,全量从 17~18 分钟降到 13 分钟)。中间 400 帧改用 harness 的 `advance()`:`renderBg3D` 全路径照跑,只跳过 GPU 绘制;测亮度改用只数亮像素的扫描。断言一条没动。新增一条测试保证 `advance()` 与逐帧真实渲染的场景状态逐位相同 —— **如果你在 render/pass 阶段改场景状态,这条会报错,那时要先想清楚再动它。**
 
 ## 本轮结果
 
@@ -94,7 +96,7 @@ CLAUDE.md 和下面"视觉上反复踩过的坑"第 4 条说得很清楚:`lit` �
 
 ```bash
 npx playwright test tests/vj-tunnels.spec.js   # 先看这 5 条改完的 lit/hues 打印和 PASS/FAIL
-npx playwright test                             # 全量约 17-20 分钟(单 worker,Electron+WebGL 不能并发,workers 锁 1 是故意的)
+npx playwright test                             # 全量约 13 分钟(单 worker,Electron+WebGL 不能并发,workers 锁 1 是故意的)
 ```
 
 如果改动波及要打包发布(`replacement/`、Replace ZIP),回到项目根目录:
