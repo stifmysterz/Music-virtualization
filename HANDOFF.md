@@ -1,6 +1,11 @@
 # 交接状态 — 5 条 VJ 质感升级已完成并发布（2026-09-25）
 
-**当前状态**:本轮已由 Claude Code 审查、修复、全量验证并提交推送(commit `feat(vj): deepen five over-bright tunnels…`)。工作树干净,`61.html` / `replacement/61.html` / 安装包内 `61.html` 三份 SHA256 一致(`2A3B50A381307F56134B30158D89A3DCE4F02330B3A6028BE31736EB2B99CE24`),Replace ZIP 与发布完整性脚本全部 PASS,全量 Playwright **258/258 通过**。下一轮方向还没定 —— 用户指定之前,`61.html` 不归任何一方独占,开工前先确认轮到谁。
+**当前状态**:本轮已由 Claude Code 审查、修复、全量验证并提交推送(commit `feat(vj): deepen five over-bright tunnels…`)。之后 Claude Code 又做了一轮工程修复(见下方"工程修复")。工作树干净,`61.html` / `replacement/61.html` / 安装包内 `61.html` 三份 SHA256 一致(`DBC4AF8D6D77B766B0F1B2D9389B511B9EF48D82313C92DC2899B00D83B8844A`),Replace ZIP 与发布完整性脚本全部 PASS,全量 Playwright **260/260 通过**。下一轮方向还没定 —— 用户指定之前,`61.html` 不归任何一方独占,开工前先确认轮到谁。
+
+## 工程修复(Claude Code,2026-09-25)
+
+- **录制期间 Auto 画质不再调档。** 4K 录制本身会拉长帧时间,Auto 以前会把它当成"机器太慢"去降档,丢掉全部场景重建 —— 成片里卡一下、前后画质不一样。现在 `updateAdaptiveVjQuality` 在 `isRecording` 时不采样也不调档,停录后从干净窗口重新计。测试:`vj-adaptive-quality.spec.js` 第二条。
+- **测试收尾不再留下 Electron 进程。** 录制中关闭会弹同步原生对话框(`showMessageBoxSync`),测试里没人点,`closeApp` 以前会永远等下去,进程留在后台抢 GPU。现在 `app/tests/helpers/close-app.js` 等 15 秒没退出就结束整棵进程树并打印 `closeApp: Electron (pid …) did not exit…` 警告。**全量输出里如果出现这行,说明对应那条测试没有正常关闭,要去查原因,不要忽略。** 测试:`close-app-helper.spec.js`(它故意触发一次,所以全量里固定会有这一行)。
 
 ## 本轮结果
 

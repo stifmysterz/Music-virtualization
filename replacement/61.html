@@ -26467,7 +26467,8 @@ function resetAdaptiveVjSamples(){
   vjAdaptive.slowWindows=0; vjAdaptive.fastWindows=0;
 }
 function updateAdaptiveVjQuality(now){
-  if(!vjQualityAuto || !hasBg3D || !bg3DVisible || !VJ_TUNNEL_KINDS.includes(bg3DKind) || document.hidden){
+  // 4K 录制本身会拉长帧时间；这时降档会丢掉全部场景重建，成片里就是一次卡顿和画质跳变
+  if(!vjQualityAuto || isRecording || !hasBg3D || !bg3DVisible || !VJ_TUNNEL_KINDS.includes(bg3DKind) || document.hidden){
     resetAdaptiveVjSamples();
     return;
   }
