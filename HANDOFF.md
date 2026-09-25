@@ -1,8 +1,32 @@
-# Handoff to ChatGPT desktop — 升级现有 VJ 效果质感（2026-09-25）
+# 交接状态 — 5 条 VJ 质感升级已完成并发布（2026-09-25）
 
-写这份文档时:`main` 已同步到 `origin/main`(`3838c84`),工作树干净,`dist/` 已用最新源码重新打包并通过哈希核对。上一轮(视频混合模式 / VJ 自动切换与预热 / 自适应画质 / VJ 菜单搜索)已经 commit + 打包 + 验证 + 推送完毕。Claude Code 现在停手,`61.html` 交给你独占修改,不要两边同时改。做完后把改了哪些文件、跑了什么验证告诉用户,Claude Code 会用 `git diff` + 测试 + 三方哈希核对,不是假设你做对了。
+**当前状态**:本轮已由 Claude Code 审查、修复、全量验证并提交推送(commit `feat(vj): deepen five over-bright tunnels…`)。工作树干净,`61.html` / `replacement/61.html` / 安装包内 `61.html` 三份 SHA256 一致(`2A3B50A381307F56134B30158D89A3DCE4F02330B3A6028BE31736EB2B99CE24`),Replace ZIP 与发布完整性脚本全部 PASS,全量 Playwright **258/258 通过**。下一轮方向还没定 —— 用户指定之前,`61.html` 不归任何一方独占,开工前先确认轮到谁。
 
-## 这一轮做什么
+## 本轮结果
+
+ChatGPT 按下方任务说明完成了 5 条隧道的压暗、PBR 灯组和第二色相;Claude Code 审查时发现 **low 画质档退化**并修复。最终数值(`app/tests/vj-five-depth.spec.js`,目标区间 lit 40%~90%、vivid > 50%、hues > 5):
+
+| kind | 改前 lit / hues(balanced) | 改后 low | 改后 balanced | 改后 ultra |
+|---|---|---|---|---|
+| `vjStarLane` | 99.9% / 39 | 52.4% | 53.6% | 46.5% |
+| `vjSpeedGates` | 98.4% / 11 | 73.9% | 57.0% / 26 | 56.8% |
+| `vjPlasmaRings` | 96.1% / 25 | 44.1% | 45.9% / 39 | 45.9% |
+| `vjNeonTubeRoom` | 95.4% / **4** | 50.5% | 55.8% / 27 | 55.8% |
+| `vjKaleido` | 94.4% / 39 | 44.9% | 49.2% / 39 | 49.4% |
+
+Claude Code 在 ChatGPT 版本上额外做的修改:
+
+1. **low 档修复(`vjSpeedGates`、`vjNeonTubeRoom`)**:这两条换成了 `vjStdMat` 受光材质,但 low 档下 `vjStdMat` 会退回不受光的 `vjSolidMat`,为受光档调的偏高亮度直接上屏。实测 low 档 SpeedGates lit 95.6%、vivid 只有 23%(整屏灰白),NeonTubeRoom lit 96.2%(背景被 bloom 染成紫雾)。修法是在 `update()` 里按 `material.isMeshStandardMaterial` 分支亮度曲线,受光档数值完全不变。
+2. **`vjStarLane` 稳定性**:ChatGPT 版在不同测试顺序下 lit 落在 40.0%~46.6%,贴着 40% 下限会随机挂(实测一次 39.97%)。没有放宽阈值,而是把光带数从 1100 提到 1400(原版 1500),靠密度而不是加粗撑画面。
+3. **测试扩展**:`vj-five-depth.spec.js` 原本只测默认 balanced 档,现在 low/balanced/ultra 三档都测,用 soft 断言一次报全。
+
+画面实看(三档截图)确认:5 条都有真黑的纵深、色彩层次明显,balanced/ultra 下 SpeedGates 的金属门框有 key 灯高光。无缝循环不受影响 —— 改动全在颜色/材质/灯光/bloom 参数和逐帧推导的光带尺寸上,没有累积状态;`vj-loop-integrity`、`vj-tunnels` 全循环测试均通过。
+
+**下一轮候选**(同一批诊断数据里还超 90% 的):`vjCandyOrbs`(97.4%)、`vjLightWell`(95.1%)、`vjRaceTrack`(90.6%)。另外 `vjPlasmaRings` 近景光环掠过镜头时会短暂占满画面一侧(坑 #5),属于既有构图问题,可一并处理。
+
+---
+
+## 本轮任务说明(存档)
 
 **不新增效果,只升级现有 VJ 隧道的材质/打光/相机运镜质感。** 50 条里有 20 条已经进了 Top 20 Premium 编舞名单(`src/vj/premium-meta.json`),另有 7 条("金属"组:`vjChromeTube`、`vjMetalTwist`、`vjChromeDrips`、`vjFoilCrumple`、`vjChromeBubbles`、`vjLiquidSpine`、`vjRustPipes`)已经有真实 PBR 材质+环境反射测试锁着(`app/tests/vj-tunnels.spec.js` 里"7 个金属 VJ..."那条)。剩下没升级过的里,挑了 5 条画面偏亮、缺纵深或色调单一的,数据来自 `vj-tunnels.spec.js`"每个隧道都画得出鲜艳的画面"那条测试打印的 `lit`(高亮像素占比)/`hues`(色相档数)诊断行:
 
@@ -53,6 +77,7 @@ CLAUDE.md 和下面"视觉上反复踩过的坑"第 4 条说得很清楚:`lit` �
 5. **近处元素被透视放大糊满屏是最常见的构图毛病。**沿 z 轴一直延伸到镜头跟前的元素,要做近处收缩,别让它们在快到镜头时占满视野。
 6. **颜色管线是 sRGB legacy,直接用 `Color.setHSL()` 写的值就是最终显示值。**不要自己加 `outputEncoding` 或者额外做一次 gamma 转换——`renderer.outputEncoding` 在这套自定义 alpha pass 管线里本来就不生效,自己加只会造成二次 gamma(黑场被抬白、饱和度腰斩)。
 7. **抗锯齿走的是 `EffectComposer` 的 `samples` render target**(low=0/balanced=2/ultra=4 挂在画质档上),不是 `WebGLRenderer({antialias:true})`——那个从来没生效过,不用管它。
+8. **`vjStdMat` 在 low 档会退回不受光的 `vjSolidMat`,灯组全部失效。**给受光材质调的颜色亮度(靠金属/灯光压暗)在 low 档会直接上屏 —— 偏亮就朝白收敛、再被 bloom 糊成灰。把效果换成 `vjStdMat` 时,在 `update()` 里按 `material.isMeshStandardMaterial` 给不受光路径一条更暗的亮度曲线,并且**三档都要实测**(默认测试只跑 balanced)。上一轮加的 Auto 画质会在慢机器上主动降到 low,所以 low 档是真实用户会看到的画面。
 
 ## 循环/音频规范(照抄 CLAUDE.md 就够,这里是本项目的具体判据)
 
