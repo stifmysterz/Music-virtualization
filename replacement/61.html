@@ -15681,18 +15681,17 @@ function buildBg3DVjChromeFlow(){
   const camera = new THREE.PerspectiveCamera(82, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
 
   const RINGS = 54, PER = 40, N = RINGS*PER, SPACING = VJ_LEN/RINGS, R = 17;
-  /* 倒角方块。真材质下轮廓的倒角边会自己吃到一条高光 —— 这是「金属块」和
-     「彩色方块」最直接的区别，纯 Basic 材质时代做不出来，所以以前只能画高光带。 */
-  const geo = new THREE.BoxGeometry(1.5, 1.5, 3.2);
+  /* 倒角方块。轮廓的倒角边会自己吃到一条高光 —— 这是「金属块」和「彩色方块」最直接的区别。 */
+  const geo = vjBevelBox(1.5, 1.5, 3.2, 0.22);
   /* metalness 不拉满：纯金属没有漫反射，颜色只剩环境反射的灰 —— 物理上对，
      但这层要的是「阳极氧化 / 糖果漆金属」，既有真高光又吃得住饱和色。
      0.72 是留一部分漫反射给颜色走的量。 */
-  const mesh = new THREE.InstancedMesh(geo, vjStdMat({ metalness:0.72, roughness:0.18, envMapIntensity:0.75 }), N);
+  const mesh = new THREE.InstancedMesh(geo, vjMaterial('metal', { metalness:0.72, roughness:0.18, envMapIntensity:0.55 }), N);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(mesh);
   const rig = vjLightRig(scene, { keyI:1.15, rimColor:0x66b0ff, rimI:1.5, fillI:0.35 });
 
-  const { composer } = createBg3DBloom(scene, camera, 1.15, 0.5, 0.55);
+  const { composer } = createBg3DBloom(scene, camera, 0.75, 0.45, 0.78);
   const st = {};
   let scroll = 0, clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
@@ -15700,7 +15699,7 @@ function buildBg3DVjChromeFlow(){
     /* 16 拍一循环。管壁的液态起伏改由相位驱动，phase 走到 1 时精确回到 0，
        所以波形首尾闭合 —— 以前用一直累加的 clock，波永远回不到起点。 */
     const ph = vjPhase(st, dt, 16) * Math.PI * 2;
-    const off = scroll % SPACING;
+    const off = scroll % SPACING, wraps = Math.floor(scroll / SPACING);
     for(let i=0;i<RINGS;i++){
       const z = -i*SPACING + off - SPACING, wz = i*SPACING - scroll;
       for(let j=0;j<PER;j++){
@@ -15714,7 +15713,9 @@ function buildBg3DVjChromeFlow(){
         vjPut(mesh, i*PER+j, Math.cos(a)*rr, Math.sin(a)*rr, z, tilt, 0, a, 1, 1, 1);
         /* instanceColor 在金属上是反射的染色（F0），不是漆面颜色 —— 所以压低饱和度、
            保持高亮度，出来是「有色泽的铬」；饱和度拉满会立刻变成塑料。            */
-        vjTint(VJ_C, ((0.55 + wz*0.007 + clock*0.05)%1+1)%1, 0.88, 0.58, 0.95, 0.55);
+        // 预设在 low 档也是有明暗的 matcap,所以三档都用受光档的颜色值(vjTint 的 low 分支是给不受光材质的)
+        VJ_C.setHSL(((0.55 + wz*0.007 + clock*0.05)%1+1)%1, 0.88, 0.48);
+        vjPresetJitter(VJ_C, (((i + wraps) % RINGS + RINGS) % RINGS)*PER + j, 0.06);
         mesh.setColorAt(i*PER+j, VJ_C);
       }
     }
