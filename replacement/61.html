@@ -14816,6 +14816,64 @@ function vjPhysMat(o){
      low 档不受光，instanceColor 就是最终像素颜色，必须回到原来的高饱和，
        否则低配机器看到的是一版灰扑扑的褪色画面。
    两套值都由调用方给，这里只负责按档选。                                        */
+/* ---------- 倒角 / 圆角方块 ----------
+   直角方块边上接不到高光,是「廉价 CG」最直接的来源。按档位给精细度:
+   low 单段倒角(44 面)、balanced 1 段圆角(108 面)、ultra 2 段圆角(300 面)。
+   同尺寸同档位共用一份;共享几何带 vjShared,场景回收时不释放,切档时统一清。 */
+const vjBevelGeoCache = new Map();
+function vjBevelSegments(){ return vjQuality === 'low' ? 0 : (vjQuality === 'ultra' ? 2 : 1); }
+function vjBevelBox(w, h, d, radius){
+  // r149 的 RoundedBoxGeometry 不夹紧半径:超过半边长时几何会翻折
+  const r = Math.min(radius, Math.min(w, h, d) / 2 * 0.999);
+  const seg = vjBevelSegments();
+  const key = `${w}|${h}|${d}|${r}|${seg}`;
+  let g = vjBevelGeoCache.get(key);
+  if(!g){
+    g = seg === 0 ? vjChamferBoxGeometry(w, h, d, r) : new THREE_R149_ADDONS.RoundedBoxGeometry(w, h, d, seg, r);
+    g.userData.vjShared = true;
+    vjBevelGeoCache.set(key, g);
+  }
+  return g;
+}
+function vjClearBevelCache(){
+  vjBevelGeoCache.forEach(g => g.dispose());
+  vjBevelGeoCache.clear();
+}
+/* 单段倒角:26 个面 = 6 个主面 + 12 条斜边 + 8 个角,平直法线,每个斜面都能单独接一道光 */
+function vjChamferBoxGeometry(w, h, d, bevel){
+  const H = [w / 2, h / 2, d / 2];
+  const b = Math.min(bevel, Math.min(H[0], H[1], H[2]) * 0.999);
+  const pos = [], nor = [];
+  const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), n = new THREE.Vector3();
+  const V = c => new THREE.Vector3(c[0], c[1], c[2]);
+  const coord = (axis, sign, inset) => sign * (H[axis] - (inset ? b : 0));
+  const emit = (pts, dir) => {
+    n.set(dir[0], dir[1], dir[2]).normalize();
+    e1.subVectors(pts[1], pts[0]); e2.subVectors(pts[2], pts[0]);
+    if(e1.cross(e2).dot(n) < 0) pts.reverse();
+    const tris = pts.length === 4 ? [[0, 1, 2], [0, 2, 3]] : [[0, 1, 2]];
+    for(const t of tris) for(const k of t){ pos.push(pts[k].x, pts[k].y, pts[k].z); nor.push(n.x, n.y, n.z); }
+  };
+  for(let sx = -1; sx <= 1; sx++) for(let sy = -1; sy <= 1; sy++) for(let sz = -1; sz <= 1; sz++){
+    const s = [sx, sy, sz], nz = [0, 1, 2].filter(i => s[i] !== 0);
+    if(nz.length === 1){
+      const a = nz[0], [u, v] = [0, 1, 2].filter(i => i !== a);
+      const corner = (su, sv) => { const c = [0, 0, 0]; c[a] = coord(a, s[a], false); c[u] = coord(u, su, true); c[v] = coord(v, sv, true); return V(c); };
+      emit([corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)], s);
+    }else if(nz.length === 2){
+      const [a, c2] = nz, e = [0, 1, 2].find(i => s[i] === 0);
+      const ridge = (fullAxis, se) => { const c = [0, 0, 0]; c[a] = coord(a, s[a], fullAxis !== a); c[c2] = coord(c2, s[c2], fullAxis !== c2); c[e] = coord(e, se, true); return V(c); };
+      emit([ridge(a, -1), ridge(a, 1), ridge(c2, 1), ridge(c2, -1)], s);
+    }else if(nz.length === 3){
+      const tip = axis => V([0, 1, 2].map(i => coord(i, s[i], i !== axis)));
+      emit([tip(0), tip(1), tip(2)], s);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  return g;
+}
 function vjTint(c, hue, litSat, litLum, rawSat, rawLum){
   const lit = vjQuality !== 'low';
   return c.setHSL(hue, lit ? litSat : rawSat, lit ? litLum : rawLum);
@@ -27322,7 +27380,7 @@ function vjDropCachedScene(kind){
   const s = bg3DScenes[kind];
   if(!s) return;
   s.scene.traverse(o=>{
-    if(o.geometry) o.geometry.dispose();
+    if(o.geometry && !o.geometry.userData?.vjShared) o.geometry.dispose();
     const m = o.material;
     if(Array.isArray(m)) m.forEach(x=> x && x.dispose());
     else if(m) m.dispose();
@@ -27359,6 +27417,7 @@ function setVjQualityTier(tier){
   /* 丢的是全部缓存场景，不只 VJ 那 45 个 —— 抗锯齿的 samples 是在 composer 建的
      时候定死的，3D 背景那 61 个同样受影响，只丢 VJ 的话它们会停在旧档上。 */
   Object.keys(bg3DScenes).forEach(vjDropCachedScene);
+  vjClearBevelCache();   // 几何精细度跟档位走,旧档的共享几何不能留给新档
   if(bg3DKind) enableBg3D(bg3DKind);
   if(vjShuffleOn) prepareNextVjTunnel();
   applyShuffleOptionNames();
