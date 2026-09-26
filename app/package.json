@@ -19,6 +19,7 @@
     "sync:scene-cache": "node scripts/sync-scene-cache.js --write",
     "verify:three-addons": "node scripts/sync-three-addons.js",
     "sync:three-addons": "node scripts/sync-three-addons.js --write",
+    "review:vj": "node scripts/vj-review.js",
     "verify:vj-registry": "node scripts/sync-vj-registry.js",
     "sync:vj-registry": "node scripts/sync-vj-registry.js --write",
     "verify:bg3d-catalog": "node scripts/sync-bg3d-catalog.js",

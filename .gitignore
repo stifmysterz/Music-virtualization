@@ -28,3 +28,5 @@ node_modules/
 dist/
 test-results/
 vj-shots/
+# vj-review.js 临时取出的基线版本(跑完即删,异常退出时可能残留)
+.vj-review-base.html

@@ -3,7 +3,7 @@
 /* 截图 + 指标。对比网页和每批验收都用它:
    node scripts/vj-shots.js --out ../vj-shots/baseline --kinds vjChromeFlow,vjNeonTubeRoom
      [--tiers low,balanced,ultra] [--aa off|smaa] [--record 4k|1440p|1080p] [--record-sharp] [--dpr 2]
-     [--measure] [--crop 0.62,0.35] [--crops-only]
+     [--measure] [--crop 0.62,0.35] [--crops-only] [--html <另一个版本的 61.html>]
    每张图都是固定种子、全新建场景、固定音频输入下的第 42 帧,不同批次之间可直接对比。 */
 const fs = require('fs');
 const os = require('os');
@@ -27,10 +27,14 @@ const opts = {
   crop: arg('crop', '0.5,0.5').split(',').map(Number),
 };
 const dpr = arg('dpr', null);   // 模拟高分屏:--force-device-scale-factor
+// 拍另一个版本(vj-review 拍改前用):文件要放在仓库根目录,fonts/ 等相对路径才对得上
+const html = arg('html', null) && path.resolve(arg('html'));
 if (!kinds.length) { console.error('--kinds is required'); process.exit(2); }
 
 function capture({ tier, kind, aa, record, recordSharp, measure, cropsOnly, crop }) {
   document.getElementById('intro')?.classList.add('hidden');
+  // 基线版本里还没有的隧道:跳过,不能让 enableBg3D 走到报错弹窗那条路
+  if (typeof BG3D_BUILDERS[kind] !== 'function') throw new Error(`这个版本没有 ${kind}`);
   const sel = document.getElementById('vjQualitySel');
   if (sel.value !== tier) { sel.value = tier; sel.dispatchEvent(new Event('change')); }
   if (aa && typeof setBg3DPostAA === 'function') setBg3DPostAA(aa);
@@ -83,7 +87,7 @@ function capture({ tier, kind, aa, record, recordSharp, measure, cropsOnly, crop
   return {
     tier: vjQuality, kind, aa: typeof bg3DPostAA === 'string' ? bg3DPostAA : 'n/a', record,
     width: w, height: h, lit: +(lit / (w * h)).toFixed(4), vivid: +(vivid / Math.max(1, lit)).toFixed(4),
-    hues: hues.size, frameMs,
+    hues: hues.size, frameMs, page: decodeURIComponent(location.pathname.split('/').pop()),
     full: cropsOnly ? null : full.toDataURL('image/png').split(',')[1],
     crop: zoom.toDataURL('image/png').split(',')[1],
   };
@@ -97,9 +101,17 @@ function capture({ tier, kind, aa, record, recordSharp, measure, cropsOnly, crop
     app = await electron.launch({ args: [...(dpr ? [`--force-device-scale-factor=${dpr}`] : []), '.', `--user-data-dir=${userData}`], cwd: APP_DIR });
     win = await app.firstWindow();
     await win.waitForFunction(() => (document.getElementById('cv')?.width || 0) > 300, null, { timeout: 30000 });
+    if (html) {
+      // 主进程直接换页:不改 main.js,也不碰工作区的 61.html
+      await app.evaluate(({ BrowserWindow }, p) => BrowserWindow.getAllWindows()[0].loadFile(p), html);
+      await win.waitForFunction(name => decodeURIComponent(location.pathname).endsWith('/' + name) &&
+        (document.getElementById('cv')?.width || 0) > 300, path.basename(html), { timeout: 30000 });
+    }
     const metrics = [];
     for (const tier of tiers) for (const kind of kinds) {
-      const r = await win.evaluate(capture, { tier, kind, ...opts });
+      let r;
+      try { r = await win.evaluate(capture, { tier, kind, ...opts }); }
+      catch (e) { console.error(`跳过 ${tier}/${kind}:${e.message.split('\n')[0]}`); continue; }
       if (r.full) fs.writeFileSync(path.join(out, `${tier}-${kind}.png`), Buffer.from(r.full, 'base64'));
       fs.writeFileSync(path.join(out, `${tier}-${kind}-crop.png`), Buffer.from(r.crop, 'base64'));
       delete r.full; delete r.crop;
