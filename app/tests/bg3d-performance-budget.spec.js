@@ -55,6 +55,9 @@ test('3D ↔ VJ 切换 200 次后 GPU 场景缓存保持在 8 个以内', async 
 test('Top 20 Balanced 画质不超过 GPU draw-call / triangle 预算', async () => {
   test.setTimeout(180_000);
   await withApp('bg3d-budget', async win => {
+    // 启动后空闲时会先编好玻璃着色器(vj-shader-warmup.spec.js);用户在那之后才会去切 VJ。
+    // 不等的话第一次切到玻璃隧道要现场冷编译(约 1 s),量到的是编译不是渲染。
+    await win.waitForFunction(() => vjWarmupSettled === true, null, { timeout: 15_000 });
     const result = await win.evaluate(() => {
       const rows=[];
       for(const kind of VJ_PREMIUM_KINDS){

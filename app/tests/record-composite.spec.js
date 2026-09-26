@@ -103,16 +103,19 @@ test('Background、3D、2D Visualizer、FX/Overlay 按屏幕层序进入同一�
     const result = await win.evaluate(() => {
       // Use deterministic pixels for every canvas layer. bgThree stands in for the already-rendered
       // WebGL framebuffer; composeCaptureFrame must treat it exactly as it treats a real 3D/VJ frame.
-      bgThreeCanvas.width = cv.width;
-      bgThreeCanvas.height = cv.height;
+      // bgThree 在启动后就带着 WebGL 上下文(着色器预热),拿不到 2D 上下文 —— 直接用渲染器清出左半边绿色
+      const renderer = ensureBg3DRenderer();
+      renderer.setPixelRatio(1);
+      renderer.setSize(cv.width, cv.height, false);
       bgThreeCanvas.style.display = 'block';
       bgThreeCanvas.style.filter = 'none';
       bgThreeCanvas.style.opacity = '1';
       hasBg3D = true; bg3DVisible = true;
-      const three = bgThreeCanvas.getContext('2d');
-      three.clearRect(0, 0, bgThreeCanvas.width, bgThreeCanvas.height);
-      three.fillStyle = '#008000';
-      three.fillRect(0, 0, bgThreeCanvas.width / 2, bgThreeCanvas.height);
+      renderer.setRenderTarget(null);
+      renderer.setClearColor(0x000000, 0); renderer.clear();
+      renderer.setScissorTest(true); renderer.setScissor(0, 0, cv.width / 2, cv.height);
+      renderer.setClearColor(0x008000, 1); renderer.clear();
+      renderer.setScissorTest(false); renderer.setClearColor(0x000000, 0);
 
       [cvBack, cvFx, cv].forEach(c => c.getContext('2d').clearRect(0, 0, c.width, c.height));
       backCtx.fillStyle = '#0000d0';

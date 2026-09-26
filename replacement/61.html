@@ -27483,6 +27483,52 @@ function prepareNextVjTunnel(){
   const next = pickVjTunnel(vjSourceKinds());
   if(next) scheduleVjPrewarm(next);
 }
+/* 玻璃预设(MeshPhysicalMaterial + 清漆)在集显 / ANGLE 上冷编译一个变体约 0.4 s,第一次切到用玻璃的
+   隧道会卡住一帧 —— r149 的 compile 是同步的,放不到后台。开场画面画出来之后,在空闲时先把隧道里
+   实际用到的玻璃变体编好;预热用的材质一直留着,隧道材质的缓存键相同就直接复用同一个程序。
+   只有装好后第一次启动慢(约 0.8 s),之后 Chromium 的着色器磁盘缓存会让这一步很快。
+   变体必须和隧道里的逐项一致:FogExp2 + vjLightRig,点光源数量(Top 20 由 ensureVjPremiumRig 加 2 盏,其余 0 盏),
+   编到离屏目标上(输出编码、色调映射跟合成器一样)。金属约 0.13 s、low 档 matcap 几十毫秒,不值得预热。
+   新的玻璃用法没被覆盖时 vj-shader-warmup.spec.js 会报出来,在下面补一个变体。 */
+const VJ_WARM_GLASS_VARIANTS = [
+  { preset:'glass', side:THREE.DoubleSide, opacity:0.5, pointLights:2 },   // 双面半透明 + 逐实例颜色:PrismShards、BioMembrane
+];
+let vjLitProgramsWarm = false, vjWarmupSettled = false;
+const vjWarmMaterials = [];   // 不 dispose:程序跟着材质活着
+function warmVjGlassPrograms(){
+  if(vjLitProgramsWarm || vjQuality === 'low') return;
+  const renderer = ensureBg3DRenderer();
+  const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+  const target = new THREE.WebGLRenderTarget(4, 4), prevTarget = renderer.getRenderTarget();
+  renderer.setRenderTarget(target);
+  try{
+    for(const v of VJ_WARM_GLASS_VARIANTS){
+      const scene = new THREE.Scene();
+      scene.fog = new THREE.FogExp2(0x000000, 0.01);
+      vjLightRig(scene);
+      for(let i=0;i<v.pointLights;i++) scene.add(new THREE.PointLight(0xffffff, 0.5, 60, 2));
+      const material = vjMaterial(v.preset, { side:v.side, opacity:v.opacity });
+      const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(), material, 1);
+      mesh.setColorAt(0, VJ_C.setRGB(1, 1, 1));
+      scene.add(mesh);
+      renderer.compile(scene, camera);
+      mesh.geometry.dispose();
+      vjWarmMaterials.push(material);
+    }
+    vjLitProgramsWarm = true;
+  }finally{
+    renderer.setRenderTarget(prevTarget);
+    target.dispose();
+  }
+}
+{
+  const warm = ()=>{
+    try{ warmVjGlassPrograms(); }catch(e){ console.warn('VJ shader warm-up skipped:', e); }
+    vjWarmupSettled = true;
+  };
+  if(window.requestIdleCallback) requestIdleCallback(warm, {timeout:1500});
+  else setTimeout(warm, 200);
+}
 // Keep one bitmap of the outgoing tunnel. The new scene uses the normal renderer and cache.
 const vjTransitionFrame = document.createElement('canvas');
 vjTransitionFrame.style.cssText = 'position:absolute;pointer-events:none;display:none;z-index:0';

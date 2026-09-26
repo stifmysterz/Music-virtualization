@@ -1,4 +1,10 @@
-# 交接状态 — 去塑料感第 0 轮完成,交给 ChatGPT 分批改造(2026-09-26)
+# 交接状态 — 去塑料感第 1 批已验收,返工两条(2026-09-26)
+
+**当前状态**:第 1 批 10 条已提交到 `main`。用户看过对比网页后,8 条通过;**vjVoidNebula、vjBioMembrane 退回返工,说明见 `docs/vj-anti-plastic-batch1-rework.md`**。验收中 Claude Code 加了玻璃着色器的启动预热(见第 2 节最后一条)。**下一步:ChatGPT 先返工这两条,交回验收后再做第 2 批。**
+
+---
+
+## 第 0 轮交接(存档)
 
 **当前状态**:Claude Code 做完了"去塑料感 + 边角细滑"的工程底座和两条示范隧道,用户已看过对比网页并确认质感方向(https://claude.ai/artifact/8v3HSgout91esQ54AhoXUT)。设计文档 `docs/superpowers/specs/2026-09-25-vj-anti-plastic-design.md`,实施计划 `docs/superpowers/plans/2026-09-25-vj-anti-plastic-round0.md`。三份 `61.html` SHA256 一致(`665D59DC511F335D8555BFCD8F2658CD745E9E929466E51FDCA5A5DBA1FFF0AB`),全量 Playwright **292/292 通过(约 17 分钟;另有一位全新上下文的审查者看过整条分支,5 个重要问题已修复,见下方第 5 节)**。**下一步:ChatGPT 按下面的批次顺序改造其余 48 条,每批约 10 条;每批做完交回 Claude Code 验证。ChatGPT 改 `61.html` 期间 Claude Code 不动它。**
 
@@ -28,14 +34,16 @@
 - **世界编号**:槽位循环(`z = -i*SPACING + off - SPACING`)里,凡是按元素决定的外观 —— 强调色、有没有、交替色、`vjPresetJitter` 的 key —— 都用 `i + Math.floor(scroll / SPACING)`,再对槽位总数取模,**取模周期必须整除槽位总数**(示范:SpeedGates 25 扇门 / 每 5 扇强调;NeonTubeRoom 48 段 / 每 3 段一环 / 每 6 段换色)。用槽位编号 `i` 的话,每次退格外观都会留在原地:强调色频闪、元素原地回跳。
 - **bloom 跟亮度一起调**:换成受光材质后,原来的 bloom 往往会把块与块之间的缝全部填亮(示范:ChromeFlow 从 1.15/0.5/0.55 收到 0.75/0.45/0.78 后缝才重新变黑)。
 - **自己写的后处理 pass**,`dispose()` 必须释放全部材质和渲染目标(回收路径只调 `pass.dispose()`)。
+- **玻璃 / 液态金属的着色器要预热。** 这两个预设是 MeshPhysicalMaterial + 清漆,冷编译一个变体约 0.4 s,第一次切过去会卡住一帧。`61.html` 里的 `VJ_WARM_GLASS_VARIANTS` 会在启动后空闲时把它们编好。变体按「单面/双面、透明/不透明、点光源数量」区分,Top 20 的隧道会被 `ensureVjPremiumRig` 加 2 盏点光源。你用了还没预热的变体,`app/tests/vj-shader-warmup.spec.js` 会失败并写明缺哪个,照着补一行即可。
+- **三档都要亲眼看。** 第 1 批的 BioMembrane 在 balanced/ultra 把膜的不透明度压到 0.015,结果 low 档反而最好看。数值判据过了不代表画面对,高画质不能比 low 差。
 - **InstancedMesh 设 `frustumCulled = false`**:r149 按底座几何在原点的包围球做视锥剔除,镜头运动选「flythrough」时整条实例化隧道会被剔掉消失(审查时实测 ChromeFlow、NeonTubeRoom 都会)。
 
 ### 3. 每批的验收流程
 
 1. 把本批改造完的隧道名加进 `app/tests/vj-anti-plastic.spec.js` 的 `CONVERTED`(只增不减)。
-2. 用到槽位编号决定外观的,在 `app/tests/vj-element-continuity.spec.js` 加用例(照 SpeedGates / NeonTubeRoom 的 `pick` 写)。
-3. 在 `app/` 下跑:`npx playwright test tests/vj-anti-plastic.spec.js tests/vj-element-continuity.spec.js tests/vj-five-depth.spec.js tests/vj-tunnels.spec.js tests/vj-loop-integrity.spec.js tests/bg3d-performance-budget.spec.js tests/vj-material-presets.spec.js`。三档都要在 lit 40%~90%、饱和 > 50%、色相 > 5。
-4. 拍对比图:`node scripts/vj-shots.js --out ../vj-shots/<批次名> --kinds <本批,逗号分隔> --crop 0.62,0.35`(改造前的图用同样命令在改造前拍一次,输出目录换个名字)。交回 Claude Code 做对比网页给用户看。
+2. 用到槽位编号决定外观的,在 `app/tests/vj-element-continuity.spec.js` 加用例(照 SpeedGates / NeonTubeRoom 的 `pick` 写)。第 3~5 批里已经查出 4 条现存的此类 bug(CubeMatrix、HoverCity、HexPulse、FoilCrumple),改法见 `docs/vj-slot-index-audit-2026-09-26.md`,改到那条时顺手修。
+3. 在 `app/` 下跑:`npx playwright test tests/vj-anti-plastic.spec.js tests/vj-element-continuity.spec.js tests/vj-five-depth.spec.js tests/vj-tunnels.spec.js tests/vj-loop-integrity.spec.js tests/bg3d-performance-budget.spec.js tests/vj-material-presets.spec.js tests/vj-shader-warmup.spec.js`。三档都要在 lit 40%~90%、饱和 > 50%、色相 > 5。
+4. 对比网页:在 `app/` 下跑 `npm run review:vj -- --tests --open`。它用 git 里已提交的版本当「改前」、工作区当「改后」,自动取 `CONVERTED` 新增的隧道,三档都拍,再跑第 3 步的测试,结果全在一个网页里。不用再自己拍改前的图。交回时告诉 Claude Code 网页路径。
 
 ### 4. 批次顺序(每批约 10 条)
 
@@ -57,6 +65,14 @@
 - **SpeedGates**:改成实例化(119 → 约 20 次 draw call),强调色按世界编号,修掉了橙色门原地频闪;门数 26 → 25。**它在 `vj-five-depth` 里 balanced/ultra 的 lit 只有 40.2%/40.4%,离 40% 下限很近** —— 第 3 批改造时留出余量。
 - **NeonTubeRoom**:方环不再每次退格往回跳。
 - 性能预算测试扩到 50 条 × 三档。
+
+### 5b. 第 1 批验收结果(Claude Code,2026-09-26)
+
+- 30 格(10 条 × 三档)全部在 lit 40%~90%、饱和 > 50%、色相 > 5 以内;改前有 22 格不达标。测试没有放宽,只是把 10 条加进了 `CONVERTED`。
+- 通过:LiquidGrid、NeonRibbon、PrismShards、FractalWell、TentacleTunnel、EventHorizon、DataBloom、NeonArches(DataBloom、NeonArches、TentacleTunnel 从整屏色块变成有倒角、有受光、有暗部的实体,进步最大)。
+- 返工:VoidNebula(星云底没了、星核平涂、低面数棱角)、BioMembrane(balanced/ultra 的膜看不见)。
+- **首帧卡顿**:第一次切到 PrismShards 要冷编译玻璃着色器,1155 ms,`bg3d-performance-budget` 的 Top 20 测试失败。装好后第一次启动才会这样;之后 Chromium 的着色器磁盘缓存把它降到约 0.1 s。修法是启动后空闲时预热(`VJ_WARM_GLASS_VARIANTS`),新测试 `vj-shader-warmup.spec.js` 锁住。预算测试的 1 s 上限没动,只是改成等启动预热完成后再计时。代价:装好后第一次启动多约 0.4~0.5 s(玻璃的两个程序加环境贴图),3D 渲染器改为启动时就创建。
+- **帧时间**:FractalWell 28 → 44 ms、BioMembrane 28 → 40 ms、NeonRibbon 26 → 36 ms(本机集显 balanced,平稳帧)。在预算内,后面批次要留意。
 
 ### 6. 已知问题(待用户决定,本轮未改)
 
