@@ -16156,7 +16156,7 @@ function buildBg3DVjBioMembrane(){
 
   const LAYERS = 30, CELLS = 26, SPACING = VJ_LEN/LAYERS;
   const memGeo = new THREE.SphereGeometry(1, 14, 10);
-  const mem = new THREE.InstancedMesh(memGeo, vjMaterial('glass', { opacity:vjQuality === 'low' ? 0.36 : 0.015, side:THREE.DoubleSide }), LAYERS*CELLS);
+  const mem = new THREE.InstancedMesh(memGeo, vjMaterial('glass', { opacity:0.36, side:THREE.DoubleSide, envMapIntensity:0.55 }), LAYERS*CELLS);
   mem.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   mem.frustumCulled = false;
   scene.add(mem);
@@ -16169,7 +16169,7 @@ function buildBg3DVjBioMembrane(){
 
   const { composer } = vjQuality === 'low'
     ? createBg3DBloom(scene, camera, 1.2, 0.55, 0.5)
-    : createBg3DBloom(scene, camera, 0.78, 0.38, 0.68);
+    : createBg3DBloom(scene, camera, 0.36, 0.23, 0.8);
   let scroll = 0, clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
     clock += dt*0.016; scroll += vjSpeed(bass, dt)*0.9;
@@ -16183,10 +16183,12 @@ function buildBg3DVjBioMembrane(){
         const puff = 2.6 + Math.sin(wz*0.1 + c*1.3 + clock*1.9)*0.9 + bass*1.5;
         const i = L*CELLS+c;
         vjPut(mem, i, Math.cos(a)*rr, Math.sin(a)*rr, z, 0, 0, 0, puff, puff*0.92, puff*0.8);
-        VJ_C.setHSL(((0.94 + c*0.006 - wz*0.003 + clock*0.06)%1+1)%1, 0.72, 0.32 + high*0.06);
+        VJ_C.setHSL(((0.94 + c*0.006 - wz*0.003 + clock*0.06)%1+1)%1, 0.68,
+                    (vjQuality === 'low' ? 0.27 : 0.25) + high*0.04);
         mem.setColorAt(i, VJ_C);
-        vjPut(core, i, Math.cos(a)*rr, Math.sin(a)*rr, z, 0, 0, 0, puff*0.34, puff*0.34, puff*0.34);
-        VJ_C.setHSL(((0.12 + c*0.01 + clock*0.09)%1+1)%1, 1, Math.min(0.58, 0.5 + bass*0.2));   // 封顶：低音一顶能到 0.70
+        const coreSize = puff*(vjQuality === 'low' ? 0.34 : 0.28);
+        vjPut(core, i, Math.cos(a)*rr, Math.sin(a)*rr, z, 0, 0, 0, coreSize, coreSize, coreSize);
+        VJ_C.setHSL(((0.12 + c*0.01 + clock*0.09)%1+1)%1, 0.9, (vjQuality === 'low' ? 0.48 : 0.36) + bass*0.08);
         core.setColorAt(i, VJ_C);
       }
     }
@@ -16203,18 +16205,53 @@ function buildBg3DVjVoidNebula(){
   scene.fog = new THREE.FogExp2(0x02010a, 0.006);
   const camera = new THREE.PerspectiveCamera(84, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
 
+  // 背景保持整屏深紫,宽而淡的云斑只做气氛;运动的气团和星核负责纵深。
+  if(!buildBg3DVjVoidNebula.backdrop){
+    const cv=document.createElement('canvas'); cv.width=512; cv.height=256;
+    const g=cv.getContext('2d'); g.fillStyle='#04010c'; g.fillRect(0,0,512,256);
+    for(const [x,y,r,color] of [
+      [90,95,250,'rgba(70,20,110,0.26)'], [420,170,240,'rgba(60,22,105,0.28)'],
+      [290,40,175,'rgba(55,12,90,0.20)']]){
+      const grad=g.createRadialGradient(x,y,0,x,y,r);
+      grad.addColorStop(0,color); grad.addColorStop(1,'rgba(20,8,35,0)');
+      g.fillStyle=grad; g.fillRect(0,0,512,256);
+    }
+    buildBg3DVjVoidNebula.backdrop=new THREE.CanvasTexture(cv);
+  }
+  scene.background=buildBg3DVjVoidNebula.backdrop;
+
+  // 单一渐变贴图重复用于所有星核,避免近景低面数球的多边形轮廓。
+  if(!buildBg3DVjVoidNebula.radial){
+    const cv=document.createElement('canvas'); cv.width=cv.height=128;
+    const g=cv.getContext('2d'), grad=g.createRadialGradient(64,64,0,64,64,64);
+    grad.addColorStop(0,'rgba(255,255,255,1)');
+    grad.addColorStop(0.16,'rgba(255,255,255,0.96)');
+    grad.addColorStop(0.42,'rgba(255,255,255,0.48)');
+    grad.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=grad; g.fillRect(0,0,128,128);
+    buildBg3DVjVoidNebula.radial=new THREE.CanvasTexture(cv);
+  }
+
   const PUFFS = 620;
   const puffGeo = new THREE.SphereGeometry(1, 8, 6);
   // 半透的气团靠叠加出厚度 —— 单个很淡，几百个叠起来才是云
-  const puffs = new THREE.InstancedMesh(puffGeo, vjMaterial('neonCore', { opacity:vjQuality === 'low' ? 0.12 : 0.06 }), PUFFS);
+  const puffs = new THREE.InstancedMesh(puffGeo, vjMaterial('neonCore', { opacity:0.06 }), PUFFS);
+  puffs.material.depthWrite=false;
   puffs.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   puffs.frustumCulled = false;
   scene.add(puffs);
   const CORES = 150;
-  const cores = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 6, 5), vjMaterial('neonCore'), CORES);
+  const coreMat=vjMaterial('neonCore', { opacity:0.9, side:THREE.DoubleSide });
+  coreMat.map=buildBg3DVjVoidNebula.radial; coreMat.transparent=true; coreMat.depthWrite=false;
+  const cores = new THREE.InstancedMesh(new THREE.PlaneGeometry(2,2), coreMat, CORES);
   cores.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   cores.frustumCulled = false;
   scene.add(cores);
+  const heartMat=vjMaterial('neonCore', { opacity:0.72, additive:true, side:THREE.DoubleSide });
+  heartMat.map=buildBg3DVjVoidNebula.radial;
+  const hearts=new THREE.InstancedMesh(new THREE.PlaneGeometry(2,2), heartMat, CORES);
+  hearts.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  hearts.frustumCulled=false; scene.add(hearts);
   vjLightRig(scene, { keyColor:0x8a9fff, keyI:1.35, rimColor:0xd08aff, rimI:1.25, fillI:0.55 });
 
   const p = [], c = [];
@@ -16242,11 +16279,15 @@ function buildBg3DVjVoidNebula(){
       o.z += sp*1.1; if(o.z > VJ_FRONT) o.z -= VJ_LEN;
       const tw = 0.55 + 0.45*Math.sin(clock*2.4 + o.ph);   // 星核在闪
       const s = o.s*(1 + bass*0.6)*(0.6 + tw*0.8);
-      vjPut(cores, i, Math.cos(o.a)*o.r, Math.sin(o.a)*o.r, o.z, 0, 0, 0, s, s, s);
+      const x=Math.cos(o.a)*o.r, y=Math.sin(o.a)*o.r;
+      vjPut(cores, i, x, y, o.z, 0, 0, 0, s*1.35, s*1.35, 1);
       VJ_C.setHSL((o.hue + clock*0.05)%1, 1, Math.min(0.48, 0.36 + tw*0.18 + high*0.06));
       cores.setColorAt(i, VJ_C);
+      vjPut(hearts, i, x, y, o.z+0.02, 0, 0, 0, s*0.42, s*0.42, 1);
+      VJ_C.setHSL((o.hue + clock*0.05)%1, 0.35, 0.78);
+      hearts.setColorAt(i,VJ_C);
     }
-    vjFlush(puffs); vjFlush(cores);
+    vjFlush(puffs); vjFlush(cores); vjFlush(hearts);
     camera.fov = 84 + bass*12;
     scene.rotation.z = clock*0.045;
   }};

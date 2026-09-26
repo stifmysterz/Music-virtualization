@@ -1,6 +1,6 @@
-# 交接状态 — 去塑料感第 1 批已验收,返工两条(2026-09-26)
+# 交接状态 — 去塑料感第 1 批全部通过,可以开始第 2 批(2026-09-26)
 
-**当前状态**:第 1 批 10 条已提交到 `main`。用户看过对比网页后,8 条通过;**vjVoidNebula、vjBioMembrane 退回返工,说明见 `docs/vj-anti-plastic-batch1-rework.md`**。验收中 Claude Code 加了玻璃着色器的启动预热(见第 2 节最后一条)。**下一步:ChatGPT 先返工这两条,交回验收后再做第 2 批。**
+**当前状态**:第 1 批 10 条全部通过并提交到 `main`。vjVoidNebula、vjBioMembrane 返工一次后通过(说明见 `docs/vj-anti-plastic-batch1-rework.md`,结果见第 5b 节)。验收中 Claude Code 加了玻璃着色器的启动预热(见第 2 节「玻璃 / 液态金属的着色器要预热」)。**下一步:ChatGPT 做第 2 批。** 顺手可做:BioMembrane 的细胞核仍是平涂的 `neonCore`,近处大细胞核看得出 8×6 段球的棱角。
 
 ---
 
@@ -70,7 +70,7 @@
 
 - 30 格(10 条 × 三档)全部在 lit 40%~90%、饱和 > 50%、色相 > 5 以内;改前有 22 格不达标。测试没有放宽,只是把 10 条加进了 `CONVERTED`。
 - 通过:LiquidGrid、NeonRibbon、PrismShards、FractalWell、TentacleTunnel、EventHorizon、DataBloom、NeonArches(DataBloom、NeonArches、TentacleTunnel 从整屏色块变成有倒角、有受光、有暗部的实体,进步最大)。
-- 返工:VoidNebula(星云底没了、星核平涂、低面数棱角)、BioMembrane(balanced/ultra 的膜看不见)。
+- 返工:VoidNebula(星云底没了、星核平涂、低面数棱角)、BioMembrane(balanced/ultra 的膜看不见)。返工后通过:VoidNebula 用渐变底图和径向渐变星核(帧时间 22.7 → 26.7 ms);BioMembrane 三档的膜都是 0.36 不透明度的玻璃,balanced/ultra 有反射高光(帧时间不变,约 37 ms);lit 分别为 low 59.8% / 49.0%、balanced 71.9% / 80.6%。
 - **首帧卡顿**:第一次切到 PrismShards 要冷编译玻璃着色器,1155 ms,`bg3d-performance-budget` 的 Top 20 测试失败。装好后第一次启动才会这样;之后 Chromium 的着色器磁盘缓存把它降到约 0.1 s。修法是启动后空闲时预热(`VJ_WARM_GLASS_VARIANTS`),新测试 `vj-shader-warmup.spec.js` 锁住。预算测试的 1 s 上限没动,只是改成等启动预热完成后再计时。代价:装好后第一次启动多约 0.4~0.5 s(玻璃的两个程序加环境贴图),3D 渲染器改为启动时就创建。
 - **帧时间**:FractalWell 28 → 44 ms、BioMembrane 28 → 40 ms、NeonRibbon 26 → 36 ms(本机集显 balanced,平稳帧)。在预算内,后面批次要留意。
 
