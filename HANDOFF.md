@@ -1,6 +1,73 @@
-# 交接状态 — 5 条 VJ 质感升级已完成并发布（2026-09-25）
+# 交接状态 — 去塑料感第 0 轮完成,交给 ChatGPT 分批改造(2026-09-26)
 
-**当前状态**:本轮已由 Claude Code 审查、修复、全量验证并提交推送(commit `feat(vj): deepen five over-bright tunnels…`)。之后 Claude Code 又做了一轮工程修复(见下方"工程修复")。工作树干净,`61.html` / `replacement/61.html` / 安装包内 `61.html` 三份 SHA256 一致(`0244BA94DF76F340F6830049CC98D3A27605ACA53F52D0E49E05590759EF99E5`),Replace ZIP 与发布完整性脚本全部 PASS,全量 Playwright **262/262 通过(约 13 分钟)**。下一轮方向还没定 —— 用户指定之前,`61.html` 不归任何一方独占,开工前先确认轮到谁。
+**当前状态**:Claude Code 做完了"去塑料感 + 边角细滑"的工程底座和两条示范隧道,用户已看过对比网页并确认质感方向(https://claude.ai/artifact/8v3HSgout91esQ54AhoXUT)。设计文档 `docs/superpowers/specs/2026-09-25-vj-anti-plastic-design.md`,实施计划 `docs/superpowers/plans/2026-09-25-vj-anti-plastic-round0.md`。三份 `61.html` SHA256 一致(`4237334B1B6D2A3E6C11AD0A3EC28EAFAA71568FEB8F4C1C45A8743E66E5A69D`),全量 Playwright **287/287 通过(约 17 分钟;重建 ZIP 与安装包之前是 285/287,那 2 条是打包产物过期,重建后通过)**。**下一步:ChatGPT 按下面的批次顺序改造其余 48 条,每批约 10 条;每批做完交回 Claude Code 验证。ChatGPT 改 `61.html` 期间 Claude Code 不动它。**
+
+## 去塑料感改造:给 ChatGPT 的用法和规则
+
+### 1. 工具(都在 `61.html` 里,直接调用)
+
+| 预设 `vjMaterial(preset, opts)` | 用途 | balanced / ultra | low |
+|---|---|---|---|
+| `metal` | 门框、方块、结构件 | 金属 + 环境反射 | 金属 matcap |
+| `liquidMetal` | 水银、镀铬、滴落的金属(金属组里要求清漆的 4 条用它) | 物理材质 + 清漆 | 金属 matcap |
+| `satin` | 墙体、地形等大面积哑光 | 非金属、较粗糙 | 哑光 matcap |
+| `glass` | 玻璃、晶体、碎片 | 清漆 + 半透明 | 玻璃 matcap + 半透明 |
+| `neonCore` | 灯管芯、能量线、发光块 | 不受光自发光(靠 bloom) | 同左 |
+| `neonHousing` | 灯管外壳、灯座 | 深色金属 | 深色金属 matcap |
+
+- `opts` 可传 `color`、`opacity`、`side`、`metalness`、`roughness`、`envMapIntensity`、`additive`(只对 `neonCore`)。未知预设名会直接报错。
+- 用了 `metal`/`liquidMetal`/`satin`/`glass`/`neonHousing` 的场景必须有 `vjLightRig(scene, …)`(至少 2 盏方向光 + 1 盏半球光)。
+- `vjBevelBox(w, h, d, radius)`:按档位给倒角/圆角方块(low 44 面 / balanced 108 面 / ultra 300 面),同尺寸共用一份,半径会自动夹紧。**按实际尺寸建**,不要建单位方块再拉伸。
+- `vjPresetJitter(color, key, amount = 0.06)`:确定性的逐实例亮度微差。
+- low 档的整体亮度倍率在 `VJ_MATCAP_LOOKS` 里(`gain`),受光档参数在 `VJ_LIT_LOOKS` 里 —— 改这两张表会影响所有用该预设的隧道,改之前先问 Claude Code。
+
+### 2. 规则(每条都来自示范隧道里真实踩过的坑)
+
+- **预设在 low 档也是有明暗的 matcap**:颜色用受光档的数值,不要再用 `vjTint` 的 low 分支(那是给不受光材质的)。
+- **不等比拉伸的部件**:按实际尺寸建 `vjBevelBox`;细长部件用圆柱/胶囊(示范:NeonTubeRoom 的灯管芯是圆柱);会随脉冲不等比拉伸的发光块保留直角并用 `neonCore`。
+- **世界编号**:槽位循环(`z = -i*SPACING + off - SPACING`)里,凡是按元素决定的外观 —— 强调色、有没有、交替色、`vjPresetJitter` 的 key —— 都用 `i + Math.floor(scroll / SPACING)`,再对槽位总数取模,**取模周期必须整除槽位总数**(示范:SpeedGates 25 扇门 / 每 5 扇强调;NeonTubeRoom 48 段 / 每 3 段一环 / 每 6 段换色)。用槽位编号 `i` 的话,每次退格外观都会留在原地:强调色频闪、元素原地回跳。
+- **bloom 跟亮度一起调**:换成受光材质后,原来的 bloom 往往会把块与块之间的缝全部填亮(示范:ChromeFlow 从 1.15/0.5/0.55 收到 0.75/0.45/0.78 后缝才重新变黑)。
+- **自己写的后处理 pass**,`dispose()` 必须释放全部材质和渲染目标(回收路径只调 `pass.dispose()`)。
+
+### 3. 每批的验收流程
+
+1. 把本批改造完的隧道名加进 `app/tests/vj-anti-plastic.spec.js` 的 `CONVERTED`(只增不减)。
+2. 用到槽位编号决定外观的,在 `app/tests/vj-element-continuity.spec.js` 加用例(照 SpeedGates / NeonTubeRoom 的 `pick` 写)。
+3. 在 `app/` 下跑:`npx playwright test tests/vj-anti-plastic.spec.js tests/vj-element-continuity.spec.js tests/vj-five-depth.spec.js tests/vj-tunnels.spec.js tests/vj-loop-integrity.spec.js tests/bg3d-performance-budget.spec.js tests/vj-material-presets.spec.js`。三档都要在 lit 40%~90%、饱和 > 50%、色相 > 5。
+4. 拍对比图:`node scripts/vj-shots.js --out ../vj-shots/<批次名> --kinds <本批,逗号分隔> --crop 0.62,0.35`(改造前的图用同样命令在改造前拍一次,输出目录换个名字)。交回 Claude Code 做对比网页给用户看。
+
+### 4. 批次顺序(每批约 10 条)
+
+| 批次 | 隧道 |
+|---|---|
+| 1(Top 20 Premium) | vjLiquidGrid、vjNeonRibbon、vjPrismShards、vjFractalWell、vjTentacleTunnel、vjBioMembrane、vjVoidNebula、vjEventHorizon、vjDataBloom、vjNeonArches |
+| 2(Top 20 Premium) | vjHorizonVoyage、vjHyperCube、vjCoasterRush、vjMercuryPool、vjWarpJump、vjSolarFlare、vjChromeTube、vjMetalTwist、vjLiquidSpine |
+| 3(方块 / 结构) | vjCubeMatrix、vjGridMorph、vjCyborgCorridor、vjRaceTrack、vjSpeedGates、vjHoverCity、vjDerelictHall、vjCollapsedGrid、vjShatteredPanes、vjDustShaft |
+| 4(方块 / 结构 + 线条) | vjAsteroidSlalom、vjRingWorldRun、vjVoxelPulseTerrain、vjNeonGeometryTunnel、vjUltravioletHiveRush、vjNeonReactorDescent、vjHexPulse、vjWaveCorridor、vjStarLane、vjKaleido |
+| 5(有机 / 粒子 / 流体 / 金属) | vjPlasmaRings、vjCandyOrbs、vjLightWell、vjIonTrail、vjBlackGoldFluid、vjFoilCrumple、vjChromeBubbles、vjChromeDrips、vjRustPipes |
+
+已完成:vjChromeFlow、vjNeonTubeRoom(示范)。金属组 7 条(ChromeTube、MetalTwist、ChromeDrips、FoilCrumple、ChromeBubbles、LiquidSpine、RustPipes)还受 `vj-tunnels.spec.js` 的"7 个金属 VJ"测试约束:金属度 0.6~0.78、粗糙度 0.1~0.5;ChromeTube/ChromeDrips/ChromeBubbles/LiquidSpine 要用 `liquidMetal`(清漆 ≥ 0.85)。
+
+### 5. 本轮工程结果(Claude Code)
+
+- **抗锯齿**:三档都加了 SMAA(与 FXAA 并排对比后用户选定),在调色之后、写 alpha 之前。low 档细光带的硬台阶从 30% 降到 2%。
+- **高分屏修复**:balanced/ultra 以前在高分屏上按 CSS 尺寸渲染再拉伸(r149 的 EffectComposer 自带 MSAA 目标时把像素比记成 1),现在按完整分辨率渲染。
+- **录制清晰度开关**:Tools 里的「🧊 录制时 3D」—— 默认"屏幕尺寸"(与以前一样快);"跟随录制画质"时 3D 层按录制分辨率渲染,成片最锐利但很重(本机集显录 4K 约 6~8 fps)。帧时间表见 `vj-shots/rec-frame-times.md`(本地,未入库)。
+- **SpeedGates**:改成实例化(119 → 约 20 次 draw call),强调色按世界编号,修掉了橙色门原地频闪;门数 26 → 25。**它在 `vj-five-depth` 里 balanced/ultra 的 lit 只有 40.2%/40.4%,离 40% 下限很近** —— 第 3 批改造时留出余量。
+- **NeonTubeRoom**:方环不再每次退格往回跳。
+- 性能预算测试扩到 50 条 × 三档。
+
+### 6. 已知问题(待用户决定,本轮未改)
+
+- 27 条槽位循环隧道里的 `wz = i*SPACING - scroll` 不是元素的物理坐标:每次退格它对同一个元素跳 −SPACING,用 `wz` 驱动的摆动/旋转/波形在退格时有小幅阶跃。
+- 部分灯光强度渐变按帧不按时间(例如 ChromeFlow 的 `rig.key.intensity += (…) * 0.12`),30fps 和 60fps 下快慢不同(CLAUDE.md §13)。
+- VJ 自动轮换每次切换都会存一条撤销记录(上限 50),长时间开着会把手动操作挤出撤销历史。
+
+---
+
+## 上一轮记录:5 条 VJ 质感升级(2026-09-25)
+
+上一轮的交接状态:本轮已由 Claude Code 审查、修复、全量验证并提交推送(commit `feat(vj): deepen five over-bright tunnels…`),之后又做了一轮工程修复(见下方"工程修复")。
 
 ## 工程修复(Claude Code,2026-09-25)
 
