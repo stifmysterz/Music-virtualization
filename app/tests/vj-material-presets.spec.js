@@ -30,6 +30,8 @@ test('每个预设在三档下是预期的材质类型,都带预设标记,受光
           const m = vjMaterial(p);
           return [p, { type: m.type, tag: m.userData.vjPreset, env: !!m.envMap }];
         }));
+        const lm = vjMaterial('liquidMetal');
+        out[tier + ':liquidMetal'] = { clearcoat: lm.clearcoat || 0, metalness: lm.metalness, roughness: lm.roughness };
       }
       let threw = false; try { vjMaterial('plastic'); } catch (_e) { threw = true; }
       return { out, threw };
@@ -37,6 +39,7 @@ test('每个预设在三档下是预期的材质类型,都带预设标记,受光
     const lowShaded = { type: 'MeshMatcapMaterial', env: false };
     expect(r.out.low).toEqual({
       metal: { ...lowShaded, tag: 'metal' }, satin: { ...lowShaded, tag: 'satin' }, glass: { ...lowShaded, tag: 'glass' },
+      liquidMetal: { ...lowShaded, tag: 'liquidMetal' },
       neonCore: { type: 'MeshBasicMaterial', tag: 'neonCore', env: false }, neonHousing: { ...lowShaded, tag: 'neonHousing' },
     });
     for (const tier of ['balanced', 'ultra']) {
@@ -44,9 +47,17 @@ test('每个预设在三档下是预期的材质类型,都带预设标记,受光
         metal: { type: 'MeshStandardMaterial', tag: 'metal', env: true },
         satin: { type: 'MeshStandardMaterial', tag: 'satin', env: true },
         glass: { type: 'MeshPhysicalMaterial', tag: 'glass', env: true },
+        liquidMetal: { type: 'MeshPhysicalMaterial', tag: 'liquidMetal', env: true },
         neonCore: { type: 'MeshBasicMaterial', tag: 'neonCore', env: false },
         neonHousing: { type: 'MeshStandardMaterial', tag: 'neonHousing', env: true },
       });
+    }
+    // 液态金属要满足 vj-tunnels 金属组的判据(清漆 ≥ 0.85、金属度 0.6–0.78、粗糙度 0.1–0.5)
+    for (const tier of ['balanced', 'ultra']) {
+      const lm = r.out[tier + ':liquidMetal'];
+      expect(lm.clearcoat).toBeGreaterThanOrEqual(0.85);
+      expect(lm.metalness).toBeGreaterThanOrEqual(0.6); expect(lm.metalness).toBeLessThanOrEqual(0.78);
+      expect(lm.roughness).toBeGreaterThanOrEqual(0.1); expect(lm.roughness).toBeLessThanOrEqual(0.5);
     }
     expect(r.threw, '未知预设必须报错,不能悄悄退回默认材质').toBe(true);
   });

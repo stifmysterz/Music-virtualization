@@ -14878,9 +14878,11 @@ function vjChamferBoxGeometry(w, h, d, bevel){
    每个预设都明确避开「塑料区」(中等粗糙、非金属、无反射、整片同色):
    要么真金属带环境反射,要么哑光面靠逆光勾轮廓,要么玻璃,要么真正的发光体。
    档位由预设自己处理:low 用 matcap(一次贴图查找就有明暗和高光),受光档用 PBR。 */
-const VJ_MATERIAL_PRESETS = ['metal', 'satin', 'glass', 'neonCore', 'neonHousing'];
+const VJ_MATERIAL_PRESETS = ['metal', 'liquidMetal', 'satin', 'glass', 'neonCore', 'neonHousing'];
 const VJ_LIT_LOOKS = {
   metal:       { metalness: 0.72, roughness: 0.22, envMapIntensity: 0.6 },
+  // 液态/铬面:金属上再罩一层清漆,高光是两层叠出来的 —— 水银、镀铬、滴落的金属
+  liquidMetal: { metalness: 0.72, roughness: 0.16, envMapIntensity: 0.65 },
   satin:       { metalness: 0.05, roughness: 0.62, envMapIntensity: 0.25 },
   glass:       { metalness: 0.0,  roughness: 0.08, envMapIntensity: 0.9, opacity: 0.45 },
   neonHousing: { metalness: 0.85, roughness: 0.3,  envMapIntensity: 0.5, color: 0x2a2e36 },
@@ -14888,6 +14890,7 @@ const VJ_LIT_LOOKS = {
 // gain:low 档 matcap 的整体亮度倍率,由示范隧道的三档画面判据校准
 const VJ_MATCAP_LOOKS = {
   metal:       { paint: 'metal', gain: 1.0 },
+  liquidMetal: { paint: 'metal', gain: 1.0 },
   satin:       { paint: 'satin', gain: 1.0 },
   glass:       { paint: 'glass', gain: 1.0 },
   neonHousing: { paint: 'metal', gain: 1.6 },
@@ -14940,11 +14943,11 @@ function vjMaterial(preset, o){
     m = new THREE.MeshMatcapMaterial({ matcap: vjMatcapTexture(look.paint), color: new THREE.Color(color).multiplyScalar(look.gain),
       side, transparent: opacity < 1, opacity });
   }else{
-    const Ctor = preset === 'glass' ? THREE.MeshPhysicalMaterial : THREE.MeshStandardMaterial;
+    const Ctor = (preset === 'glass' || preset === 'liquidMetal') ? THREE.MeshPhysicalMaterial : THREE.MeshStandardMaterial;
     m = new Ctor({ color, side, transparent: opacity < 1, opacity,
       metalness: o.metalness !== undefined ? o.metalness : lit.metalness,
       roughness: o.roughness !== undefined ? o.roughness : lit.roughness });
-    if(preset === 'glass'){ m.clearcoat = 1; m.clearcoatRoughness = 0.06; }
+    if(preset === 'glass' || preset === 'liquidMetal'){ m.clearcoat = 1; m.clearcoatRoughness = preset === 'glass' ? 0.06 : 0.08; }
     m.envMap = vjEnvMap();
     m.envMapIntensity = o.envMapIntensity !== undefined ? o.envMapIntensity : lit.envMapIntensity;
   }
