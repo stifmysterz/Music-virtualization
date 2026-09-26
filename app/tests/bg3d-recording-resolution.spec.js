@@ -145,3 +145,56 @@ test('「录制时 3D」开关:点击切换并记住,标签跟语言走,录制�
     expect(r.lockedSharp, '录制中点击不应改变设置').toBe(true);
   });
 });
+
+/* 审查发现:pr = W / 舞台宽 只在 16:9 舞台上等于 W×H;竖屏 4K 会渲染 3840×6820(每帧 500 ms+)。 */
+test('跟随录制画质 + 非 16:9 舞台:3D 缓冲不超过录制帧,且占满其中一边', async () => {
+  await withApp('rec-res-aspect', async win => {
+    const rows = await win.evaluate(stateSrc => {
+      const state = eval(stateSrc);
+      setRecord3DSharp(true); enableBg3D('vjChromeFlow');
+      const out = [];
+      for (const mode of ['portrait', 'square']) {
+        aspectMode = mode; resize();
+        recordQuality = '4k'; enterRecordingResolution();
+        out.push({ mode, ...state() });
+        exitRecordingResolution();
+      }
+      aspectMode = 'free'; resize();
+      return out;
+    }, STATE);
+    for (const r of rows) {
+      expect.soft(r.bufW, `${r.mode}: 缓冲宽 ${r.bufW} > 录制宽 ${r.W}`).toBeLessThanOrEqual(r.W + 1);
+      expect.soft(r.bufH, `${r.mode}: 缓冲高 ${r.bufH} > 录制高 ${r.H}`).toBeLessThanOrEqual(r.H + 1);
+      expect.soft(Math.max(r.bufW / r.W, r.bufH / r.H), `${r.mode}: 没占满录制帧的任何一边`).toBeGreaterThan(0.99);
+    }
+  });
+});
+
+/* 审查发现:UnrealBloom 的模糊核按像素算,分辨率一高光晕就相对变小,观感变了(NeonTubeRoom lit 49.9% → 37.5%)。
+   打开开关应该只是「更锐」,不是「换了个画面」。 */
+test('跟随录制画质不改变观感:亮像素占比与按屏幕尺寸渲染相近', async () => {
+  test.setTimeout(120_000);
+  await withApp('rec-res-parity', async win => {
+    const r = await win.evaluate(() => {
+      const litOf = () => {
+        const gl = bg3DRenderer.getContext(), w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+        const b = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, b);
+        let lit = 0; for (let i = 0; i < b.length; i += 4) if (Math.max(b[i], b[i + 1], b[i + 2]) >= 40) lit++;
+        return lit / (w * h);
+      };
+      const frame = sharp => {
+        setRecord3DSharp(sharp);
+        if (sharp) { recordQuality = '4k'; enterRecordingResolution(); }
+        vjDropCachedScene('vjNeonTubeRoom'); seedBg3DBuilds(0x5EED); vjSpeedBassSmooth = 0;
+        enableBg3D('vjNeonTubeRoom');
+        for (let i = 0; i < 42; i++) renderBg3D(0.5, 0.4, 0.3, 1);
+        const lit = litOf();
+        if (sharp) exitRecordingResolution();
+        return lit;
+      };
+      return { screen: frame(false), sharp: frame(true) };
+    });
+    console.log(`NeonTubeRoom lit screen=${(r.screen * 100).toFixed(1)}% sharp=${(r.sharp * 100).toFixed(1)}%`);
+    expect(Math.abs(r.sharp - r.screen)).toBeLessThan(0.05);
+  });
+});

@@ -170,3 +170,27 @@ test('SMAA pass 用的是共享的已解码查找图,解码完成后贴图已上
     expect(r.uploaded).toBe(true);
   });
 });
+
+/* SMAA 在 low 档大约让每帧慢一半;画质档之外再给一个开关,慢机器可以关掉。 */
+test('3D 抗锯齿开关:默认开,点击关掉 SMAA 并记住,标签跟语言走', async () => {
+  await withApp('post-aa-toggle', async win => {
+    const r = await win.evaluate(() => {
+      enableBg3D('vjChromeFlow');
+      const btn = document.getElementById('bg3DAABtn');
+      const hasAA = () => bg3DScenes.vjChromeFlow.composer.passes.some(p => p.__bg3dAA);
+      const on = btn.textContent, aaBefore = hasAA();
+      btn.click();
+      const off = btn.textContent, aaAfter = hasAA(), stored = localStorage.getItem('subremix_bg3daa');
+      applyLanguage('zh'); const zh = btn.textContent; applyLanguage('en');
+      btn.click();
+      return { on, off, aaBefore, aaAfter, stored, zh, back: hasAA() };
+    });
+    expect(r.aaBefore).toBe(true);
+    expect(r.on).toContain('On');
+    expect(r.off).toContain('Off');
+    expect(r.aaAfter).toBe(false);
+    expect(r.stored).toBe('off');
+    expect(r.zh).toContain('3D 抗锯齿');
+    expect(r.back).toBe(true);
+  });
+});

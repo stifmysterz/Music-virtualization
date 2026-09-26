@@ -2,7 +2,7 @@
 'use strict';
 /* 截图 + 指标。对比网页和每批验收都用它:
    node scripts/vj-shots.js --out ../vj-shots/baseline --kinds vjChromeFlow,vjNeonTubeRoom
-     [--tiers low,balanced,ultra] [--aa off|smaa] [--record 4k|1440p|1080p] [--record-sharp]
+     [--tiers low,balanced,ultra] [--aa off|smaa] [--record 4k|1440p|1080p] [--record-sharp] [--dpr 2]
      [--measure] [--crop 0.62,0.35] [--crops-only]
    每张图都是固定种子、全新建场景、固定音频输入下的第 42 帧,不同批次之间可直接对比。 */
 const fs = require('fs');
@@ -26,6 +26,7 @@ const opts = {
   cropsOnly: flag('crops-only'),
   crop: arg('crop', '0.5,0.5').split(',').map(Number),
 };
+const dpr = arg('dpr', null);   // 模拟高分屏:--force-device-scale-factor
 if (!kinds.length) { console.error('--kinds is required'); process.exit(2); }
 
 function capture({ tier, kind, aa, record, recordSharp, measure, cropsOnly, crop }) {
@@ -93,7 +94,7 @@ function capture({ tier, kind, aa, record, recordSharp, measure, cropsOnly, crop
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'vj-shots-'));
   let app = null, win = null;
   try {
-    app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`], cwd: APP_DIR });
+    app = await electron.launch({ args: [...(dpr ? [`--force-device-scale-factor=${dpr}`] : []), '.', `--user-data-dir=${userData}`], cwd: APP_DIR });
     win = await app.firstWindow();
     await win.waitForFunction(() => (document.getElementById('cv')?.width || 0) > 300, null, { timeout: 30000 });
     const metrics = [];

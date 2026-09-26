@@ -1007,6 +1007,7 @@
     <option value="drift">🎥 Camera: Rotation Drift</option>
   </select>
   <button id="bg3DDirectorBtn" class="dock-dd-item" title="Auto-detects Build Up / Drop / Breakdown from the music and nudges the current 3D style's intensity accordingly">🎬 Auto Director: Off</button>
+  <button id="bg3DAABtn" class="dock-dd-item" title="Smooth jagged 3D edges (SMAA). Turn it off on slow machines: the Low tier runs about a third faster without it">✨ 3D Anti-aliasing: On</button>
   <button id="bg3DSeeThroughBtn" class="dock-dd-item" title="Let the photo/video background show through the dark parts of the 3D scene — bright areas stay solid">🪟 See Through: On</button>
   <button id="bg3DGradeBtn" class="dock-dd-item" title="Experimental ACES tone mapping. Off by default: these effects author their colours already in display space, so the curve washes out mid-tones and desaturates bright surfaces instead of helping. Left here so you can see it for yourself.">🎞 Film Grade: Off</button>
   <div class="dock-dd-slider-row" id="bg3DOpacityRow" title="How visible the 3D background is — independent of the photo/video background's own brightness slider">
@@ -7309,7 +7310,7 @@ const T2 = {
       bounceOn:'Bounce: On',bounceOff:'Bounce: Off',
       fxBlendLabelOn:'✳ FX over BG: On',fxBlendLabelOff:'✳ FX over BG: Off',mic:'Mic',micOn:'Mic On',
       outlineLabel:'Canvas Outline',debug3dLabel:'3D Debug',onWord:'On',offWord:'Off',
-      fpsLabel:'FPS Meter',recordQualityLabel:'Quality',fpsRecording:'recording',seeThroughLabel:'See Through',filmGradeLabel:'Film Grade',autoDirectorLabel:'Auto Director',
+      fpsLabel:'FPS Meter',recordQualityLabel:'Quality',fpsRecording:'recording',seeThroughLabel:'See Through',aa3DLabel:'3D Anti-aliasing',filmGradeLabel:'Film Grade',autoDirectorLabel:'Auto Director',
       fpsTipQuality:'Recording is dropping frames — try a lower Quality in Tools.',
       fpsTipLayers:'Still dropping frames at 1080p — try using fewer modes at once.',
       recordQualityLocked:'Stop the recording before changing quality.',
@@ -7350,7 +7351,7 @@ const T2 = {
       screenBlendOn:'✳ 去黑底：开',screenBlendOff:'✳ 去黑底：关',
       fxBlendLabelOn:'✳ 特效透背景：开',fxBlendLabelOff:'✳ 特效透背景：关',
       outlineLabel:'画布边框',debug3dLabel:'3D 调试',onWord:'开',offWord:'关',
-      fpsLabel:'帧率',recordQualityLabel:'录制画质',fpsRecording:'录制中',seeThroughLabel:'透出背景',filmGradeLabel:'电影调色',autoDirectorLabel:'自动导演',
+      fpsLabel:'帧率',recordQualityLabel:'录制画质',fpsRecording:'录制中',seeThroughLabel:'透出背景',aa3DLabel:'3D 抗锯齿',filmGradeLabel:'电影调色',autoDirectorLabel:'自动导演',
       fpsTipQuality:'录制掉帧了 —— 到 Tools 里把录制画质调低一档试试。',
       fpsTipLayers:'1080p 还是掉帧 —— 试试同时少开几个 mode。',
       recordQualityLocked:'先停止录制，再改画质。',
@@ -7402,6 +7403,8 @@ const STATEFUL_LABELS = {
   debugOutlineBtn: ()=> '▭ ' + t2('outlineLabel') + ': ' + t2((typeof debugOutlineOn!=='undefined' && debugOutlineOn) ? 'onWord' : 'offWord'),
   bg3dDebugBtn: ()=> '🐞 ' + t2('debug3dLabel') + ': ' + t2((typeof bg3dDebugOn!=='undefined' && bg3dDebugOn) ? 'onWord' : 'offWord'),
   fpsHudBtn: ()=> '📊 ' + t2('fpsLabel') + ': ' + t2((typeof fpsHudOn!=='undefined' && fpsHudOn) ? 'onWord' : 'offWord'),
+  // 标签在 bg3DPostAA 的 let 声明之前就会被刷新一次(let 暂时性死区里 typeof 也会抛错),所以用 try
+  bg3DAABtn: ()=> '✨ ' + t2('aa3DLabel') + ': ' + t2((()=>{ try{ return bg3DPostAA !== 'off'; }catch(e){ return true; } })() ? 'onWord' : 'offWord'),
   bg3DSeeThroughBtn: ()=> '🪟 ' + t2('seeThroughLabel') + ': ' + t2((typeof bg3DSeeThrough==='undefined' || bg3DSeeThrough) ? 'onWord' : 'offWord'),
   bg3DGradeBtn: ()=> '🎞 ' + t2('filmGradeLabel') + ': ' + t2((typeof bg3DGrade==='undefined' || bg3DGrade) ? 'onWord' : 'offWord'),
   twoDDirectorBtn: ()=>{
@@ -8123,7 +8126,7 @@ const bgThreeCanvas = document.getElementById('bgThree');
 function ensureBg3DRenderer(){
   if(bg3DRenderer) return bg3DRenderer;
   bg3DRenderer = new THREE.WebGLRenderer({ canvas: bgThreeCanvas, antialias:true, alpha:true });
-  bg3DRenderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+  bg3DRenderer.setPixelRatio(bg3DScreenPixelRatio());
   bg3DRenderer.setClearColor(0x000000, 0);   // alpha:true alone still clears opaque by default — this is what actually lets the photo/video background show through empty areas
   /* info.render 默认每次 renderer.render() 开头就重置，而一帧要走 EffectComposer 的多个 pass，
      所以快照拿到的永远是最后那个全屏 pass（1 个 draw call、1 个三角形），
@@ -8329,6 +8332,7 @@ function makeBg3DAlphaPass(){
    MSAA 只管几何边缘;1px 线、着色器画出的边、bloom 之后的高光边都要靠这一道。
    放在调色之后、写 alpha 之前:alpha 按最终 rgb 算,必须在平滑之后。 */
 let bg3DPostAA = 'smaa';   // 'smaa' | 'off' —— 与 FXAA 并排对比后选定 SMAA:轮廓更锐、保留细节
+try{ if(localStorage.getItem('subremix_bg3daa') === 'off') bg3DPostAA = 'off'; }catch(e){}
 function makeBg3DAAPass(){
   if(bg3DPostAA === 'off') return null;
   const size = ensureBg3DRenderer().getDrawingBufferSize(new THREE.Vector2());
@@ -14831,6 +14835,9 @@ function vjBevelBox(w, h, d, radius){
   if(!g){
     g = seg === 0 ? vjChamferBoxGeometry(w, h, d, r) : new THREE_R149_ADDONS.RoundedBoxGeometry(w, h, d, seg, r);
     g.userData.vjShared = true;
+    /* 共享几何被一条隧道 rotateX/translate/scale 之后,所有用同尺寸的隧道都会跟着变,
+       而且每次重建累加一次。rotate/translate/scale/center/lookAt/applyQuaternion 都经过 applyMatrix4。 */
+    g.applyMatrix4 = () => { throw new Error('vjBevelBox geometry is shared: transform the mesh or instance, not the geometry'); };
     vjBevelGeoCache.set(key, g);
   }
   return g;
@@ -18148,15 +18155,24 @@ const BG3D_BUILDERS = {
 /* 119 regular 3D backgrounds + 50 VJ tunnels share this builder registry. */
 /* BG3D_BUILDERS:END */
 
-function bg3DTargetPixelRatio(stageW){
-  // 用户打开「录制时 3D:跟随录制画质」时,按录制分辨率渲染(跟 2D 画布的 W 对齐),而不是渲染屏幕尺寸再被放大进成片
-  if(recordingResolutionActive && record3DSharp) return W / Math.max(1, stageW);
-  return Math.min(window.devicePixelRatio || 1, 2);
+/* 3D 层的像素比跟画质档走:画质档本来就是这一层的性能旋钮,Auto 降到 low 时分辨率也得跟着降,
+   否则 2 倍屏上 balanced 要渲染 4 倍像素、low 也省不下来。 */
+const BG3D_TIER_MAX_PIXEL_RATIO = { low: 1, balanced: 1.5, ultra: 2 };
+function bg3DScreenPixelRatio(){
+  return Math.min(window.devicePixelRatio || 1, BG3D_TIER_MAX_PIXEL_RATIO[vjQuality] || 2);
+}
+function bg3DTargetPixelRatio(stageW, stageH){
+  /* 用户打开「录制时 3D:跟随录制画质」时按录制帧渲染,而不是渲染屏幕尺寸再被放大进成片。
+     取两边较小值:录制帧永远是 W×H,竖屏/方形舞台按宽算会渲染到 3840×6820。 */
+  if(recordingResolutionActive && record3DSharp) return Math.min(W / Math.max(1, stageW), H / Math.max(1, stageH));
+  return bg3DScreenPixelRatio();
 }
 function resizeBg3D(stageW, stageH){
   const availW = Math.max(1, stageW || visualStage.clientWidth || window.innerWidth - PANEL_SAFE_ZONE);
   const availH = Math.max(1, stageH || visualStage.clientHeight || window.innerHeight - DOCK_SAFE_ZONE);
-  const pr = bg3DTargetPixelRatio(availW);
+  // resize() 在页面加载时就会跑到这里,那时渲染器还没建、vjQuality 还没初始化 —— 没有渲染器就不算像素比
+  const pr = bg3DRenderer ? bg3DTargetPixelRatio(availW, availH) : 1;
+  const screenPr = bg3DRenderer ? bg3DScreenPixelRatio() : 1;
   if(bg3DRenderer){
     if(bg3DRenderer.getPixelRatio() !== pr) bg3DRenderer.setPixelRatio(pr);
     bg3DRenderer.setSize(availW, availH, false);
@@ -18166,7 +18182,11 @@ function resizeBg3D(stageW, stageH){
   Object.values(bg3DScenes).forEach(s=>{
     if(s.camera){ s.camera.aspect = availW/availH; s.camera.updateProjectionMatrix(); }
     // 自带 MSAA 渲染目标的合成器在 r149 里把像素比记成 1:不同步的话会按 CSS 尺寸渲染再被拉伸
-    if(s.composer){ s.composer.setPixelRatio(pr); s.composer.setSize(availW, availH); }
+    if(s.composer){
+      s.composer.setPixelRatio(pr); s.composer.setSize(availW, availH);
+      // bloom 的模糊核按像素算:按录制分辨率渲染时仍按屏幕等效尺寸做 bloom,光晕占画面的比例才不变
+      if(pr !== screenPr) s.composer.passes.forEach(p => { if(p.renderTargetBright) p.setSize(Math.round(availW*screenPr), Math.round(availH*screenPr)); });
+    }
   });
 }
 function applyBgBounceToCamera(camera, p){
@@ -28576,6 +28596,18 @@ document.getElementById('bg3DSeeThroughBtn').onclick = ()=>{
 };
 applyBg3DSeeThrough();
 applyBg3DGrade();
+function applyBg3DAABtn(){
+  const btn = document.getElementById('bg3DAABtn');
+  if(!btn) return;
+  btn.textContent = STATEFUL_LABELS.bg3DAABtn();
+  btn.classList.toggle('active', bg3DPostAA !== 'off');
+}
+document.getElementById('bg3DAABtn').onclick = ()=>{
+  setBg3DPostAA(bg3DPostAA === 'off' ? 'smaa' : 'off');
+  try{ localStorage.setItem('subremix_bg3daa', bg3DPostAA); }catch(e){}
+  applyBg3DAABtn();
+};
+applyBg3DAABtn();
 document.getElementById('bg3DCameraMotionSel').addEventListener('change', e=>{
   bg3DCameraMotion = e.target.value;
 });

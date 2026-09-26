@@ -1,6 +1,6 @@
 # 交接状态 — 去塑料感第 0 轮完成,交给 ChatGPT 分批改造(2026-09-26)
 
-**当前状态**:Claude Code 做完了"去塑料感 + 边角细滑"的工程底座和两条示范隧道,用户已看过对比网页并确认质感方向(https://claude.ai/artifact/8v3HSgout91esQ54AhoXUT)。设计文档 `docs/superpowers/specs/2026-09-25-vj-anti-plastic-design.md`,实施计划 `docs/superpowers/plans/2026-09-25-vj-anti-plastic-round0.md`。三份 `61.html` SHA256 一致(`4237334B1B6D2A3E6C11AD0A3EC28EAFAA71568FEB8F4C1C45A8743E66E5A69D`),全量 Playwright **287/287 通过(约 17 分钟;重建 ZIP 与安装包之前是 285/287,那 2 条是打包产物过期,重建后通过)**。**下一步:ChatGPT 按下面的批次顺序改造其余 48 条,每批约 10 条;每批做完交回 Claude Code 验证。ChatGPT 改 `61.html` 期间 Claude Code 不动它。**
+**当前状态**:Claude Code 做完了"去塑料感 + 边角细滑"的工程底座和两条示范隧道,用户已看过对比网页并确认质感方向(https://claude.ai/artifact/8v3HSgout91esQ54AhoXUT)。设计文档 `docs/superpowers/specs/2026-09-25-vj-anti-plastic-design.md`,实施计划 `docs/superpowers/plans/2026-09-25-vj-anti-plastic-round0.md`。三份 `61.html` SHA256 一致(`665D59DC511F335D8555BFCD8F2658CD745E9E929466E51FDCA5A5DBA1FFF0AB`),全量 Playwright **292/292 通过(约 17 分钟;另有一位全新上下文的审查者看过整条分支,5 个重要问题已修复,见下方第 5 节)**。**下一步:ChatGPT 按下面的批次顺序改造其余 48 条,每批约 10 条;每批做完交回 Claude Code 验证。ChatGPT 改 `61.html` 期间 Claude Code 不动它。**
 
 ## 去塑料感改造:给 ChatGPT 的用法和规则
 
@@ -17,7 +17,7 @@
 
 - `opts` 可传 `color`、`opacity`、`side`、`metalness`、`roughness`、`envMapIntensity`、`additive`(只对 `neonCore`)。未知预设名会直接报错。
 - 用了 `metal`/`liquidMetal`/`satin`/`glass`/`neonHousing` 的场景必须有 `vjLightRig(scene, …)`(至少 2 盏方向光 + 1 盏半球光)。
-- `vjBevelBox(w, h, d, radius)`:按档位给倒角/圆角方块(low 44 面 / balanced 108 面 / ultra 300 面),同尺寸共用一份,半径会自动夹紧。**按实际尺寸建**,不要建单位方块再拉伸。
+- `vjBevelBox(w, h, d, radius)`:按档位给倒角/圆角方块(low 44 面 / balanced 108 面 / ultra 300 面),同尺寸共用一份,半径会自动夹紧。**按实际尺寸建**,不要建单位方块再拉伸。**返回的几何是共享的,不能对它 rotate/translate/scale**(代码会直接报错)—— 要转就转 mesh 或实例。
 - `vjPresetJitter(color, key, amount = 0.06)`:确定性的逐实例亮度微差。
 - low 档的整体亮度倍率在 `VJ_MATCAP_LOOKS` 里(`gain`),受光档参数在 `VJ_LIT_LOOKS` 里 —— 改这两张表会影响所有用该预设的隧道,改之前先问 Claude Code。
 
@@ -28,6 +28,7 @@
 - **世界编号**:槽位循环(`z = -i*SPACING + off - SPACING`)里,凡是按元素决定的外观 —— 强调色、有没有、交替色、`vjPresetJitter` 的 key —— 都用 `i + Math.floor(scroll / SPACING)`,再对槽位总数取模,**取模周期必须整除槽位总数**(示范:SpeedGates 25 扇门 / 每 5 扇强调;NeonTubeRoom 48 段 / 每 3 段一环 / 每 6 段换色)。用槽位编号 `i` 的话,每次退格外观都会留在原地:强调色频闪、元素原地回跳。
 - **bloom 跟亮度一起调**:换成受光材质后,原来的 bloom 往往会把块与块之间的缝全部填亮(示范:ChromeFlow 从 1.15/0.5/0.55 收到 0.75/0.45/0.78 后缝才重新变黑)。
 - **自己写的后处理 pass**,`dispose()` 必须释放全部材质和渲染目标(回收路径只调 `pass.dispose()`)。
+- **InstancedMesh 设 `frustumCulled = false`**:r149 按底座几何在原点的包围球做视锥剔除,镜头运动选「flythrough」时整条实例化隧道会被剔掉消失(审查时实测 ChromeFlow、NeonTubeRoom 都会)。
 
 ### 3. 每批的验收流程
 
@@ -50,9 +51,9 @@
 
 ### 5. 本轮工程结果(Claude Code)
 
-- **抗锯齿**:三档都加了 SMAA(与 FXAA 并排对比后用户选定),在调色之后、写 alpha 之前。low 档细光带的硬台阶从 30% 降到 2%。
-- **高分屏修复**:balanced/ultra 以前在高分屏上按 CSS 尺寸渲染再拉伸(r149 的 EffectComposer 自带 MSAA 目标时把像素比记成 1),现在按完整分辨率渲染。
-- **录制清晰度开关**:Tools 里的「🧊 录制时 3D」—— 默认"屏幕尺寸"(与以前一样快);"跟随录制画质"时 3D 层按录制分辨率渲染,成片最锐利但很重(本机集显录 4K 约 6~8 fps)。帧时间表见 `vj-shots/rec-frame-times.md`(本地,未入库)。
+- **抗锯齿**:三档都加了 SMAA(与 FXAA 并排对比后用户选定),在调色之后、写 alpha 之前。low 档细光带的硬台阶从 30% 降到 2%。代价(本机集显,1350×681):low 8.1 → 13.5 ms、balanced 21.3 → 25.8 ms、ultra 28.9 → 35.2 ms(ChromeFlow)。🌌 3D 菜单里的「✨ 3D 抗锯齿」可以关(默认开,会记住)。
+- **3D 像素比跟画质档走**:low 1 / balanced 1.5 / ultra 2(都不超过设备像素比)。以前 balanced/ultra 被 r149 的 EffectComposer 悄悄压回 CSS 尺寸(自带 MSAA 目标时它把像素比记成 1),low 反而按完整像素比渲染。现在画质档是一条真正的性能阶梯,Auto 降档也能省下分辨率开销。模拟 2 倍屏同一窗口:low 675×341 约 6 ms、balanced 1012×511 约 16 ms、ultra 1350×682 约 34 ms(ChromeFlow,SMAA 开)。
+- **录制清晰度开关**:Tools 里的「🧊 录制时 3D」—— 默认"屏幕尺寸"(与以前一样快);"跟随录制画质"时 3D 层按录制帧渲染,成片最锐利但很重(本机集显录 4K 约 6~8 fps)。竖屏/方形舞台也不会超出录制帧;bloom 仍按屏幕等效尺寸计算,开关只让画面更锐,不改观感。1 像素的线在这个模式下会变成极细的线。
 - **SpeedGates**:改成实例化(119 → 约 20 次 draw call),强调色按世界编号,修掉了橙色门原地频闪;门数 26 → 25。**它在 `vj-five-depth` 里 balanced/ultra 的 lit 只有 40.2%/40.4%,离 40% 下限很近** —— 第 3 批改造时留出余量。
 - **NeonTubeRoom**:方环不再每次退格往回跳。
 - 性能预算测试扩到 50 条 × 三档。

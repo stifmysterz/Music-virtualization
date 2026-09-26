@@ -77,3 +77,28 @@ test('同尺寸同档位共用一份;切档时清缓存并释放旧几何;场景
     expect(r).toEqual({ sameObject: true, shared: true, afterDrop: 0, disposedOnTier: 1, freshAfterTier: true });
   });
 });
+
+/* 共享几何被一条隧道 rotateX/translate 之后,所有用同尺寸的隧道都跟着变,而且每次重建累加一次。 */
+test('共享倒角几何不能被变换:会连带改坏所有用同尺寸的隧道', async () => {
+  await withApp('bevel-guard', async win => {
+    const r = await win.evaluate(() => {
+      const g = vjBevelBox(1, 1, 2, 0.1);
+      const before = Array.from(g.attributes.position.array.slice(0, 9));
+      const attempts = {
+        rotateX: () => g.rotateX(0.5), translate: () => g.translate(1, 0, 0), scale: () => g.scale(2, 2, 2),
+        center: () => g.center(), applyMatrix4: () => g.applyMatrix4(new THREE.Matrix4().makeScale(2, 2, 2)),
+        applyQuaternion: () => g.applyQuaternion(new THREE.Quaternion()),
+      };
+      const out = {};
+      for (const [k, fn] of Object.entries(attempts)) {
+        try { fn(); out[k] = 'ok'; } catch (e) { out[k] = /vjBevelBox/.test(e.message) ? 'threw' : 'other: ' + e.message; }
+      }
+      out.unchanged = before.every((v, i) => v === g.attributes.position.array[i]);
+      g.computeBoundingBox();   // 只读操作照常能用
+      out.readOk = !!g.boundingBox;
+      return out;
+    });
+    expect(r).toEqual({ rotateX: 'threw', translate: 'threw', scale: 'threw', center: 'threw', applyMatrix4: 'threw',
+                        applyQuaternion: 'threw', unchanged: true, readOk: true });
+  });
+});
