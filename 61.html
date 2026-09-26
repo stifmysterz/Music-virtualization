@@ -15978,7 +15978,7 @@ function buildBg3DVjRaceTrack(){
   scene.add(bars);
   vjLightRig(scene, { keyColor:0x82caff, keyI:1.15, rimColor:0xee71ff, rimI:1.2, fillI:0.42 });
 
-  const { composer } = createBg3DBloom(scene, camera, 1.0, 0.75, 0.52);
+  const { composer } = createBg3DBloom(scene, camera, 0.9, 0.78, 0.54);
   let scroll = 0, clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
     clock += dt*0.016; scroll += vjSpeed(bass, dt)*1.5;   // 竞速，跑得比别的快
@@ -16002,7 +16002,7 @@ function buildBg3DVjRaceTrack(){
         walls.setColorAt(idx, VJ_C);
       }
       vjPut(bars, i, 0, 9.5, z, 0, 0, 0, 1, 1 + beat*1.6, 1);
-      VJ_C.setHSL(((0.52 + wz*0.004 + clock*0.11)%1+1)%1, 1, 0.15 + beat*0.35);
+      VJ_C.setHSL(((0.52 + wz*0.004 + clock*0.11)%1+1)%1, 1, 0.13 + beat*0.29);
       bars.setColorAt(i, VJ_C);
     }
     vjFlush(lanes); vjFlush(walls); vjFlush(bars);
@@ -17646,31 +17646,52 @@ function buildBg3DVjShatteredPanes(){
 /* ---------- 44. 尘光竖井（StillDerelict）——
      屋顶破了几个洞，光柱直直插下来，尘埃在光里飘。
      竖直的光柱在一堆「横向飞过」的效果里是很强的对比。 ---------- */
+let vjDustShaftBeamTexture = null;
 function buildBg3DVjDustShaft(){
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x05040b, 0.0085);
   const camera = new THREE.PerspectiveCamera(84, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
 
-  /* 26 根细光柱只点亮 20.2%。加到 40 根、每根更粗，光柱之间开始互相重叠，
-     整个空间才像是"泡在光里"，而不是几条孤立的光线。 */
-  const SHAFTS = 58, LAYER = 7, N = SHAFTS*LAYER, SP = VJ_LEN/SHAFTS;
-  // 光柱用几层由粗到细的半透明筒叠出来，中间最亮，边缘散开
-  const shaft = new THREE.InstancedMesh(new THREE.CylinderGeometry(3, 6, 30, 16, 1, true),
-    vjMaterial('neonCore', { opacity:0.3, side:THREE.DoubleSide }), N);
+  const SHAFTS = 26, SP = VJ_LEN/SHAFTS;
+  // 一张共享的透明纹理把柱芯和边缘分开，避免多层半透明筒互相叠成整屏色雾。
+  if(!vjDustShaftBeamTexture){
+    const cv = document.createElement('canvas'); cv.width = 64; cv.height = 128;
+    const ctx = cv.getContext('2d');
+    const cross = ctx.createLinearGradient(0, 0, cv.width, 0);
+    cross.addColorStop(0, 'rgba(255,230,155,0)');
+    cross.addColorStop(0.28, 'rgba(255,230,155,0.12)');
+    cross.addColorStop(0.46, 'rgba(255,245,198,0.9)');
+    cross.addColorStop(0.5, 'rgba(255,250,218,1)');
+    cross.addColorStop(0.54, 'rgba(255,245,198,0.9)');
+    cross.addColorStop(0.72, 'rgba(255,230,155,0.12)');
+    cross.addColorStop(1, 'rgba(255,230,155,0)');
+    ctx.fillStyle = cross; ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.globalCompositeOperation = 'destination-in';
+    const falloff = ctx.createLinearGradient(0, 0, 0, cv.height);
+    falloff.addColorStop(0, 'rgba(255,255,255,0.65)');
+    falloff.addColorStop(0.18, 'rgba(255,255,255,1)');
+    falloff.addColorStop(0.72, 'rgba(255,255,255,0.75)');
+    falloff.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = falloff; ctx.fillRect(0, 0, cv.width, cv.height);
+    vjDustShaftBeamTexture = new THREE.CanvasTexture(cv);
+  }
+  const shaftMat = vjMaterial('neonCore', { opacity:0.85, side:THREE.DoubleSide, additive:true });
+  shaftMat.map = vjDustShaftBeamTexture;
+  const shaft = new THREE.InstancedMesh(new THREE.PlaneGeometry(6.5, 30), shaftMat, SHAFTS);
   shaft.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   shaft.frustumCulled = false;
   scene.add(shaft);
-  const DUST = 1100;
-  const dust = new THREE.InstancedMesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), vjMaterial('neonCore'), DUST);
+  const DUST = 1400;
+  const dust = new THREE.InstancedMesh(new THREE.SphereGeometry(0.15, 6, 4), vjMaterial('neonCore'), DUST);
   dust.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   dust.frustumCulled = false;
   scene.add(dust);
   const sx = new Float32Array(SHAFTS), sw = new Float32Array(SHAFTS);
-  for(let i=0;i<SHAFTS;i++){ sx[i] = (Math.random()-0.5)*44; sw[i] = 0.85 + Math.random()*1.2; }
+  for(let i=0;i<SHAFTS;i++){ sx[i] = (Math.random()-0.5)*44; sw[i] = 0.75 + Math.random()*0.65; }
   const du = [];
   for(let i=0;i<DUST;i++) du.push({ x:(Math.random()-0.5)*40, y:(Math.random()-0.5)*24, z:-Math.random()*VJ_LEN, ph:Math.random()*6 });
 
-  const { composer } = createBg3DBloom(scene, camera, 1.75, 0.6, 0.38);
+  const { composer } = createBg3DBloom(scene, camera, 1.3, 0.62, 0.48);
   let scroll = 0, clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
     clock += dt*0.016;
@@ -17681,24 +17702,21 @@ function buildBg3DVjDustShaft(){
       const z = -i*SP + off - SP, wz = i*SP - scroll;
       const id = ((i + wraps) % SHAFTS + SHAFTS) % SHAFTS;
       const glow = 0.35 + 0.65*Math.pow(Math.max(0, Math.sin(wz*0.06 + clock*1.5)), 2);
-      for(let l=0;l<LAYER;l++){
-        const idx = i*LAYER + l, k = (l+1)/LAYER;
-        vjPut(shaft, idx, sx[id], 0, z, 0, 0, 0, sw[id]*k*(1+bass*0.25), 1, sw[id]*k*(1+bass*0.25));
-        VJ_C.setHSL((0.13 + Math.sin(clock*0.16 + id)*0.1)%1, 1, (0.16 + glow*0.45)*(1.15 - k) + high*0.06);
-        shaft.setColorAt(idx, VJ_C);
-      }
+      vjPut(shaft, i, sx[id], 0, z, 0, 0, 0, sw[id]*(1+bass*0.2), 1, 1);
+      VJ_C.setHSL((0.11 + Math.sin(clock*0.16 + id)*0.035)%1, 0.85, 0.5 + glow*0.24 + high*0.04);
+      shaft.setColorAt(i, VJ_C);
     }
     for(let i=0;i<DUST;i++){
       const d = du[i];
       d.z += step;
       if(d.z > VJ_FRONT) d.z -= VJ_LEN;
       const y = d.y + Math.sin(clock*0.6 + d.ph)*2.2;
-      const s = 1 + mid*1.6;
+      const s = 1 + mid*1.35;
       vjPut(dust, i, d.x, y, d.z, 0, 0, 0, s, s, s);
       // 飘进光柱里的尘埃才亮，外面的几乎看不见
       let near = 0;
-      for(let k=0;k<SHAFTS;k++){ const dx = Math.abs(d.x - sx[k]); if(dx < 3){ near = 1 - dx/3; break; } }
-      VJ_C.setHSL(0.13, 1, 0.08 + near*0.5 + high*0.1);
+      for(let k=0;k<SHAFTS;k++){ const dx = Math.abs(d.x - sx[k]); if(dx < 3.5) near = Math.max(near, 1 - dx/3.5); }
+      VJ_C.setHSL(0.12, 1, 0.28 + near*0.3 + high*0.08);
       dust.setColorAt(i, VJ_C);
     }
     vjFlush(shaft); vjFlush(dust);

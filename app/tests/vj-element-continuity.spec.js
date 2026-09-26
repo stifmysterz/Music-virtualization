@@ -53,9 +53,9 @@ function zTrack({ kind, frames, dt }) {
       return out;
     },
     vjDustShaft: () => {
-      const mesh = s.scene.children.find(o => o.isInstancedMesh && o.count === 58*7);
+      const mesh = s.scene.children.find(o => o.isInstancedMesh && o.count === 26);
       const m = new THREE.Matrix4(), out = [];
-      for(let i=0;i<58;i++) { mesh.getMatrixAt(i*7,m); out.push({z:m.elements[14], shape:m.elements[12]}); }
+      for(let i=0;i<26;i++) { mesh.getMatrixAt(i,m); out.push({z:m.elements[14], shape:m.elements[12]}); }
       return out;
     },
     // SpeedGates:上横梁(每扇门一根)
