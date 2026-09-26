@@ -9,7 +9,9 @@ const CONVERTED = ['vjChromeFlow', 'vjNeonTubeRoom',
   'vjLiquidGrid', 'vjNeonRibbon', 'vjPrismShards', 'vjFractalWell', 'vjTentacleTunnel',
   'vjBioMembrane', 'vjVoidNebula', 'vjEventHorizon', 'vjDataBloom', 'vjNeonArches',
   'vjHorizonVoyage', 'vjHyperCube', 'vjCoasterRush', 'vjMercuryPool', 'vjWarpJump',
-  'vjSolarFlare', 'vjChromeTube', 'vjMetalTwist', 'vjLiquidSpine'];
+  'vjSolarFlare', 'vjChromeTube', 'vjMetalTwist', 'vjLiquidSpine',
+  'vjCubeMatrix', 'vjGridMorph', 'vjCyborgCorridor', 'vjRaceTrack', 'vjSpeedGates',
+  'vjHoverCity', 'vjDerelictHall', 'vjCollapsedGrid', 'vjShatteredPanes', 'vjDustShaft'];
 const LIT_PRESETS = ['metal', 'liquidMetal', 'satin', 'glass', 'neonHousing'];
 
 async function withApp(label, fn) {

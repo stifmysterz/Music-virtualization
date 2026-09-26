@@ -28,9 +28,39 @@ function zTrack({ kind, frames, dt }) {
   seedBg3DBuilds(0x2717); vjDropCachedScene(kind); vjSpeedBassSmooth = 0; enableBg3D(kind);
   const s = bg3DScenes[kind];
   const pick = {
+    vjCubeMatrix: () => {
+      const mesh = s.scene.children.find(o => o.isInstancedMesh && o.count === 40*24);
+      const m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), scale = new THREE.Vector3(), out = [];
+      for(let i=0;i<40;i++) { mesh.getMatrixAt(i*24, m); m.decompose(p,q,scale); out.push({z:p.z, quat:[q.x,q.y,q.z,q.w]}); }
+      return out;
+    },
+    vjHoverCity: () => {
+      const mesh = s.scene.children.find(o => o.isInstancedMesh && o.count === 34*2);
+      const m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), scale = new THREE.Vector3(), out = [];
+      for(let i=0;i<34;i++) { mesh.getMatrixAt(i*2, m); m.decompose(p,q,scale); out.push({z:p.z, shape:scale.y}); }
+      return out;
+    },
+    vjDerelictHall: () => {
+      const mesh = s.scene.children.find(o => o.isInstancedMesh && o.count === 30);
+      const m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), scale = new THREE.Vector3(), out = [];
+      for(let i=0;i<mesh.count;i++) { mesh.getMatrixAt(i,m); m.decompose(p,q,scale); out.push({z:p.z, quat:[q.x,q.y,q.z,q.w]}); }
+      return out;
+    },
+    vjCollapsedGrid: () => {
+      const mesh = s.scene.children.find(o => o.isInstancedMesh && o.count === 34*32);
+      const m = new THREE.Matrix4(), out = [];
+      for(let i=0;i<34;i++) { mesh.getMatrixAt(i*32,m); out.push({z:m.elements[14], shape:m.elements[13]}); }
+      return out;
+    },
+    vjDustShaft: () => {
+      const mesh = s.scene.children.find(o => o.isInstancedMesh && o.count === 58*7);
+      const m = new THREE.Matrix4(), out = [];
+      for(let i=0;i<58;i++) { mesh.getMatrixAt(i*7,m); out.push({z:m.elements[14], shape:m.elements[12]}); }
+      return out;
+    },
     // SpeedGates:上横梁(每扇门一根)
     vjSpeedGates: () => {
-      const bars = s.scene.children.find(o => o.isInstancedMesh && o.geometry.parameters?.width === 30);
+      const bars = s.scene.children.find(o => o.isInstancedMesh && o.count === 25*2);
       const m = new THREE.Matrix4(), c = new THREE.Color(), hsl = {}, out = [];
       for (let i = 0; i < bars.count; i += 2) { bars.getMatrixAt(i, m); bars.getColorAt(i, c); out.push({ z: m.elements[14], hue: c.getHSL(hsl).h }); }
       return out;
@@ -63,8 +93,15 @@ function zTrack({ kind, frames, dt }) {
         for (const p of prev) { const d = Math.abs(p.z - e.z); if (d < bestD) { bestD = d; best = p; } }
         if (!best) { if (e.z > -200 && e.z < 13) pops++; continue; }
         pairs++;
-        const dh = Math.abs(best.hue - e.hue);
-        if (Math.min(dh, 1 - dh) > 0.15) flips++;
+        if(Number.isFinite(e.hue)) {
+          const dh = Math.abs(best.hue - e.hue);
+          if (Math.min(dh, 1 - dh) > 0.15) flips++;
+        }
+        if(Number.isFinite(e.shape) && Math.abs(best.shape - e.shape) > 0.07) flips++;
+        if(e.quat) {
+          const dot = Math.abs(e.quat.reduce((sum,v,i) => sum + v*best.quat[i],0));
+          if(2*Math.acos(Math.min(1,dot)) > 0.2) flips++;
+        }
       }
       prev = cur;
     }
@@ -74,7 +111,8 @@ function zTrack({ kind, frames, dt }) {
   return { kind, pops, flips, pairs };
 }
 
-for (const kind of ['vjSpeedGates', 'vjNeonTubeRoom']) {
+for (const kind of ['vjSpeedGates', 'vjNeonTubeRoom', 'vjCubeMatrix', 'vjHoverCity',
+  'vjDerelictHall', 'vjCollapsedGrid', 'vjDustShaft']) {
   test(`${kind}: 按槽位编号取的外观不能在每次退格时跳变`, async () => {
     await withApp(`continuity-${kind}`, async win => {
       const r = await win.evaluate(zTrack, { kind, frames: 160, dt: 0.25 });
