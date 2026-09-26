@@ -13,10 +13,17 @@ function newlyConverted(baseSrc, curSrc) {
   return parseConverted(curSrc).filter(k => !before.has(k));
 }
 
-// 与 vj-anti-plastic.spec.js 的三档判据一致
-function judge(m) {
+// vj-anti-plastic.spec.js 里用户单独放宽过 lit 下限的隧道:{ kind: floor }
+function parseLitFloor(src) {
+  const m = /const LIT_FLOOR\s*=\s*\{([\s\S]*?)\}/.exec(src);
+  if (!m) return {};
+  return Object.fromEntries([...m[1].matchAll(/['"]?(\w+)['"]?\s*:\s*([\d.]+)/g)].map(x => [x[1], +x[2]]));
+}
+
+// 与 vj-anti-plastic.spec.js 的三档判据一致;floor 是该隧道的 lit 下限(默认 40%)
+function judge(m, floor = 0.4) {
   const fails = [];
-  if (!(m.lit > 0.4 && m.lit < 0.9)) fails.push('lit');
+  if (!(m.lit > floor && m.lit < 0.9)) fails.push('lit');
   if (!(m.vivid > 0.5)) fails.push('vivid');
   if (!(m.hues > 5)) fails.push('hues');
   return { ok: !fails.length, fails };
@@ -27,8 +34,8 @@ const pct = v => (v * 100).toFixed(1) + '%';
 const FAIL_TEXT = { lit: '亮度不在 40%~90%', vivid: '饱和 ≤ 50%', hues: '色相 ≤ 5' };
 const BASE_PAGE = '.vj-review-base.html';
 
-function metricCells(b, a) {
-  const failsOn = (r, key) => judge(r).fails.includes(key);
+function metricCells(b, a, floor) {
+  const failsOn = (r, key) => judge(r, floor).fails.includes(key);
   const row = (name, key, fmt) =>
     `<tr><th>${name}</th><td class="${b && failsOn(b, key) ? 'bad' : ''}">${b ? fmt(b[key]) : '—'}</td><td class="${failsOn(a, key) ? 'bad' : ''}">${fmt(a[key])}</td></tr>`;
   let t = row('lit', 'lit', pct) + row('vivid', 'vivid', pct) + row('hues', 'hues', v => v);
@@ -38,28 +45,30 @@ function metricCells(b, a) {
   return `<table class="m"><tr><th></th><th>改前</th><th>改后</th></tr>${t}</table>`;
 }
 
-function renderReview({ base, date, tiers, kinds, before, after, tests }) {
+function renderReview({ base, date, tiers, kinds, before, after, tests, litFloor = {} }) {
   const find = (list, tier, kind) => list.find(r => r.tier === tier && r.kind === kind);
+  const floorOf = kind => litFloor[kind] ?? 0.4;
+  const floorNote = kind => litFloor[kind] !== undefined ? ` <span class="muted">(用户单独放宽:lit 下限 ${Math.round(litFloor[kind] * 100)}%)</span>` : '';
   const wrongPage = before.some(r => r.page && r.page !== BASE_PAGE) || after.some(r => r.page && r.page === BASE_PAGE);
 
   const summary = kinds.map(kind => `<tr><th><a href="#${esc(kind)}">${esc(kind)}</a></th>${tiers.map(tier => {
     const a = find(after, tier, kind);
     if (!a) return '<td class="bad">没截到</td>';
-    const v = judge(a), b = find(before, tier, kind);
-    const was = b && !judge(b).ok ? ` <span class="muted">(改前 ✗)</span>` : '';
+    const v = judge(a, floorOf(kind)), b = find(before, tier, kind);
+    const was = b && !judge(b, floorOf(kind)).ok ? ` <span class="muted">(改前 ✗)</span>` : '';
     return `<td class="${v.ok ? 'ok' : 'bad'}">${v.ok ? '✓' : '✗ ' + v.fails.map(f => FAIL_TEXT[f]).join(',')}${was}</td>`;
   }).join('')}</tr>`).join('');
 
-  const sections = kinds.map(kind => `<section id="${esc(kind)}"><h2>${esc(kind)}</h2>${tiers.map(tier => {
+  const sections = kinds.map(kind => `<section id="${esc(kind)}"><h2>${esc(kind)}${floorNote(kind)}</h2>${tiers.map(tier => {
     const a = find(after, tier, kind), b = find(before, tier, kind);
     if (!a) return `<div class="tier"><h3>${tier}</h3><p class="bad">改后没截到</p></div>`;
     const f = `${tier}-${esc(kind)}`;
-    const verdict = judge(a).ok ? 'pass' : 'fail';
+    const verdict = judge(a, floorOf(kind)).ok ? 'pass' : 'fail';
     const flip = b
       ? `<div class="flip" title="按住看改前"><img class="after" src="after/${f}.png" alt=""><img class="before" src="before/${f}.png" alt=""><span class="tag a">改后 · 按住看改前</span><span class="tag b">改前 · 松开回到改后</span></div>`
       : `<div class="flip"><img class="after" src="after/${f}.png" alt=""><span class="tag">改后 · 改前没有这条</span></div>`;
     const crops = `<div class="crops">${b ? `<figure><img src="before/${f}-crop.png" alt=""><figcaption>改前 · 局部 3×</figcaption></figure>` : ''}<figure><img src="after/${f}-crop.png" alt=""><figcaption>改后 · 局部 3×</figcaption></figure></div>`;
-    return `<div class="tier" data-verdict="${verdict}"><h3>${tier} <span class="${verdict === 'pass' ? 'ok' : 'bad'}">${verdict === 'pass' ? '✓' : '✗'}</span></h3>${flip}<div class="side">${metricCells(b, a)}${crops}</div></div>`;
+    return `<div class="tier" data-verdict="${verdict}"><h3>${tier} <span class="${verdict === 'pass' ? 'ok' : 'bad'}">${verdict === 'pass' ? '✓' : '✗'}</span></h3>${flip}<div class="side">${metricCells(b, a, floorOf(kind))}${crops}</div></div>`;
   }).join('')}</section>`).join('');
 
   const testBlock = !tests
@@ -127,4 +136,4 @@ function summarizeTests(report) {
   return { passed: st.expected || 0, failed: st.unexpected || 0, flaky: st.flaky || 0, skipped: st.skipped || 0, failures };
 }
 
-module.exports = { parseConverted, newlyConverted, judge, renderReview, summarizeTests, BASE_PAGE };
+module.exports = { parseConverted, newlyConverted, parseLitFloor, judge, renderReview, summarizeTests, BASE_PAGE };

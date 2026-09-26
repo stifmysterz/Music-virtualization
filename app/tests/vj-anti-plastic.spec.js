@@ -12,6 +12,10 @@ const CONVERTED = ['vjChromeFlow', 'vjNeonTubeRoom',
   'vjSolarFlare', 'vjChromeTube', 'vjMetalTwist', 'vjLiquidSpine',
   'vjCubeMatrix', 'vjGridMorph', 'vjCyborgCorridor', 'vjRaceTrack', 'vjSpeedGates',
   'vjHoverCity', 'vjDerelictHall', 'vjCollapsedGrid', 'vjShatteredPanes', 'vjDustShaft'];
+/* 个别偏暗的氛围型隧道,用户看过画面后单独放宽的 lit 下限(其余一律 40%)。只有用户能决定往这里加。
+   vjDustShaft(2026-09-26):暗场 + 几道细光柱 + 浮尘。low 档没有 MSAA、像素比 1,细而柔的光数出来的亮像素少,
+   画面做对了 low 也只有 40.0%;硬顶到 40% 以上的那一版是一整屏红棕色雾,被退回过。 */
+const LIT_FLOOR = { vjDustShaft: 0.35 };
 const LIT_PRESETS = ['metal', 'liquidMetal', 'satin', 'glass', 'neonHousing'];
 
 async function withApp(label, fn) {
@@ -89,14 +93,14 @@ test('已改造隧道三档画面:有暗部纵深、颜色鲜艳、不单色', a
             lit++;
             if ((mx - mn) / mx > 0.5) { vivid++; hues.add(Math.round(Math.atan2(g - b, r - g) * 6)); }
           }
-          out.push({ tag: `${vjQuality}/${kind}`, lit: lit / (w * h), vivid: vivid / Math.max(1, lit), hues: hues.size });
+          out.push({ tag: `${vjQuality}/${kind}`, kind, lit: lit / (w * h), vivid: vivid / Math.max(1, lit), hues: hues.size });
         }
       }
       return out;
     }, CONVERTED);
     rows.forEach(r => console.log(`${r.tag}: lit=${(r.lit * 100).toFixed(1)}% vivid=${(r.vivid * 100).toFixed(1)}% hues=${r.hues}`));
     for (const r of rows) {
-      expect.soft(r.lit, `${r.tag}: 太暗`).toBeGreaterThan(0.4);
+      expect.soft(r.lit, `${r.tag}: 太暗`).toBeGreaterThan(LIT_FLOOR[r.kind] ?? 0.4);
       expect.soft(r.lit, `${r.tag}: 没有暗部纵深`).toBeLessThan(0.9);
       expect.soft(r.vivid, `${r.tag}: 发灰`).toBeGreaterThan(0.5);
       expect.soft(r.hues, `${r.tag}: 单色`).toBeGreaterThan(5);

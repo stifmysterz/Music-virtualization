@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { test, expect } = require('@playwright/test');
-const { parseConverted, newlyConverted, judge, renderReview, summarizeTests } = require('../scripts/vj-review-lib');
+const { parseConverted, newlyConverted, parseLitFloor, judge, renderReview, summarizeTests } = require('../scripts/vj-review-lib');
 
 test('从验收测试里读出已改造清单,只取相对基线新增的', () => {
   const base = "const CONVERTED = ['vjA', 'vjB'];";
@@ -18,9 +18,15 @@ test('判据与 vj-anti-plastic 一致:lit 40%~90%(不含边界)、饱和 > 50%�
   expect(judge({ lit: 0.5, vivid: 0.6, hues: 6 })).toEqual({ ok: true, fails: [] });
   expect(judge({ lit: 0.4, vivid: 0.6, hues: 6 }).fails).toEqual(['lit']);
   expect(judge({ lit: 0.95, vivid: 0.5, hues: 5 }).fails).toEqual(['lit', 'vivid', 'hues']);
+  // 用户单独放宽过下限的隧道:按它自己的下限判
+  expect(judge({ lit: 0.38, vivid: 0.6, hues: 6 }, 0.35)).toEqual({ ok: true, fails: [] });
+  expect(judge({ lit: 0.34, vivid: 0.6, hues: 6 }, 0.35).fails).toEqual(['lit']);
+  expect(parseLitFloor("const LIT_FLOOR = { vjA: 0.35, 'vjB': 0.3 };")).toEqual({ vjA: 0.35, vjB: 0.3 });
+  expect(parseLitFloor('const X = 1;')).toEqual({});
   // 阈值一旦在验收测试里改了,这里要跟着改,否则对比网页和测试会给出不同结论
   const src = fs.readFileSync(path.join(__dirname, 'vj-anti-plastic.spec.js'), 'utf8');
-  for (const s of ['r.lit, `${r.tag}: 太暗`).toBeGreaterThan(0.4)', 'r.lit, `${r.tag}: 没有暗部纵深`).toBeLessThan(0.9)',
+  expect(parseLitFloor(src)).toEqual({ vjDustShaft: 0.35 });
+  for (const s of ['r.lit, `${r.tag}: 太暗`).toBeGreaterThan(LIT_FLOOR[r.kind] ?? 0.4)', 'r.lit, `${r.tag}: 没有暗部纵深`).toBeLessThan(0.9)',
     'r.vivid, `${r.tag}: 发灰`).toBeGreaterThan(0.5)', 'r.hues, `${r.tag}: 单色`).toBeGreaterThan(5)']) {
     expect(src, `vj-anti-plastic 的判据变了:${s}`).toContain(s);
   }
@@ -57,6 +63,12 @@ test('对比网页:改前/改后图片路径、未过判据的格子、缺图和
     before: [m('low', 'vjA', 0.5, '61.html')], after: [m('low', 'vjA', 0.5, '61.html')], tests: null });
   expect(wrong, '改前截到的是工作区版本时必须大声报出来').toContain('页面文件不对');
   expect(wrong).toContain('没有跑验收测试');
+
+  // 单独放宽过下限的隧道,网页要按它自己的下限判,并注明
+  const floored = renderReview({ base: 'abc1234', date: 'd', tiers: ['low'], kinds: ['vjA'], litFloor: { vjA: 0.35 },
+    before: [m('low', 'vjA', 0.5, '.vj-review-base.html')], after: [m('low', 'vjA', 0.38, '61.html')], tests: null });
+  expect((floored.match(/data-verdict="fail"/g) || []).length).toBe(0);
+  expect(floored).toContain('下限 35%');
 });
 
 test('验收测试结果:从 Playwright JSON 报告里数通过/失败,列出失败项和去掉颜色码的报错', () => {

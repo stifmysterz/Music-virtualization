@@ -11,7 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn, spawnSync, execFileSync } = require('child_process');
-const { newlyConverted, renderReview, summarizeTests, BASE_PAGE } = require('./vj-review-lib');
+const { newlyConverted, parseLitFloor, renderReview, summarizeTests, BASE_PAGE } = require('./vj-review-lib');
 
 const APP_DIR = path.join(__dirname, '..');
 const ROOT = path.join(APP_DIR, '..');
@@ -61,7 +61,8 @@ try { before = shoot(path.join(out, 'before'), ['--html', basePath]); }
 finally { fs.rmSync(basePath, { force: true }); }
 const after = shoot(path.join(out, 'after'), []);
 
-const page = { base, date: new Date().toLocaleString('zh-CN'), tiers: tiers.split(','), kinds, before, after, tests: null };
+const litFloor = parseLitFloor(fs.readFileSync(path.join(APP_DIR, 'tests', 'vj-anti-plastic.spec.js'), 'utf8'));
+const page = { base, date: new Date().toLocaleString('zh-CN'), tiers: tiers.split(','), kinds, before, after, tests: null, litFloor };
 fs.writeFileSync(index, renderReview(page));
 console.log(`对比网页:${index}`);
 
