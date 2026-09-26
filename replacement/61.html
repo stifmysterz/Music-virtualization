@@ -15062,9 +15062,10 @@ function buildBg3DVjLiquidGrid(){
   /* 节点层改成受光的金属珠。线框那层是加色霓虹（LineBasicMaterial 受不了光，
      那也是它的身份），两层材质拉开对比 —— 一层是光，一层是物 —— 画面才有前后景，
      不再是一整片同质的发光线。 */
-  const nodes = new THREE.InstancedMesh(new THREE.BoxGeometry(1.15,1.15,1.15),
-    vjStdMat({ metalness:0.62, roughness:0.30, emissive:0x0a1430 }), NODES);
+  const nodes = new THREE.InstancedMesh(vjBevelBox(1.15,1.15,1.15,0.14),
+    vjMaterial('metal', { roughness:0.30 }), NODES);
   nodes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  nodes.frustumCulled = false;
   scene.add(nodes);
   const rig = vjLightRig(scene, { keyI:1.0, rimColor:0xff5ec8, rimI:1.4, fillI:0.4 });
 
@@ -15127,7 +15128,7 @@ function buildBg3DVjLiquidGrid(){
         vjPut(nodes, idx, tmp.x, tmp.y, nz, th*0.5, ph*0.15, th, k, k, k);
         /* 金属上 instanceColor 是反射染色，压低饱和度才是「有色泽的金属」；
            拉满会变塑料。霓虹的饱和度交给上面那层线框去扛。 */
-        vjTint(VJ_C, ((-nwz*0.0065 + clock*0.16 + th*0.055)%1+1)%1, 0.90, 0.56, 1, light);
+        VJ_C.setHSL(((-nwz*0.0065 + clock*0.16 + th*0.055)%1+1)%1, 0.72, 0.43);
         nodes.setColorAt(idx, VJ_C);
       }
     }
@@ -15219,10 +15220,12 @@ function buildBg3DVjNeonRibbon(){
 
   /* 体积层：沿每条飘带串一排实体块 —— 光靠 1px 的线，飘带在投影上几乎看不见 */
   const BEADS_PER = 34, BEADS = BANDS*BEADS_PER;
-  const beads = new THREE.InstancedMesh(new THREE.BoxGeometry(1.6,1.6,2.6), vjSolidMat(1), BEADS);
+  const beads = new THREE.InstancedMesh(vjBevelBox(1.6,1.6,2.6,0.18), vjMaterial('metal'), BEADS);
   beads.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  beads.frustumCulled = false;
   scene.add(beads);
-  const { composer } = createBg3DBloom(scene, camera, 1.15, 0.45, 0.5);   // 半径收紧 + 阈值提高：只有最亮的芯溢光，不然整条线糊成一片白雾
+  vjLightRig(scene, { keyColor:0xb6d9ff, keyI:1.25, rimColor:0xff77d4, rimI:1.1, fillI:0.48 });
+  const { composer } = createBg3DBloom(scene, camera, 1.32, 0.48, 0.48);
   const c3 = new THREE.Color();
   let scroll=0, clock=0;
   return { scene, camera, composer, update(bass,mid,high,dt){
@@ -15265,7 +15268,7 @@ function buildBg3DVjNeonRibbon(){
         const idx = bi*BEADS_PER+i;
         const k = 1 + bass*0.6;
         vjPut(beads, idx, Math.cos(a)*rr, Math.sin(a)*rr, z, 0, 0, a, k, k, k);
-        VJ_C.setHSL(((b.hue + wz*0.0026 + clock*0.13)%1+1)%1, 1, light*0.8);
+        VJ_C.setHSL(((b.hue + wz*0.0026 + clock*0.13)%1+1)%1, 0.78, 0.46);
         beads.setColorAt(idx, VJ_C);
       }
     });
@@ -15285,10 +15288,18 @@ function buildBg3DVjPrismShards(){
   const N=340;
   const tri = new THREE.BufferGeometry();
   tri.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0,1.9,0, -1.7,-1.1,0, 1.7,-1.1,0]),3));
-  const mat = new THREE.MeshBasicMaterial({ transparent:true, opacity:0.62, side:THREE.DoubleSide, blending:THREE.AdditiveBlending, depthWrite:false });   // 340 片会前后叠很多层，单片必须淡，叠起来才还是彩色而不是白
+  tri.computeVertexNormals();
+  const mat = vjMaterial('glass', { opacity:vjQuality === 'low' ? 0.18 : 0.62, side:THREE.DoubleSide });
   const mesh = new THREE.InstancedMesh(tri, mat, N);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
   scene.add(mesh);
+  // 清漆面承接反射，背后较淡的自发光层让低档 matcap 也看得见碎片轮廓。
+  const glow = vjQuality === 'low'
+    ? new THREE.InstancedMesh(tri, vjMaterial('neonCore', { opacity:0.85, additive:true, side:THREE.DoubleSide }), N)
+    : null;
+  if(glow){ glow.instanceMatrix.setUsage(THREE.DynamicDrawUsage); glow.frustumCulled = false; scene.add(glow); }
+  vjLightRig(scene, { keyColor:0xb0d9ff, keyI:1.5, rimColor:0xffa8e0, rimI:1.35, fillI:0.6 });
 
   const sh=[];
   for(let i=0;i<N;i++) sh.push({
@@ -15303,7 +15314,9 @@ function buildBg3DVjPrismShards(){
   });
   const m4=new THREE.Matrix4(), q=new THREE.Quaternion(), e=new THREE.Euler(),
         v=new THREE.Vector3(), sv=new THREE.Vector3(), c3=new THREE.Color();
-  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.8, 0.30);
+  const { composer } = vjQuality === 'low'
+    ? createBg3DBloom(scene, camera, 1.65, 0.68, 0.30)
+    : createBg3DBloom(scene, camera, 1.2, 0.8, 0.30);
   let clock=0;
   return { scene, camera, composer, update(bass,mid,high,dt){
     clock += dt*0.016;
@@ -15321,11 +15334,14 @@ function buildBg3DVjPrismShards(){
       sv.set(k,k,k);
       m4.compose(v,q,sv);
       mesh.setMatrixAt(i,m4);
-      c3.setHSL(((s.hue + clock*0.15 - s.z*0.0026)%1+1)%1, 1, 0.55 + high*0.16);
+      if(glow) glow.setMatrixAt(i,m4);
+      c3.setHSL(((s.hue + clock*0.15 - s.z*0.0026)%1+1)%1, 1, 0.48 + high*0.08);
       mesh.setColorAt(i,c3);
+      if(glow) glow.setColorAt(i,c3);
     }
     mesh.instanceMatrix.needsUpdate = true;
     if(mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    if(glow){ glow.instanceMatrix.needsUpdate = true; if(glow.instanceColor) glow.instanceColor.needsUpdate = true; }
     camera.fov = 80 + bass*14;
   }};
 }
@@ -15838,10 +15854,12 @@ function buildBg3DVjFractalWell(){
   const camera = new THREE.PerspectiveCamera(78, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
 
   const RINGS = 40, LAYERS = 4, PER = 28, N = RINGS*LAYERS*PER, SPACING = VJ_LEN/RINGS;
-  const geo = new THREE.BoxGeometry(1.3, 1.3, 2.4);
-  const mesh = new THREE.InstancedMesh(geo, vjSolidMat(1), N);
+  const geo = vjBevelBox(1.3, 1.3, 2.4, 0.12);
+  const mesh = new THREE.InstancedMesh(geo, vjMaterial('metal'), N);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
   scene.add(mesh);
+  vjLightRig(scene, { keyColor:0xc7a8ff, keyI:1.2, rimColor:0x67cfff, rimI:1.4, fillI:0.5 });
   const tmp = {x:0,y:0};
 
   const { composer } = createBg3DBloom(scene, camera, 1.15, 0.5, 0.52);   // 收一点：整屏全亮的话就没有暗部，隧道也就没有纵深
@@ -15863,7 +15881,7 @@ function buildBg3DVjFractalWell(){
           vjSuperXY(a, rad, 4, tmp);
           const k = (1 + bass*0.6) * (1 - L*0.12);
           vjPut(mesh, idx, tmp.x, tmp.y, z, 0, 0, a, k, k, 1);
-          VJ_C.setHSL(((-wz*0.0055 + L*0.16 + clock*0.16)%1+1)%1, 1, Math.min(0.58, 0.40 + (LAYERS-L)*0.06 + high*0.16));   // 封顶：最外层叠高音本来能到 0.80
+          VJ_C.setHSL(((-wz*0.0055 + L*0.16 + clock*0.16)%1+1)%1, 0.76, 0.34 + (LAYERS-L)*0.025 + high*0.06);
           mesh.setColorAt(idx, VJ_C);
           idx++;
         }
@@ -16096,9 +16114,11 @@ function buildBg3DVjTentacleTunnel(){
 
   const ARMS = 11, SEGS = 46, N = ARMS*SEGS, SPACING = VJ_LEN/SEGS;
   const geo = new THREE.SphereGeometry(1, 10, 8);
-  const mesh = new THREE.InstancedMesh(geo, vjSolidMat(1), N);
+  const mesh = new THREE.InstancedMesh(geo, vjMaterial('satin'), N);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
   scene.add(mesh);
+  vjLightRig(scene, { keyColor:0xffa7cb, keyI:1.25, rimColor:0x86baff, rimI:1.45, fillI:0.48 });
 
   const { composer } = createBg3DBloom(scene, camera, 1.45, 0.6, 0.4);
   let scroll = 0, clock = 0;
@@ -16116,7 +16136,7 @@ function buildBg3DVjTentacleTunnel(){
         const girth = 2.4 + Math.sin(wz*0.16 + a*0.8 + clock*2.1)*0.55 + bass*0.7;   // clock 项对所有触手同相位，幅度大了整条隧道会一起胀缩
         const i = s*ARMS+a;
         vjPut(mesh, i, Math.cos(ang)*rr, Math.sin(ang)*rr, z, 0, 0, 0, girth, girth, girth*1.35);
-        VJ_C.setHSL(((0.87 + a*0.02 - wz*0.0035 + clock*0.07)%1+1)%1, 0.95, Math.min(0.58, 0.30 + Math.sin(wz*0.16+a+clock*2.1)*0.16 + high*0.16));   // 封顶
+        VJ_C.setHSL(((0.87 + a*0.02 - wz*0.0035 + clock*0.07)%1+1)%1, 0.72, 0.35 + Math.sin(wz*0.16+a+clock*2.1)*0.06 + high*0.06);
         mesh.setColorAt(i, VJ_C);
       }
     }
@@ -16136,15 +16156,20 @@ function buildBg3DVjBioMembrane(){
 
   const LAYERS = 30, CELLS = 26, SPACING = VJ_LEN/LAYERS;
   const memGeo = new THREE.SphereGeometry(1, 14, 10);
-  const mem = new THREE.InstancedMesh(memGeo, vjSolidMat(0.42), LAYERS*CELLS);
+  const mem = new THREE.InstancedMesh(memGeo, vjMaterial('glass', { opacity:vjQuality === 'low' ? 0.36 : 0.015, side:THREE.DoubleSide }), LAYERS*CELLS);
   mem.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mem.frustumCulled = false;
   scene.add(mem);
   const coreGeo = new THREE.SphereGeometry(1, 8, 6);
-  const core = new THREE.InstancedMesh(coreGeo, vjSolidMat(1), LAYERS*CELLS);
+  const core = new THREE.InstancedMesh(coreGeo, vjMaterial('neonCore'), LAYERS*CELLS);
   core.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  core.frustumCulled = false;
   scene.add(core);
+  vjLightRig(scene, { keyColor:0xffadcf, keyI:1.15, rimColor:0x9ecaff, rimI:1.3, fillI:0.55 });
 
-  const { composer } = createBg3DBloom(scene, camera, 1.2, 0.55, 0.5);
+  const { composer } = vjQuality === 'low'
+    ? createBg3DBloom(scene, camera, 1.2, 0.55, 0.5)
+    : createBg3DBloom(scene, camera, 0.78, 0.38, 0.68);
   let scroll = 0, clock = 0;
   return { scene, camera, composer, update(bass, mid, high, dt){
     clock += dt*0.016; scroll += vjSpeed(bass, dt)*0.9;
@@ -16158,7 +16183,7 @@ function buildBg3DVjBioMembrane(){
         const puff = 2.6 + Math.sin(wz*0.1 + c*1.3 + clock*1.9)*0.9 + bass*1.5;
         const i = L*CELLS+c;
         vjPut(mem, i, Math.cos(a)*rr, Math.sin(a)*rr, z, 0, 0, 0, puff, puff*0.92, puff*0.8);
-        VJ_C.setHSL(((0.94 + c*0.006 - wz*0.003 + clock*0.06)%1+1)%1, 1, 0.34 + high*0.16);
+        VJ_C.setHSL(((0.94 + c*0.006 - wz*0.003 + clock*0.06)%1+1)%1, 0.72, 0.32 + high*0.06);
         mem.setColorAt(i, VJ_C);
         vjPut(core, i, Math.cos(a)*rr, Math.sin(a)*rr, z, 0, 0, 0, puff*0.34, puff*0.34, puff*0.34);
         VJ_C.setHSL(((0.12 + c*0.01 + clock*0.09)%1+1)%1, 1, Math.min(0.58, 0.5 + bass*0.2));   // 封顶：低音一顶能到 0.70
@@ -16181,13 +16206,16 @@ function buildBg3DVjVoidNebula(){
   const PUFFS = 620;
   const puffGeo = new THREE.SphereGeometry(1, 8, 6);
   // 半透的气团靠叠加出厚度 —— 单个很淡，几百个叠起来才是云
-  const puffs = new THREE.InstancedMesh(puffGeo, vjSolidMat(0.2), PUFFS);
+  const puffs = new THREE.InstancedMesh(puffGeo, vjMaterial('neonCore', { opacity:vjQuality === 'low' ? 0.12 : 0.06 }), PUFFS);
   puffs.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  puffs.frustumCulled = false;
   scene.add(puffs);
   const CORES = 150;
-  const cores = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 6, 5), vjSolidMat(1), CORES);
+  const cores = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 6, 5), vjMaterial('neonCore'), CORES);
   cores.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  cores.frustumCulled = false;
   scene.add(cores);
+  vjLightRig(scene, { keyColor:0x8a9fff, keyI:1.35, rimColor:0xd08aff, rimI:1.25, fillI:0.55 });
 
   const p = [], c = [];
   for(let i=0;i<PUFFS;i++) p.push({ a:Math.random()*Math.PI*2, r:2+Math.pow(Math.random(),0.7)*34,
@@ -16206,7 +16234,7 @@ function buildBg3DVjVoidNebula(){
       o.a += o.spin*dt*(1+mid);
       const s = o.s*(1 + bass*0.28 + Math.sin(clock*0.7 + i)*0.1);
       vjPut(puffs, i, Math.cos(o.a)*o.r, Math.sin(o.a)*o.r, o.z, 0, 0, 0, s, s*0.85, s);
-      VJ_C.setHSL((o.hue + clock*0.02)%1, 0.95, 0.16 + high*0.1);
+      VJ_C.setHSL((o.hue + clock*0.02)%1, 0.8, 0.12 + high*0.04);
       puffs.setColorAt(i, VJ_C);
     }
     for(let i=0;i<CORES;i++){
@@ -16215,7 +16243,7 @@ function buildBg3DVjVoidNebula(){
       const tw = 0.55 + 0.45*Math.sin(clock*2.4 + o.ph);   // 星核在闪
       const s = o.s*(1 + bass*0.6)*(0.6 + tw*0.8);
       vjPut(cores, i, Math.cos(o.a)*o.r, Math.sin(o.a)*o.r, o.z, 0, 0, 0, s, s, s);
-      VJ_C.setHSL((o.hue + clock*0.05)%1, 1, Math.min(0.58, 0.45 + tw*0.3 + high*0.15));   // 封顶：闪烁叠高音本来能到 0.90
+      VJ_C.setHSL((o.hue + clock*0.05)%1, 1, Math.min(0.48, 0.36 + tw*0.18 + high*0.06));
       cores.setColorAt(i, VJ_C);
     }
     vjFlush(puffs); vjFlush(cores);
@@ -16237,16 +16265,17 @@ function buildBg3DVjEventHorizon(){
   /* 吸积盘保持不受光的 Basic —— 它是自发光等离子，本来就不该被外部灯照亮。
      这里硬套金属只会把它压暗、丢掉逐实例的温度渐变。材质要用得有道理，
      不是所有东西都该变成铬。 */
-  const mesh = new THREE.InstancedMesh(geo, vjSolidMat(1), N);
+  const mesh = new THREE.InstancedMesh(geo, vjMaterial('neonCore'), N);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
   scene.add(mesh);
   // 视界本身：一个纯黑球，把盘的中心挡住（纯黑是故意的，负责遮挡）
-  const hole = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+  const hole = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), vjMaterial('neonCore', { color:0x000000 }));
   scene.add(hole);
   /* 光子环：贴着视界的一道细亮环。这是「黑洞」和「一个黑圆」之间最关键的一笔 ——
      没有它，中间那团黑只是个洞。用受光材质 + 强自发光，边缘会有真实的滚落。 */
   const photon = new THREE.Mesh(new THREE.TorusGeometry(1, 0.030, 12, 96),
-    vjStdMat({ color:0x120800, emissive:0xffc978, metalness:0.2, roughness:0.35 }));
+    vjMaterial('neonCore', { color:0xffc978 }));
   scene.add(photon);
   const rig = vjLightRig(scene, { keyColor:0xffb066, keyI:1.2, rimColor:0x6fa8ff, rimI:1.8, fillI:0.25 });
 
@@ -16275,7 +16304,7 @@ function buildBg3DVjEventHorizon(){
          这是真实黑洞影像里最抢眼的特征，也是这条隧道原本最缺的「不对称」——
          少了它，盘就是一个左右对称的圆环，看着像装饰图案而不是天体。 */
       const beam = 0.55 + 0.45*Math.cos(o.a - ph*0.25);
-      const k = (0.4 + heat*1.15)*(1 + bass*0.5);
+      const k = (0.4 + heat*1.15)*(1 + bass*0.5)*1.4;
       vjPut(mesh, i, x, y, o.z, 0, 0, o.a, k*1.5, k*0.42, k);
       VJ_C.setHSL(((0.02 - heat*0.42 + clock*0.03)%1+1)%1, 1 - heat*0.05,
                   (0.20 + heat*0.30 + high*0.10) * beam);   // 外圈红 → 内圈蓝紫，再乘上多普勒
@@ -16291,7 +16320,7 @@ function buildBg3DVjEventHorizon(){
     photon.position.z = hz;
     photon.scale.set(hs*1.06, hs*1.06, hs*1.06);
     photon.rotation.set(Math.PI*0.5 - 0.34, 0, ph*0.12);
-    photon.material.emissiveIntensity = 1.4 + bass*1.6 + high*0.8;
+    photon.material.color.setRGB(1, 0.62 + bass*0.15, 0.28 + high*0.15);
     rig.rim.intensity += ((0.95 + high*0.85) - rig.rim.intensity) * 0.12;
     camera.fov = 80 + bass*14;
   }};
@@ -16350,9 +16379,11 @@ function buildBg3DVjDataBloom(){
   const camera = new THREE.PerspectiveCamera(82, window.innerWidth/Math.max(1,window.innerHeight), 0.1, 400);
 
   const LAYERS = 38, PER = 32, N = LAYERS*PER, SPACING = VJ_LEN/LAYERS;
-  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), vjSolidMat(1), N);
+  const mesh = new THREE.InstancedMesh(vjBevelBox(1, 1, 1, 0.12), vjMaterial('metal'), N);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
   scene.add(mesh);
+  vjLightRig(scene, { keyColor:0xaedbff, keyI:1.2, rimColor:0xff8fd8, rimI:1.35, fillI:0.52 });
   const PHI = Math.PI * (3 - Math.sqrt(5));   // 黄金角，撒点最均匀
 
   const { composer } = createBg3DBloom(scene, camera, 1.1, 0.48, 0.56);   // 1680 个方块密排，bloom 再猛一点就糊成一片白雾
@@ -16371,7 +16402,7 @@ function buildBg3DVjDataBloom(){
         const s = (0.9 + (1-j/PER)*1.5) * (1 + bass*0.6);
         const idx = L*PER+j;
         vjPut(mesh, idx, Math.cos(a)*rr, Math.sin(a)*rr, z, clock*0.5+j, a, 0, s, s, s);
-        VJ_C.setHSL(((j/PER*0.85 - wz*0.003 + clock*0.13)%1+1)%1, 1, Math.min(0.58, 0.36 + (1-j/PER)*0.14 + high*0.12));   // 封顶
+        VJ_C.setHSL(((j/PER*0.85 - wz*0.003 + clock*0.13)%1+1)%1, 0.78, 0.36 + (1-j/PER)*0.06 + high*0.06);
         mesh.setColorAt(idx, VJ_C);
       }
     }
@@ -16456,13 +16487,20 @@ function buildBg3DVjNeonArches(){
   camera.position.y = 1.5;
 
   const ARCHES = 34, PER = 26, N = ARCHES*PER, SPACING = VJ_LEN/ARCHES;
-  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.35, 1.35, 1.35), vjSolidMat(1), N);
+  const mesh = new THREE.InstancedMesh(vjBevelBox(1.35, 1.35, 1.35, 0.14), vjMaterial('metal'), N);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
   scene.add(mesh);
+  const cores = new THREE.InstancedMesh(new THREE.BoxGeometry(0.84, 0.84, 0.84), vjMaterial('neonCore'), N);
+  cores.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  cores.frustumCulled = false;
+  scene.add(cores);
   // 地面倒影：拱在地上的一条亮带，撑起空间感
-  const refl = new THREE.InstancedMesh(new THREE.BoxGeometry(30, 0.3, 1.6), vjSolidMat(0.45), ARCHES);
+  const refl = new THREE.InstancedMesh(new THREE.BoxGeometry(30, 0.3, 1.6), vjMaterial('neonCore', { opacity:0.45 }), ARCHES);
   refl.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  refl.frustumCulled = false;
   scene.add(refl);
+  vjLightRig(scene, { keyColor:0xa4d8ff, keyI:1.25, rimColor:0xff8eda, rimI:1.3, fillI:0.45 });
   const HUE_BASE = 0.5;   // 青-蓝-紫这一段
 
   const { composer } = createBg3DBloom(scene, camera, 1.5, 0.55, 0.44);
@@ -16488,14 +16526,16 @@ function buildBg3DVjNeonArches(){
         const idx = i*PER+j;
         const s = (1 + glow*0.9 + bass*0.5);
         vjPut(mesh, idx, x, y, z, 0, 0, 0, s, s, s);
-        VJ_C.setHSL((HUE_BASE + t*0.1 + Math.sin(clock*0.22)*0.06)%1, 1, Math.min(0.58, 0.28 + glow*0.44 + high*0.13));   // 封顶：glow 拉满叠高音本来能到 0.85
+        vjPut(cores, idx, x, y, z+0.75, 0, 0, 0, s, s, s);
+        VJ_C.setHSL((HUE_BASE + t*0.1 + Math.sin(clock*0.22)*0.06)%1, 0.8, 0.30 + glow*0.12 + high*0.06);
         mesh.setColorAt(idx, VJ_C);
+        cores.setColorAt(idx, VJ_C);
       }
       vjPut(refl, i, 0, -11.2, z, 0, 0, 0, 1, 1, 1 + glow);
       VJ_C.setHSL((HUE_BASE + 0.06)%1, 1, 0.1 + glow*0.28);
       refl.setColorAt(i, VJ_C);
     }
-    vjFlush(mesh); vjFlush(refl);
+    vjFlush(mesh); vjFlush(cores); vjFlush(refl);
     camera.fov = 86 + bass*13;
   }};
 }
