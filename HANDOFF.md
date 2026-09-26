@@ -1,6 +1,6 @@
-# 交接状态 — 去塑料感第 1 批全部通过,可以开始第 2 批(2026-09-26)
+# 交接状态 — 去塑料感第 2 批通过,可以开始第 3 批(2026-09-26)
 
-**当前状态**:第 1 批 10 条全部通过并提交到 `main`。vjVoidNebula、vjBioMembrane 返工一次后通过(说明见 `docs/vj-anti-plastic-batch1-rework.md`,结果见第 5b 节)。验收中 Claude Code 加了玻璃着色器的启动预热(见第 2 节「玻璃 / 液态金属的着色器要预热」)。**下一步:ChatGPT 做第 2 批。** 顺手可做:BioMembrane 的细胞核仍是平涂的 `neonCore`,近处大细胞核看得出 8×6 段球的棱角。
+**当前状态**:第 1 批 10 条全部通过并提交到 `main`。vjVoidNebula、vjBioMembrane 返工一次后通过(说明见 `docs/vj-anti-plastic-batch1-rework.md`,结果见第 5b 节)。验收中 Claude Code 加了玻璃着色器的启动预热(见第 2 节「玻璃 / 液态金属的着色器要预热」)。第 2 批 9 条也已通过并提交(结果见第 5c 节)。**下一步:ChatGPT 做第 3 批**(其中 CubeMatrix、HoverCity 有现存的槽位编号 bug,改法见 `docs/vj-slot-index-audit-2026-09-26.md`)。顺手可做:BioMembrane 的细胞核仍是平涂的 `neonCore`,近处大细胞核看得出 8×6 段球的棱角;SolarFlare 的光弧飞到镜头前会糊成一大团黄光(原有构图问题)。
 
 ---
 
@@ -35,6 +35,8 @@
 - **bloom 跟亮度一起调**:换成受光材质后,原来的 bloom 往往会把块与块之间的缝全部填亮(示范:ChromeFlow 从 1.15/0.5/0.55 收到 0.75/0.45/0.78 后缝才重新变黑)。
 - **自己写的后处理 pass**,`dispose()` 必须释放全部材质和渲染目标(回收路径只调 `pass.dispose()`)。
 - **玻璃 / 液态金属的着色器要预热。** 这两个预设是 MeshPhysicalMaterial + 清漆,冷编译一个变体约 0.4 s,第一次切过去会卡住一帧。`61.html` 里的 `VJ_WARM_GLASS_VARIANTS` 会在启动后空闲时把它们编好。变体按「单面/双面、透明/不透明、点光源数量」区分,Top 20 的隧道会被 `ensureVjPremiumRig` 加 2 盏点光源。你用了还没预热的变体,`app/tests/vj-shader-warmup.spec.js` 会失败并写明缺哪个,照着补一行即可。
+- **判据留余量。** lit 下限是 40%,改完别贴着线:至少留 3 个百分点。原因见下一条 —— 布局会因为无关的改动整体换位置,贴线的数值会随机挂。第 2 批 low 档有 4 条只在 40.4%~41.3%。
+- **固定种子的截图布局会被 three.js 打乱。** three.js 每创建一个对象(材质、几何、灯)都要生成 ID,每次消耗 4 次 `Math.random`。所以在建场景函数里,随机摆放之前多建一盏灯、换一种材质(low 档的 matcap 和受光档创建的对象数不同),后面所有随机位置都会变。用户实际使用时本来就不固定种子,不受影响;但对比网页里「改前 / 改后」甚至「low / balanced」可能不是同一个布局,看图时要考虑这一点。
 - **三档都要亲眼看。** 第 1 批的 BioMembrane 在 balanced/ultra 把膜的不透明度压到 0.015,结果 low 档反而最好看。数值判据过了不代表画面对,高画质不能比 low 差。
 - **InstancedMesh 设 `frustumCulled = false`**:r149 按底座几何在原点的包围球做视锥剔除,镜头运动选「flythrough」时整条实例化隧道会被剔掉消失(审查时实测 ChromeFlow、NeonTubeRoom 都会)。
 
@@ -73,6 +75,13 @@
 - 返工:VoidNebula(星云底没了、星核平涂、低面数棱角)、BioMembrane(balanced/ultra 的膜看不见)。返工后通过:VoidNebula 用渐变底图和径向渐变星核(帧时间 22.7 → 26.7 ms);BioMembrane 三档的膜都是 0.36 不透明度的玻璃,balanced/ultra 有反射高光(帧时间不变,约 37 ms);lit 分别为 low 59.8% / 49.0%、balanced 71.9% / 80.6%。
 - **首帧卡顿**:第一次切到 PrismShards 要冷编译玻璃着色器,1155 ms,`bg3d-performance-budget` 的 Top 20 测试失败。装好后第一次启动才会这样;之后 Chromium 的着色器磁盘缓存把它降到约 0.1 s。修法是启动后空闲时预热(`VJ_WARM_GLASS_VARIANTS`),新测试 `vj-shader-warmup.spec.js` 锁住。预算测试的 1 s 上限没动,只是改成等启动预热完成后再计时。代价:装好后第一次启动多约 0.4~0.5 s(玻璃的两个程序加环境贴图),3D 渲染器改为启动时就创建。
 - **帧时间**:FractalWell 28 → 44 ms、BioMembrane 28 → 40 ms、NeonRibbon 26 → 36 ms(本机集显 balanced,平稳帧)。在预算内,后面批次要留意。
+
+### 5c. 第 2 批验收结果(Claude Code,2026-09-26)
+
+- 9 条(HorizonVoyage、HyperCube、CoasterRush、MercuryPool、WarpJump、SolarFlare、ChromeTube、MetalTwist、LiquidSpine)三档 27 格全部达标,验收测试 25/25,只在 `CONVERTED` 里加了名字。
+- 液态金属加进了启动预热(单面实例化一种,ChromeTube 的背面 + 顶点色一种)。第一次切过去:MercuryPool 366 → 49 ms、ChromeTube 271 → 43 ms。启动预热现在编 4 个程序,装好后第一次启动比第 1 批时多约 0.4~1.3 s(开场画面上)。
+- 平稳帧(本机集显 balanced):HyperCube 25 → 34 ms、HorizonVoyage 32 → 39 ms、MetalTwist 21 → 26 ms、LiquidSpine 23 → 27 ms,其余持平或更快。
+- 用户在对比网页上确认通过。留意:HyperCube 放大约 2.3 倍,已超过原注释里「投影半径 < 间距才不会互相穿插」的限制;MetalTwist 从 5 条带加到 9 条,两侧有发白的高光。
 
 ### 6. 已知问题(待用户决定,本轮未改)
 

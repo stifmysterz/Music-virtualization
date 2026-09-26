@@ -7,7 +7,9 @@ const APP_DIR = path.join(__dirname, '..');
 /* 已按「去塑料感」改造完的隧道。只增不减 —— 已经改好的不能被后来的改动悄悄改回去。 */
 const CONVERTED = ['vjChromeFlow', 'vjNeonTubeRoom',
   'vjLiquidGrid', 'vjNeonRibbon', 'vjPrismShards', 'vjFractalWell', 'vjTentacleTunnel',
-  'vjBioMembrane', 'vjVoidNebula', 'vjEventHorizon', 'vjDataBloom', 'vjNeonArches'];
+  'vjBioMembrane', 'vjVoidNebula', 'vjEventHorizon', 'vjDataBloom', 'vjNeonArches',
+  'vjHorizonVoyage', 'vjHyperCube', 'vjCoasterRush', 'vjMercuryPool', 'vjWarpJump',
+  'vjSolarFlare', 'vjChromeTube', 'vjMetalTwist', 'vjLiquidSpine'];
 const LIT_PRESETS = ['metal', 'liquidMetal', 'satin', 'glass', 'neonHousing'];
 
 async function withApp(label, fn) {
