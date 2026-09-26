@@ -119,7 +119,7 @@ for (const kind of ['vjSpeedGates', 'vjNeonTubeRoom', 'vjCubeMatrix', 'vjHoverCi
       console.log(JSON.stringify(r));
       expect(r.pairs, '没配上对,测试本身有问题').toBeGreaterThan(500);
       expect(r.pops, '隧道中段凭空出现的元素').toBe(0);
-      expect(r.flips, '同一个元素的强调色在相邻两帧之间变了').toBe(0);
+      expect(r.flips, '同一个元素的外观(色相、形状或朝向)在相邻两帧之间跳变了 —— 多半是按槽位编号取的外观').toBe(0);
     });
   });
 }
