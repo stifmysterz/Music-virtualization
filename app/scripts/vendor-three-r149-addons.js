@@ -2,7 +2,9 @@
 'use strict';
 /* 从解压好的 three@0.149.0 包生成 src/three/addons-r149.js:
      cd <tmp> && npm pack three@0.149.0 && tar -xzf three-0.149.0.tgz
-     node scripts/vendor-three-r149-addons.js <tmp>/package [--only fxaa|smaa]
+     node scripts/vendor-three-r149-addons.js <tmp>/package
+   不带参数的输出就是仓库里那份(SMAA + RoundedBoxGeometry),tests/three-addons-source.spec.js 会逐字节核对。
+   --fxaa 额外带上 FXAAShader(只用于和 SMAA 对比实测),--only fxaa 只要 FXAA 不要 SMAA。
    只做机械改写:去掉 import/export,依赖改从全局 THREE 取,整体包进一个 IIFE。 */
 const fs = require('fs');
 const path = require('path');
@@ -10,11 +12,12 @@ const path = require('path');
 const pkg = process.argv[2];
 const onlyIdx = process.argv.indexOf('--only');
 const only = onlyIdx >= 0 ? process.argv[onlyIdx + 1] : null;
-if (!pkg) { console.error('usage: vendor-three-r149-addons.js <three-package-dir> [--only fxaa|smaa]'); process.exit(2); }
+if (!pkg) { console.error('usage: vendor-three-r149-addons.js <three-package-dir> [--fxaa] [--only fxaa|smaa]'); process.exit(2); }
 const version = JSON.parse(fs.readFileSync(path.join(pkg, 'package.json'), 'utf8')).version;
 if (version !== '0.149.0') throw new Error(`expected three@0.149.0, got ${version}`);
 
-const withFxaa = only !== 'smaa', withSmaa = only !== 'fxaa';
+// 应用只用 SMAA;FXAA 在第 0 轮实测后落选,默认不再带
+const withFxaa = only === 'fxaa' || (only !== 'smaa' && process.argv.includes('--fxaa')), withSmaa = only !== 'fxaa';
 const files = [
   ...(withFxaa ? ['shaders/FXAAShader.js'] : []),
   ...(withSmaa ? ['shaders/SMAAShader.js', 'postprocessing/SMAAPass.js'] : []),

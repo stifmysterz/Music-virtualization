@@ -11,7 +11,31 @@ const ROOT = path.join(APP_DIR, '..');
 const SOURCE = path.join(ROOT, 'src', 'three', 'addons-r149.js');
 const TARGET = path.join(ROOT, '61.html');
 const SYNC = path.join(APP_DIR, 'scripts', 'sync-three-addons.js');
-const verify = (root = ROOT) => spawnSync(process.execPath, [SYNC, '--root', root], { encoding: 'utf8' });
+const VENDOR = path.join(APP_DIR, 'scripts', 'vendor-three-r149-addons.js');
+const verify = (root = ROOT, ...extra) => spawnSync(process.execPath, [SYNC, '--root', root, ...extra], { encoding: 'utf8' });
+const lf = s => s.replace(/\r\n/g, '\n');
+
+test('vendored 文件能由脚本从 three@0.149.0 原样复现(不带参数)', () => {
+  test.setTimeout(180_000);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sub-remix-vendor-'));
+  try {
+    const pack = spawnSync('npm', ['pack', 'three@0.149.0', '--prefer-offline', '--silent', '--pack-destination', `"${tmp}"`],
+      { shell: true, encoding: 'utf8', timeout: 120_000 });
+    test.skip(pack.status !== 0, `拿不到 three@0.149.0(离线且 npm 缓存里没有):${pack.stderr}`);
+    const untar = spawnSync('tar', ['-xzf', 'three-0.149.0.tgz'], { cwd: tmp, encoding: 'utf8' });
+    expect(untar.status, untar.stderr).toBe(0);
+    // 脚本按自己的位置写 ../../src/three/ —— 复制到临时目录里跑,绝不覆盖仓库里的文件
+    fs.mkdirSync(path.join(tmp, 'app', 'scripts'), { recursive: true });
+    fs.mkdirSync(path.join(tmp, 'src', 'three'), { recursive: true });
+    fs.copyFileSync(VENDOR, path.join(tmp, 'app', 'scripts', 'vendor.js'));
+    const r = spawnSync(process.execPath, [path.join(tmp, 'app', 'scripts', 'vendor.js'), path.join(tmp, 'package')], { encoding: 'utf8' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(fs.readFileSync(path.join(tmp, 'src', 'three', 'addons-r149.js'), 'utf8') === lf(fs.readFileSync(SOURCE, 'utf8')),
+      '仓库里的 addons-r149.js 和脚本默认输出不一致:要么被手改过,要么脚本默认参数变了').toBe(true);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
 
 test('r149 附加件源文件与 standalone 同步,漂移时校验失败', () => {
   const current = verify();
@@ -25,6 +49,41 @@ test('r149 附加件源文件与 standalone 同步,漂移时校验失败', () =>
     const stale = verify(tempRoot);
     expect(stale.status).not.toBe(0);
     expect(stale.stderr + stale.stdout).toContain('61.html is stale');
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('源文件那边改了也算漂移;--write 只重写生成块、块外一个字节不动;标记缺失时报错', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sub-remix-three-addons-'));
+  const put = (rel, text) => { fs.mkdirSync(path.dirname(path.join(tempRoot, rel)), { recursive: true }); fs.writeFileSync(path.join(tempRoot, rel), text); };
+  try {
+    const src = fs.readFileSync(SOURCE, 'utf8'), html = fs.readFileSync(TARGET, 'utf8');
+    // 1. 有人改了 vendored 源文件却没同步
+    put('src/three/addons-r149.js', src.replace('SMAA_THRESHOLD', 'SMAA_THRESHOLD_X'));
+    put('61.html', html);
+    const srcDrift = verify(tempRoot);
+    expect(srcDrift.status).not.toBe(0);
+    expect(srcDrift.stderr + srcDrift.stdout).toContain('61.html is stale');
+
+    // 2. 生成块被手改 → --write 修回来:块和仓库一致,块外原样
+    put('src/three/addons-r149.js', src);
+    const START = '/* THREE_R149_ADDONS:START */', END = '/* THREE_R149_ADDONS:END */';
+    const s = html.indexOf(START), e = html.indexOf(END) + END.length;
+    put('61.html', html.slice(0, s) + html.slice(s, e).replace('this.needsSwap = true;', 'this.needsSwap = false;') + html.slice(e));
+    const w = verify(tempRoot, '--write');
+    expect(w.status, w.stderr).toBe(0);
+    const fixed = fs.readFileSync(path.join(tempRoot, '61.html'), 'utf8');
+    expect(fixed.slice(0, s) === html.slice(0, s), '生成块之前的内容被改了').toBe(true);
+    expect(fixed.slice(fixed.indexOf(END) + END.length) === html.slice(e), '生成块之后的内容被改了').toBe(true);
+    expect(lf(fixed.slice(s, fixed.indexOf(END) + END.length)) === lf(html.slice(s, e)), '写回的生成块和仓库里的不一样').toBe(true);
+    expect(verify(tempRoot).status).toBe(0);
+
+    // 3. 标记被删 → 明确报错,不能当成「已同步」
+    put('61.html', html.replace(START, '/* removed */'));
+    const noMarker = verify(tempRoot);
+    expect(noMarker.status).not.toBe(0);
+    expect(noMarker.stderr + noMarker.stdout).toContain('markers are missing');
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
