@@ -38,7 +38,7 @@ async function withApp(label, fn) {
    完全不依赖真实音频和真实时间 —— 自己推进一个假的 now，所以结果是确定的。
    会被 toString() 送进页面 eval，不能引用模块作用域。 */
 function runBeatSim(opts) {
-  const { bpm, seconds, floorLevel, kickLevel, frameMs } = opts;
+  const { bpm, seconds, floorLevel, kickLevel, frameMs, loud } = opts;
   freq = new Uint8Array(1024);
   wave = new Uint8Array(2048);
   manualBPM = null; bpmNextBeatAt = null;
@@ -48,6 +48,7 @@ function runBeatSim(opts) {
   const totalFrames = Math.round(seconds * 1000 / frameMs);
   let now = 0, nextKick = interval, lastKickAt = null;
   let hits = 0, kicksEmitted = 0;
+  const hitTimes = [];
   let prevBeat = 0, wentLowSinceHit = true;
   const trace = [];
 
@@ -61,16 +62,18 @@ function runBeatSim(opts) {
     // 于是检出数永远比 kicksEmitted 多一，看起来像检测器重复触发。
     if (now >= nextKick) { lastKickAt = nextKick; nextKick += interval; kicksEmitted++; }
     if (lastKickAt !== null && now - lastKickAt >= 0 && now - lastKickAt < 40) level = kickLevel;
+    // 可选：开头一段只有底噪、没有鼓点的大声段落（副歌突然转进安静的段落）
+    if (loud && now < loud.untilMs) level = loud.level;
 
     for (let i = 2; i < 28; i++) freq[i] = level;
     detectBeat(now);
 
-    if (beat > prevBeat + 0.25 && wentLowSinceHit) { hits++; wentLowSinceHit = false; }
+    if (beat > prevBeat + 0.25 && wentLowSinceHit) { hits++; hitTimes.push(now); wentLowSinceHit = false; }
     if (beat < 0.25) wentLowSinceHit = true;
     trace.push(+beat.toFixed(3));
     prevBeat = beat;
   }
-  return { kicksEmitted, hits, trace };
+  return { kicksEmitted, hits, hitTimes, trace };
 }
 
 test('密集底噪上，每一粒鼓点都检得到（原来会被自己的滑动平均淹掉）', async () => {
@@ -130,6 +133,25 @@ test('衰减按真实时间走，不再取决于刷新率', async () => {
     expect(Math.abs(res.hits60 - res.hits120)).toBeLessThanOrEqual(1);
     // 平均亮度也该接近 —— 原来按帧衰减时 120Hz 的尾巴只有一半长
     expect(Math.abs(res.avg60 - res.avg120)).toBeLessThan(0.06);
+  });
+});
+
+test('能量历史的窗口按时间算：大声段落之后，30 / 60 / 120Hz 抓到的鼓点一样', async () => {
+  await withApp('beat-8', async (win) => {
+    const res = await win.evaluate((fn) => {
+      const run = eval('(' + fn + ')');
+      // 前 2 秒是没有鼓点的大声段落，之后突然变安静，鼓点比安静的底噪高出一截
+      const after = frameMs => run({ bpm: 120, seconds: 3.9, floorLevel: 60, kickLevel: 110, frameMs,
+        loud: { level: 150, untilMs: 2000 } }).hitTimes.filter(t => t >= 2000).map(Math.round);
+      return { at30: after(33.4), at60: after(16.7), at120: after(8.35) };
+    }, runBeatSim.toString());
+
+    // 原来的窗口是「最近 43 个样本」：60Hz 是 0.72 秒，30Hz 拉长到 1.43 秒，120Hz 缩到 0.36 秒。
+    // 大声段落在 30Hz 下要多拖 0.7 秒才出窗口，那段时间的鼓点全被抬高的均值挡掉；
+    // 120Hz 反过来恢复得太快。同一首歌，不同机器上跳的拍子不一样。
+    expect(res.at60.length).toBeGreaterThanOrEqual(2);
+    expect(res.at30.length).toBe(res.at60.length);
+    expect(res.at120.length).toBe(res.at60.length);
   });
 });
 

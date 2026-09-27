@@ -7661,7 +7661,7 @@ function cycleMode(){
 }
 
 /* beat detection (simple bass-energy) — or a precise musical grid if the user gives us a BPM */
-let energyHist = new Array(43).fill(0), beat = 0;
+let energyHist = [], energyHistAt = [], beatClock = 0, beat = 0;
 let reactivityMultiplier = 1.35;
 try{ const saved = parseFloat(localStorage.getItem('subremix_reactivity')); if(!isNaN(saved)) reactivityMultiplier = saved; }catch(e){}
 let manualBPM = null, bpmNextBeatAt = null;
@@ -7674,10 +7674,23 @@ const BEAT_MIN_MARGIN = 3;        // 死寂段落里标准差趋近 0，给个�
 const BEAT_REFRACTORY_MS = 110;   // 两粒之间至少隔这么久；320BPM 是 187ms，够粒粒分明
 const BEAT_DECAY_PER_FRAME = 0.72;// 每 16.7ms 衰减到 72%，尾巴短才看得出一粒一粒
 let lastBeatAt = -1e9, prevBeatEnergy = 0, beatPrevNow = null;
+/* 能量历史的窗口按「时间」算，不按「样本数」算。原来是最近 43 个样本：60Hz 下是 0.72 秒，
+   30Hz 拉长到 1.43 秒，120Hz 缩到 0.36 秒 —— 一段大声之后突然变安静，30Hz 的机器要多等
+   0.7 秒阈值才降下来，那段时间的鼓点全漏掉；同一首歌在不同机器上跳的拍子不一样。
+   窗口长度取原来 60Hz 下的 43 帧，所以 60Hz 的行为一点没变。
+   时间用 beatClock：每次调用按 dtMs（已限制在 1~100ms）往前走，
+   切到后台回来、换歌时 now 倒退，都不会把整段历史一下子清空或弄出负的年龄。 */
+const BEAT_HISTORY_MS = 43*16.7;
+function fillSilentBeatHistory(){
+  // 前面当作一段静音，间隔按 60Hz 排 —— 跟原来 43 个 0 等价
+  energyHist = new Array(43).fill(0);
+  energyHistAt = energyHist.map((_, k) => beatClock - (42 - k)*16.7);
+}
+fillSilentBeatHistory();
 /* 换音源（换歌、开麦、切合成器）时要清掉不应期和上一帧状态，
    否则新音频会被上一段留下的时间戳挡住不触发 */
 function resetBeatDetector(){
-  energyHist = new Array(43).fill(0);
+  fillSilentBeatHistory();
   beat = 0;
   lastBeatAt = -1e9;
   prevBeatEnergy = 0;
@@ -7689,17 +7702,20 @@ function detectBeat(now){
   for(let i=2;i<28;i++) e += freq[i];
   e /= 26;
 
+  // 真实经过的时间。now 倒退（换歌重置、仿真重跑）时当作一帧处理，别让 dt 变成负数
+  const t = (now==null) ? ((beatPrevNow==null) ? 0 : beatPrevNow + 16.7) : now;
+  const dtMs = (beatPrevNow==null) ? 16.7 : Math.min(100, Math.max(1, t - beatPrevNow));
+  beatPrevNow = t;
+  beatClock += dtMs;
+
+  // 丢掉窗口外的样本。多留半帧的余量，60Hz 下浮点误差不会让第 43 个样本忽进忽出
+  while(energyHist.length > 1 && beatClock - energyHistAt[0] > BEAT_HISTORY_MS + 8){ energyHist.shift(); energyHistAt.shift(); }
   const n = energyHist.length;
   const mean = energyHist.reduce((a,b)=>a+b,0)/n;
   let varSum = 0;
   for(let i=0;i<n;i++){ const d = energyHist[i]-mean; varSum += d*d; }
   const sd = Math.sqrt(varSum/n);
-  energyHist.push(e); energyHist.shift();
-
-  // 真实经过的时间。now 倒退（换歌重置、仿真重跑）时当作一帧处理，别让 dt 变成负数
-  const t = (now==null) ? ((beatPrevNow==null) ? 0 : beatPrevNow + 16.7) : now;
-  const dtMs = (beatPrevNow==null) ? 16.7 : Math.min(100, Math.max(1, t - beatPrevNow));
-  beatPrevNow = t;
+  energyHist.push(e); energyHistAt.push(beatClock);
 
   /* 衰减必须在判定「之前」——先把上一帧的余量衰掉，这一帧才轮到判定。
      原来是判定完 beat=1、然后在同一次调用的末尾衰减，于是 beat 永远到不了 1，
@@ -8029,7 +8045,7 @@ function computeBgBounceParams(bass, mid, high, now){
   }
   return {offX,offY,scale,rotation,skew,blur,brightness,contrast,saturate};
 }
-function drawLogo(bass){
+function drawLogo(bass, dt=1){
   if(!logoImg || !logoVisible) return;
   if(!document.getElementById('intro').classList.contains('hidden')) return;   // don't clash with the intro screen's own text layout
   const amt = logoBounceOn ? logoBounceAmt : 0;
@@ -8043,7 +8059,7 @@ function drawLogo(bass){
       case 'flash':  flashAmt = Math.min(1, (beat*0.9+bass*0.3)*amt); break;
       case 'shake':  shakeX=(Math.random()*2-1)*beat*amt*16*DPR; shakeY=(Math.random()*2-1)*beat*amt*16*DPR; break;
       case 'bounce': bounceY = -beat*amt*base*0.09; break;
-      case 'spin':   logoSpinAngle += (0.01+bass*0.06)*amt; extraRot = logoSpinAngle; break;
+      case 'spin':   logoSpinAngle += (0.01+bass*0.06)*amt*dt; extraRot = logoSpinAngle; break;
       case 'glow':   flashAmt = Math.min(1, bass*amt*0.9); pulse = 1+bass*0.15*amt; break;
       case 'squash': scaleX = 1+beat*amt*0.3; scaleY = 1-beat*amt*0.22; break;
       case 'hue':    hueRotateAmt = (performance.now()/15 + bass*120*amt) % 360; break;
@@ -8051,7 +8067,7 @@ function drawLogo(bass){
       case 'punch':  pulse = 1 + beat*amt*0.6; break;
       case 'skew':   skewAmt = Math.sin(performance.now()/180) * bass*amt*0.18; break;
       case 'strobe': flashAmt = (Math.sin(performance.now()/40)>0 ? 1 : 0) * beat*amt; break;
-      case 'orbit':  logoOrbitAngle += (0.03+bass*0.08)*amt; orbitX=Math.cos(logoOrbitAngle)*amt*base*0.025; orbitY=Math.sin(logoOrbitAngle)*amt*base*0.025; break;
+      case 'orbit':  logoOrbitAngle += (0.03+bass*0.08)*amt*dt; orbitX=Math.cos(logoOrbitAngle)*amt*base*0.025; orbitY=Math.sin(logoOrbitAngle)*amt*base*0.025; break;
       case 'elastic':pulse = 1 + Math.sin(performance.now()/80)*beat*amt*0.3; break;
     }
   }
@@ -8078,7 +8094,7 @@ function drawLogo(bass){
   g2.filter = 'none';
   g2.restore();
 }
-function drawLogosForLayer(bass, layer){
+function drawLogosForLayer(bass, layer, dt){
   saveFlatVarsToSlot(selectedLogoIdx);   // capture any drag/menu edits made since last frame
   for(let i=0;i<logos.length;i++){
     const s = logos[i];
@@ -8091,19 +8107,19 @@ function drawLogosForLayer(bass, layer){
        没开去黑底的 logo 照旧留在 #cv 上，不受特效层 screen 混合的影响。 */
     const prevCtx = g2;
     if(layer==='front' && s.screenBlend) g2 = fxCtx;
-    drawLogo(bass);
+    drawLogo(bass, dt);
     g2 = prevCtx;
     saveFlatVarsToSlot(i);   // persist mutated fields (spinAngle, orbitAngle, screenR) back into the slot
   }
   loadSlotToFlatVars(selectedLogoIdx);   // leave flat vars representing the selected logo, for menu/drag code
 }
-function drawAllLogosIdle(now){
+function drawAllLogosIdle(now, dt){
   saveFlatVarsToSlot(selectedLogoIdx);
   for(let i=0;i<logos.length;i++){
     const s = logos[i];
     if(!s.img) continue;
     loadSlotToFlatVars(i);
-    drawLogo(0.08 + Math.sin(now/900)*0.04);
+    drawLogo(0.08 + Math.sin(now/900)*0.04, dt);
     saveFlatVarsToSlot(i);
   }
   loadSlotToFlatVars(selectedLogoIdx);
@@ -19008,6 +19024,17 @@ let textBounce = {
   textBDisplay: {on:false, style:'scale', amt:0.6}
 };
 let textSpinAngle = {titleDisplay:0, textADisplay:0, textBDisplay:0};
+/* spin / orbit 的角度每帧推进一次。原来是在 computeTextBounceParams 里 += 固定角度：
+   一是不乘 dt，30fps 下转得慢一半；二是「Behind FX」的文字一帧里会被算两次
+   （画到画布上一次、更新 DOM 一次），转速是别的文字的两倍。 */
+function advanceTextSpin(bass, dt){
+  for(const id of Object.keys(textSpinAngle)){
+    const cfg = textBounce[id];
+    if(!cfg || !cfg.on) continue;
+    if(cfg.style==='spin')  textSpinAngle[id] += (0.01+bass*0.06)*cfg.amt*dt;
+    if(cfg.style==='orbit') textSpinAngle[id] += (0.03+bass*0.08)*cfg.amt*dt;
+  }
+}
 function computeTextBounceParams(id, bass){
   const cfg = textBounce[id];
   let pulse=1, extraRot=0, flashAmt=0, shakeX=0, shakeY=0, bounceY=0;
@@ -19020,7 +19047,7 @@ function computeTextBounceParams(id, bass){
     case 'flash':  flashAmt = Math.min(1, (beat*0.9+bass*0.3)*amt); break;
     case 'shake':  shakeX=(Math.random()*2-1)*beat*amt*10; shakeY=(Math.random()*2-1)*beat*amt*10; break;
     case 'bounce': bounceY = -beat*amt*40; break;
-    case 'spin':   textSpinAngle[id] += (0.01+bass*0.06)*amt; extraRot = textSpinAngle[id]; break;
+    case 'spin':   extraRot = textSpinAngle[id]; break;
     case 'glow':   flashAmt = Math.min(1, bass*amt*0.9); pulse = 1+bass*0.15*amt; break;
     case 'squash': scaleX = 1+beat*amt*0.3; scaleY = 1-beat*amt*0.22; break;
     case 'hue':    hueRotateAmt = (performance.now()/15 + bass*120*amt) % 360; break;
@@ -19028,7 +19055,7 @@ function computeTextBounceParams(id, bass){
     case 'punch':  pulse = 1 + beat*amt*0.6; break;
     case 'skew':   skewAmt = Math.sin(performance.now()/180) * bass*amt*0.18; break;
     case 'strobe': flashAmt = (Math.sin(performance.now()/40)>0 ? 1 : 0) * beat*amt; break;
-    case 'orbit':  textSpinAngle[id] += (0.03+bass*0.08)*amt; orbitX=Math.cos(textSpinAngle[id])*amt*30; orbitY=Math.sin(textSpinAngle[id])*amt*30; break;
+    case 'orbit':  orbitX=Math.cos(textSpinAngle[id])*amt*30; orbitY=Math.sin(textSpinAngle[id])*amt*30; break;
     case 'elastic':pulse = 1 + Math.sin(performance.now()/80)*beat*amt*0.3; break;
     case 'fadepulse': alphaAmt = 1 - Math.min(0.85, bass*amt*0.7); break;
     case 'marquee': {
@@ -19152,6 +19179,43 @@ function drawSelectionIndicators(){
     g2.restore();
   }
 }
+/* 特效层的残影拖尾：60fps 下每帧刷一层 16% 的暗色。按帧刷的话 30fps 每秒只刷一半次数，
+   拖尾长一倍；120fps 短一半。按 dt 折算成同样的「每秒剩多少」。 */
+function trailFadeStyle(dt){
+  return 'rgba(5,6,14,' + (1 - Math.pow(1 - 0.16, Math.max(0, dt))).toFixed(4) + ')';
+}
+/* 2D 效果里很多生成是按帧写的：「每帧有 p 的机会生一个」「每帧生 N 个」。30fps 下每秒只跑一半
+   的帧，粒子就少一半；120fps 多一倍。rate 一律是「60fps 下每帧平均生几个」，下面按 dt 折算。 */
+// 这一帧该生几个：整数部分照生，小数部分按概率。60fps（dt=1）下跟原来的 Math.random()<rate 同分布
+function spawnsThisFrame(rate, dt){
+  return Math.floor(Math.max(0, rate)*Math.max(0, dt) + Math.random());
+}
+// 「状态跳一下」这类事件（扫描线换位置、烟花再爆一次）：dt 帧里至少发生一次的概率
+function chanceThisFrame(p, dt){
+  return Math.random() < 1 - Math.pow(1 - Math.min(1, Math.max(0, p)), Math.max(0, dt));
+}
+/* 连续喷射的效果（喷泉、水花、沙漏）：一帧跨了几个 60fps 帧就按 60fps 的节奏分几批生，
+   不然 30fps 下两批全叠在同一个位置，喷出来一坨一坨的。
+   这些效果都是「先生成、再统一走 dt」，所以新生的这一帧就会被推进一整个 dt。60fps 下
+   这一帧生的粒子画出来时走了 1 帧、上一帧生的走了 2 帧；30fps 下要画出同样的样子，
+   较晚的那批得先往回退：spawn(lag, back) 里 lag 是生成时先推进几帧（≤ 0，最早那批是 0），
+   back 是这批是几个 60fps 帧以前生的（跟着移动的发射点走的效果用它找发射点当时的位置）。
+   60fps 下只有一批、lag = back = 0，跟原来一样。 */
+function emitOverFrame(rate, dt, spawn){
+  const steps = Math.max(1, Math.round(dt)), sub = dt/steps;
+  for(let j=0;j<steps;j++){
+    const n = spawnsThisFrame(rate, sub);
+    for(let k=0;k<n;k++) spawn(-j*sub, (steps-1-j)*sub);
+  }
+}
+/* 冷却计时（单位是 60fps 帧）到点后重新上膛。原来是直接 cd = X：60fps 下实际周期是 ceil(X) 帧，
+   30fps 下还要再凑成整数个 33ms，最多多等一帧（X=2.5 时 50ms → 67ms，流星少四分之一）。
+   这里把这一帧超出去的部分带进下一轮，周期取 ceil(X) —— 60fps 下触发时刻跟原来一模一样。
+   只带「这一帧才跨过 0」的部分（cd > -dt）；之前就到点了、一直在等低音够大的，不带，
+   不然等了很久以后会连着补发一串。 */
+function rearmCooldown(cd, period, dt){
+  return (cd > -dt ? cd : 0) + Math.ceil(period);
+}
 function draw(now){
   requestAnimationFrame(draw);
   const dt = Math.min((now-t0)/16.7, 3); t0 = now;
@@ -19196,18 +19260,19 @@ function draw(now){
   if(hasBgMedia || hasBg3D || !analyser){
     fxCtx.clearRect(0,0,W,H);
   }else{
-    fxCtx.fillStyle = 'rgba(5,6,14,0.16)';
+    fxCtx.fillStyle = trailFadeStyle(dt);
     fxCtx.fillRect(0,0,W,H);
   }
   g2 = backCtx;
+  advanceTextSpin(lastBass, dt);
   drawBehindCanvasTexts();   // 「Behind FX」的文字要在特效之下、背景之上 —— 普通混合，不被 screen 洗白
   g2 = mainCtx;
 
-  if(!analyser){ drawIdle(now); return; }
+  if(!analyser){ drawIdle(now, dt); return; }
   rot += (0.0016 + lastBass*0.004)*dt;
 
   g2 = backCtx;
-  drawLogosForLayer(lastBass, 'back');   // back 层 logo 同理，跟 Behind-FX 文字同一层
+  drawLogosForLayer(lastBass, 'back', dt);   // back 层 logo 同理，跟 Behind-FX 文字同一层
   g2 = mainCtx;
   updateTextBounceDom(lastBass);
   updateBgBounceDom(lastBass, lastMid, lastHigh, now);
@@ -19270,7 +19335,7 @@ function draw(now){
     g2 = mainCtx;
   });
 
-  drawLogosForLayer(lastBass, 'front');
+  drawLogosForLayer(lastBass, 'front', dt);
   g2 = mainCtx;
   drawSelectionIndicators();
 
@@ -19939,11 +20004,17 @@ function drawCircularBars(bass){
 let barWaterfallHist = [];
 function drawBarWaterfall(bass, now, dt){
   const N=48, bw=W/N;
-  if(!barWaterfallHist.length || now-(barWaterfallHist[0]?.t||0)>50){
+  /* 每 50ms 一行。原来是「这一帧离上一行超过 50ms 就加一行、记成这一帧的时间」：
+     60fps 下每 3 帧（50ms）一行，30fps 下每 2 帧（67ms）一行 —— 瀑布慢了四分之一。
+     现在下一行的时间是上一行 +50ms，一帧里该加几行就加几行。 */
+  const addRow = t => {
     const row = []; for(let i=0;i<N;i++) row.push(freq[Math.floor(i/N*500)]/255);
-    barWaterfallHist.unshift({row, t:now});
+    barWaterfallHist.unshift({row, t});
     if(barWaterfallHist.length>26) barWaterfallHist.pop();
-  }
+  };
+  const lastT = barWaterfallHist[0]?.t;
+  if(lastT==null || now < lastT || now - lastT > 500) addRow(now);   // 第一次、时间倒退、或落后太久（切走又切回来）就从现在重新排
+  else while(now - barWaterfallHist[0].t >= 50) addRow(barWaterfallHist[0].t + 50);
   g2.globalCompositeOperation='lighter';
   barWaterfallHist.forEach((frame, idx)=>{
     const alpha = Math.max(0, 1-idx/barWaterfallHist.length);
@@ -20244,11 +20315,12 @@ let ledCascadeDrops = [];
 function drawLedCascade(bass, now, dt){
   const cols=24;
   const colW=W/cols;
-  if(Math.random()<0.4+bass*0.5){
+  emitOverFrame(0.4+bass*0.5, dt, lag=>{
     const c=Math.floor(Math.random()*cols);
     const v=freq[Math.floor(c/cols*500)]/255;
-    if(v>0.35) ledCascadeDrops.push({x:c*colW+colW/2+fxOffX, y:fxOffY, vy:200+Math.random()*200, hue:175+(c/cols)*205});
-  }
+    const vy=200+Math.random()*200;
+    if(v>0.35) ledCascadeDrops.push({x:c*colW+colW/2+fxOffX, y:fxOffY+vy*lag, vy, hue:175+(c/cols)*205});
+  });
   g2.globalCompositeOperation='lighter';
   ledCascadeDrops = ledCascadeDrops.filter(d=>{
     d.y += d.vy*dt;
@@ -20438,7 +20510,7 @@ function drawGlitchBarsScanFamily(variant, bass, now, dt){
   });
   if(variant===1){ glitchScanY = (glitchScanY + dt*4) % H; }
   else if(variant===2){ if(beat) glitchScanY = Math.random()*H; }
-  else { if(Math.random()<0.04+bass*0.08) glitchScanY = Math.random()*H; }
+  else { if(chanceThisFrame(0.04+bass*0.08, dt)) glitchScanY = Math.random()*H; }
   const scanH = variant===3 ? (6+bass*10)*DPR : (2+bass*3)*DPR;
   g2.save();
   g2.globalCompositeOperation = 'lighter';
@@ -20504,8 +20576,8 @@ function drawPreviewFrame(now, dt){
   }
 }
 
-function drawIdle(now){
-  drawAllLogosIdle(now);
+function drawIdle(now, dt){
+  drawAllLogosIdle(now, dt);
 }
 
 /* --- mode: bars --- */
@@ -20725,12 +20797,12 @@ function drawLaserBeam(bass, mid, high, now, dt){
 
 /* --- mode: Particle Storm — bass bursts, mid drift, high sparkle --- */
 const stormParticles = [];
-function spawnStorm(n, power){
+function spawnStorm(n, power, lead=0){   // lead：生成时先推进几帧的路（emitOverFrame 的 lag，可以是负的）
   for(let i=0;i<n;i++){
     const a = Math.random()*Math.PI*2;
     const sp = (0.6+Math.random()*2.2)*(1+power*2)*DPR;
     stormParticles.push({
-      x:CX+fxOffX, y:CY+fxOffY,
+      x:CX+fxOffX+Math.cos(a)*sp*lead, y:CY+fxOffY+Math.sin(a)*sp*lead,
       vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
       life:1, hue:[190,220,270,300,330][Math.floor(Math.random()*5)],
       size:(1.5+Math.random()*3)*DPR, seed:Math.random()*1000
@@ -20741,8 +20813,8 @@ function spawnStorm(n, power){
 let stormCd = 0;
 function drawParticleStorm(bass, mid, high, dt){
   stormCd -= dt;
-  if(bass>0.3 && stormCd<=0){ spawnStorm(18+Math.floor(bass*40), bass); stormCd=6; }
-  spawnStorm(1+Math.floor(mid*3), bass*0.3);
+  if(bass>0.3 && stormCd<=0){ spawnStorm(18+Math.floor(bass*40), bass); stormCd=rearmCooldown(stormCd, 6, dt); }
+  emitOverFrame(1+Math.floor(mid*3), dt, lag => spawnStorm(1, bass*0.3, lag*(1+mid)));
   g2.globalCompositeOperation='lighter';
   const t = performance.now();
   const damp = Math.pow(0.985, dt);   // 按时间衰减,不按帧数
@@ -20869,9 +20941,15 @@ function drawLightTrails(bass, high, now, dt){
     const rad = Math.min(W,H)*o.r*(1+bass*0.3);
     const x = CX+fxOffX+Math.cos(o.a)*rad;
     const y = CY+fxOffY+Math.sin(o.a*1.3)*rad*0.6;
-    o.trail.push({x,y});
+    /* 拖尾留的是「最近多长时间」的位置，不是「最近几帧」—— 按帧数留的话 30fps 下拖尾长一倍。
+       长度只增不减（原来每帧 push 一个、最多 shift 一个，bass 落下来拖尾也不缩），这里照旧。
+       时间可能倒退（模式缩略图用自己的时钟先跑几十帧、共用这里的状态）：比现在还「新」的点先丢掉，
+       不然它们要等真实时间追上来才会过期。 */
+    while(o.trail.length && o.trail[o.trail.length-1].t > now) o.trail.pop();
+    o.trail.push({x,y,t:now});
     const maxLen = 14+Math.floor(bass*26);
-    if(o.trail.length>maxLen) o.trail.shift();
+    o.trailSpan = Math.max(o.trailSpan||0, (maxLen-1)*16.7);
+    while(o.trail.length>1 && now - o.trail[0].t > o.trailSpan + 8) o.trail.shift();
     for(let i=0;i<o.trail.length-1;i++){
       const t = i/o.trail.length;
       g2.strokeStyle = `hsla(${o.hue},100%,70%,${t*0.6})`;
@@ -20976,13 +21054,13 @@ function ensureStars(){ if(!stars.length) for(let i=0;i<STAR_COUNT;i++) stars.pu
 function drawStarfield(bass, dt){
   ensureStars();
   const cx = CX+fxOffX, cy = CY+fxOffY;
-  const speed = (3+bass*22)*DPR*dt;
+  const speed60 = (3+bass*22)*DPR, speed = speed60*dt;
   g2.globalCompositeOperation='lighter';
   for(const s of stars){
-    const prevZ = s.z;
     s.z -= speed;
     if(s.z <= 20){ Object.assign(s, makeStar()); s.z = W; continue; }
-    const k = 140/s.z, pk = 140/prevZ;
+    // 拖影固定是一个 60fps 帧走的距离。用上一帧的位置的话，30fps 下拖影长一倍
+    const k = 140/s.z, pk = 140/(s.z + speed60);
     const px = cx+s.x*k, py = cy+s.y*k;
     const ppx = cx+s.x*pk, ppy = cy+s.y*pk;
     if(px<-50||px>W+50||py<-50||py>H+50) continue;
@@ -21480,7 +21558,7 @@ function drawSolarFlare(bass, high, now, dt){
   grd.addColorStop(0.6,'hsla(35,100%,65%,0.9)');
   grd.addColorStop(1,'hsla(15,100%,50%,0.5)');
   g2.fillStyle=grd; g2.beginPath(); g2.arc(cx,cy,sunR,0,7); g2.fill();
-  if(Math.random() < 0.02+high*0.1){
+  for(let n=spawnsThisFrame(0.02+high*0.1, dt); n>0; n--){
     flareJets.push({ang:Math.random()*Math.PI*2, life:1, curl:(Math.random()-0.5)*2});
   }
   for(let i=flareJets.length-1;i>=0;i--){
@@ -21597,7 +21675,7 @@ function spawnMeteor(){
 let meteorCd=0;
 function drawMeteorShower(bass, dt){
   meteorCd -= dt;
-  if(meteorCd<=0){ spawnMeteor(); meteorCd = Math.max(2, 14-bass*12); }
+  if(meteorCd<=0){ spawnMeteor(); meteorCd = rearmCooldown(meteorCd, Math.max(2, 14-bass*12), dt); }
   const cx=CX+fxOffX, cy=CY+fxOffY;
   const base=Math.min(W,H);
   g2.globalCompositeOperation='lighter';
@@ -21882,7 +21960,7 @@ function drawMeteorStorm(bass, dt){
   if(stormMCd<=0){
     const n = 1+Math.floor(bass*4);
     for(let i=0;i<n;i++) spawnStormMeteor();
-    stormMCd = Math.max(1.2, 7-bass*6);
+    stormMCd = rearmCooldown(stormMCd, Math.max(1.2, 7-bass*6), dt);
   }
   if(stormMeteors.length>60) stormMeteors.splice(0, stormMeteors.length-60);
   const cx=CX+fxOffX, cy=CY+fxOffY;
@@ -22349,7 +22427,7 @@ function drawDropZoom(bass, dt){
   dropCd -= dt;
   if(bass>0.5 && dropCd<=0){
     dropBursts.push({life:1});
-    dropCd=10;
+    dropCd=rearmCooldown(dropCd, 10, dt);
   }
   const cx=CX+fxOffX, cy=CY+fxOffY;
   const maxR = Math.max(W,H)*0.75;
@@ -22415,7 +22493,7 @@ function drawWakeTrail(bass, dt){
     g2.lineWidth=1.5*DPR;
     g2.stroke();
   });
-  if(Math.random()<0.06+bass*0.1) wakeRipples.push({x:px,y:py,r:2*DPR,alpha:0.6});
+  for(let n=spawnsThisFrame(0.06+bass*0.1, dt); n>0; n--) wakeRipples.push({x:px,y:py,r:2*DPR,alpha:0.6});
   for(let i=wakeRipples.length-1;i>=0;i--){
     const r=wakeRipples[i];
     r.r += 1.5*DPR*dt; r.alpha -= 0.01*dt;
@@ -22435,11 +22513,12 @@ const splashRipples = [];
 function drawPaddleSplash(bass, dt){
   const cx=CX+fxOffX, cy=CY+fxOffY+H*0.1;
   if(bass>0.35){
-    for(let i=0;i<4;i++){
+    emitOverFrame(4, dt, lag=>{
       const a = -Math.PI/2 + (Math.random()-0.5)*1.6;
-      splashDrops.push({x:cx,y:cy,vx:Math.cos(a)*3*DPR,vy:Math.sin(a)*3*DPR,life:1});
-    }
-    if(Math.random()<0.4) splashRipples.push({r:2*DPR,alpha:0.6});
+      const vx = Math.cos(a)*3*DPR, vy = Math.sin(a)*3*DPR;
+      splashDrops.push({x:cx+vx*lag, y:cy+vy*lag, vx, vy:vy+0.15*lag, life:1-0.02*lag});
+    });
+    for(let n=spawnsThisFrame(0.4, dt); n>0; n--) splashRipples.push({r:2*DPR,alpha:0.6});
   }
   g2.globalCompositeOperation='lighter';
   for(let i=splashDrops.length-1;i>=0;i--){
@@ -22504,13 +22583,15 @@ function ensureSpeedStreaks(){
 function drawSpeedTunnel(bass, dt){
   ensureSpeedStreaks();
   const cx=CX+fxOffX, cy=CY+fxOffY+H*0.08;
-  const speed=(4+bass*30)*DPR*dt;
+  const speed60=(4+bass*30)*DPR, speed=speed60*dt;
   g2.globalCompositeOperation='lighter';
   speedStreaks.forEach(s=>{
     const prevZ=s.z;
     s.z -= speed;
-    if(s.z<=20){ s.z=1000; s.x=(Math.random()*2-1)*1000; s.y=(Math.random()*2-1)*500; }
-    const k=140/s.z, pk=140/prevZ;
+    // 拖影固定是一个 60fps 帧走的距离（刚重生的那一帧照旧用重生前的位置，跟原来一样）
+    let tailZ = s.z + speed60;
+    if(s.z<=20){ s.z=1000; s.x=(Math.random()*2-1)*1000; s.y=(Math.random()*2-1)*500; tailZ = prevZ; }
+    const k=140/s.z, pk=140/tailZ;
     const px=cx+s.x*k, py=cy+s.y*k*0.4;
     const ppx=cx+s.x*pk, ppy=cy+s.y*pk*0.4;
     const depth=1-s.z/1000;
@@ -23399,7 +23480,7 @@ function drawMeteorRadiant(bass, dt){
   if(radiantCd<=0){
     const n=1+Math.floor(bass*3);
     for(let i=0;i<n;i++) spawnRadiantMeteor();
-    radiantCd=Math.max(3,10-bass*8);
+    radiantCd=rearmCooldown(radiantCd, Math.max(3,10-bass*8), dt);
   }
   const cx=CX+fxOffX, cy=CY+fxOffY-H*0.15;
   const base=Math.min(W,H);
@@ -23517,16 +23598,20 @@ function drawTurboGauge(bass, high, dt){
 const driftSmoke = [];
 let driftT = 0;
 function drawDriftSmoke(bass, dt){
-  driftT += 0.008*dt*(1+bass*0.5);
+  const driftStep = 0.008*(1+bass*0.5);
+  driftT += driftStep*dt;
   const cx=CX+fxOffX, cy=CY+fxOffY;
   const base=Math.min(W,H);
   const R=base*0.22;
   const carX=cx+Math.cos(driftT)*R, carY=cy+Math.sin(driftT)*R*0.5;
   const driftAng = driftT+Math.PI/2;
   g2.globalCompositeOperation='lighter';
-  if(Math.random()<0.6+bass*0.3){
-    driftSmoke.push({x:carX-Math.cos(driftAng)*base*0.02, y:carY-Math.sin(driftAng)*base*0.02, life:1, size:base*0.015});
-  }
+  emitOverFrame(0.6+bass*0.3, dt, (lag, back)=>{
+    // 烟留在原地不动：位置取车 back 帧以前在的地方，寿命和大小照「先生成再走 dt」补上 lag
+    const tt = driftT - driftStep*back, ang = tt+Math.PI/2;
+    const x = cx+Math.cos(tt)*R, y = cy+Math.sin(tt)*R*0.5;
+    driftSmoke.push({x:x-Math.cos(ang)*base*0.02, y:y-Math.sin(ang)*base*0.02, life:1-0.012*lag, size:base*0.015+0.3*lag});
+  });
   for(let i=driftSmoke.length-1;i>=0;i--){
     const s=driftSmoke[i];
     s.life -= 0.012*dt;
@@ -23772,7 +23857,7 @@ function drawStormCloud(bass, now, dt){
   stormCd2 -= dt;
   if(stormCd2<=0 && bass>0.3){
     spawnStormBolt(cx+(Math.random()-0.5)*base*0.25, base);
-    stormCd2 = Math.max(4,14-bass*10);
+    stormCd2 = rearmCooldown(stormCd2, Math.max(4,14-bass*10), dt);
   }
   for(let i=stormBolts.length-1;i>=0;i--){
     const b=stormBolts[i];
@@ -23861,7 +23946,7 @@ function drawRadarDome(bass, dt){
   }
   const binIdx = Math.floor(((radarSweep%(Math.PI*2))/(Math.PI*2))*400);
   const v = freq[binIdx]/255;
-  if(v>0.55 && Math.random()<0.3){
+  for(let n = v>0.55 ? spawnsThisFrame(0.3, dt) : 0; n>0; n--){
     const r = R*(0.3+Math.random()*0.65);
     radarBlips.push({x:cx+Math.cos(radarSweep)*r, y:cy+Math.sin(radarSweep)*r, life:1});
   }
@@ -23983,17 +24068,17 @@ function drawCardFan(bass, now){
 
 /* --- Piano Roll Fall — note blocks falling toward the viewer per frequency column --- */
 const pianoBlocks = [];
-function spawnPianoBlocks(){
+function spawnPianoBlocks(dt){
   const cols=16;
   for(let c=0;c<cols;c++){
     const v=freq[Math.floor(c/cols*400)]/255;
-    if(v>0.5 && Math.random()<0.3){
+    for(let n = v>0.5 ? spawnsThisFrame(0.3, dt) : 0; n>0; n--){
       pianoBlocks.push({col:c, z:1, hue:190+c/cols*160});
     }
   }
 }
 function drawPianoFall(bass, dt){
-  spawnPianoBlocks();
+  spawnPianoBlocks(dt);
   const cx=CX+fxOffX, cy=CY+fxOffY;
   const base=Math.min(W,H);
   const cols=16;
@@ -24187,9 +24272,9 @@ function drawHourglass(bass, dt){
   g2.beginPath();
   g2.moveTo(cx-w,cy-h); g2.lineTo(cx+w,cy-h); g2.lineTo(cx,cy); g2.lineTo(cx+w,cy+h); g2.lineTo(cx-w,cy+h); g2.lineTo(cx,cy); g2.lineTo(cx-w,cy-h);
   g2.stroke();
-  if(Math.random()<0.5+bass*0.4){
-    hourglassGrains.push({t:0, x:(Math.random()*2-1)*w*0.7, hue:40+Math.random()*20});
-  }
+  emitOverFrame(0.5+bass*0.4, dt, lag=>{
+    hourglassGrains.push({t:(0.01+bass*0.03)*lag, x:(Math.random()*2-1)*w*0.7, hue:40+Math.random()*20});
+  });
   for(let i=hourglassGrains.length-1;i>=0;i--){
     const gr=hourglassGrains[i];
     gr.t += (0.01+bass*0.03)*dt;
@@ -24304,7 +24389,7 @@ const pondRipples = [];
 function drawPondRipples(bass, dt){
   const cx=CX+fxOffX, cy=CY+fxOffY;
   const base=Math.min(W,H);
-  if(Math.random()<0.08+bass*0.25){
+  for(let n=spawnsThisFrame(0.08+bass*0.25, dt); n>0; n--){
     pondRipples.push({x:(Math.random()*2-1)*base*0.35, y:(Math.random()*2-1)*base*0.25, r:2*DPR, alpha:0.7});
   }
   g2.globalCompositeOperation='lighter';
@@ -24499,7 +24584,7 @@ function drawFireworkBurst(bass, dt){
   fwCd -= dt;
   if(fwCd<=0 && bass>0.25){
     fwRockets.push({x:cx+(Math.random()*2-1)*base*0.35, y:cy+base*0.5, vy:-base*0.012, hue:Math.random()*360});
-    fwCd = Math.max(6, 20-bass*16);
+    fwCd = rearmCooldown(fwCd, Math.max(6, 20-bass*16), dt);
   }
   g2.globalCompositeOperation='lighter';
   for(let i=fwRockets.length-1;i>=0;i--){
@@ -24537,7 +24622,7 @@ function drawFireworkWillow(bass, dt){
   fwWillowCd -= dt;
   if(fwWillowCd<=0 && bass>0.28){
     fwWillowRockets.push({x:cx+(Math.random()*2-1)*base*0.3, y:cy+base*0.5, vy:-base*0.011, hue:35+Math.random()*20});
-    fwWillowCd = Math.max(8, 24-bass*16);
+    fwWillowCd = rearmCooldown(fwWillowCd, Math.max(8, 24-bass*16), dt);
   }
   g2.globalCompositeOperation='lighter';
   for(let i=fwWillowRockets.length-1;i>=0;i--){
@@ -24555,9 +24640,11 @@ function drawFireworkWillow(bass, dt){
   }
   for(let i=fwWillowParts.length-1;i>=0;i--){
     const p=fwWillowParts[i];
-    p.trail.push({x:p.x,y:p.y});
-    if(p.trail.length>6) p.trail.shift();
-    p.x += p.vx*0.02*dt; p.y += p.vy*0.02*dt; p.vy += 0.55*dt; p.vx *= 0.995;
+    // 拖尾留最近 6 个 60fps 帧的位置（按时间，不按帧数 —— 按帧数的话 30fps 下拖尾长一倍）
+    p.trail.push({x:p.x,y:p.y,at:p.age||0});
+    p.age = (p.age||0) + dt;
+    while(p.trail.length && p.trail[0].at < p.age - 6 - 1e-6) p.trail.shift();
+    p.x += p.vx*0.02*dt; p.y += p.vy*0.02*dt; p.vy += 0.55*dt; p.vx *= Math.pow(0.995, dt);
     p.life -= 0.008*dt;
     if(p.life<=0){ fwWillowParts.splice(i,1); continue; }
     g2.beginPath();
@@ -24592,12 +24679,12 @@ function drawFireworkChrysanthemum(bass, dt){
         });
       }
     }
-    fwChrysCd = Math.max(10, 26-bass*18);
+    fwChrysCd = rearmCooldown(fwChrysCd, Math.max(10, 26-bass*18), dt);
   }
   g2.globalCompositeOperation='lighter';
   for(let i=fwChrysBursts.length-1;i>=0;i--){
     const p=fwChrysBursts[i];
-    p.x += p.vx*0.02*dt; p.y += p.vy*0.02*dt; p.vy += 0.35*dt; p.vx*=0.99; p.vy*=0.99;
+    p.x += p.vx*0.02*dt; p.y += p.vy*0.02*dt; p.vy += 0.35*dt; const drag=Math.pow(0.99, dt); p.vx*=drag; p.vy*=drag;
     p.life -= 0.01*dt;
     if(p.life<=0){ fwChrysBursts.splice(i,1); continue; }
     drawSpark(p.x, p.y, (1.2+p.life*1.3)*DPR, p.hue, p.life*0.85);
@@ -24620,14 +24707,14 @@ function drawFireworkCrackle(bass, dt){
       const speed=base*(0.05+Math.random()*0.04);
       fwCrackleParts.push({x:cx,y:cy,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,life:1,hue,crackled:false});
     }
-    fwCrackleCd = Math.max(8, 22-bass*16);
+    fwCrackleCd = rearmCooldown(fwCrackleCd, Math.max(8, 22-bass*16), dt);
   }
   g2.globalCompositeOperation='lighter';
   for(let i=fwCrackleParts.length-1;i>=0;i--){
     const p=fwCrackleParts[i];
     p.x += p.vx*0.02*dt; p.y += p.vy*0.02*dt; p.vy += 0.4*dt;
     p.life -= 0.014*dt;
-    if(!p.crackled && p.life<0.4 && Math.random()<0.08){
+    if(!p.crackled && p.life<0.4 && chanceThisFrame(0.08, dt)){
       p.crackled=true;
       for(let s=0;s<6;s++){
         const a=Math.random()*Math.PI*2;
@@ -24655,7 +24742,7 @@ function drawFireworkShow(bass, dt){
         vy:-base*(0.009+Math.random()*0.005), hue:Math.random()*360
       });
     }
-    fwShowCd = Math.max(5, 16-bass*10);
+    fwShowCd = rearmCooldown(fwShowCd, Math.max(5, 16-bass*10), dt);
   }
   g2.globalCompositeOperation='lighter';
   for(let i=fwShowRockets.length-1;i>=0;i--){
@@ -24999,7 +25086,7 @@ function drawFireworkBurst3D(bass, dt){
   fw3dCd -= dt;
   if(fw3dCd<=0 && bass>0.25){
     fw3dRockets.push({x:(Math.random()*2-1)*0.5, y:0.6, z:(Math.random()*2-1)*0.3, vy:-0.36, hue:Math.random()*360});
-    fw3dCd = Math.max(7, 20-bass*15);
+    fw3dCd = rearmCooldown(fw3dCd, Math.max(7, 20-bass*15), dt);
   }
   g2.globalCompositeOperation='lighter';
   function proj(x,y,z){
@@ -25062,7 +25149,7 @@ function drawFireworkSpiral3D(bass, now, dt){
         life:1, hue:hue+t*40
       });
     }
-    fwSpiral3dCd = Math.max(10, 26-bass*18);
+    fwSpiral3dCd = rearmCooldown(fwSpiral3dCd, Math.max(10, 26-bass*18), dt);
   }
   g2.globalCompositeOperation='lighter';
   function proj(x,y,z){
@@ -25102,7 +25189,7 @@ function drawFireworkRing3D(bass, now, dt){
       const a=(k/n)*Math.PI*2;
       fwRing3dBursts.push({ang:a, tilt, speed:0.4+Math.random()*0.1, life:1, hue:hue+Math.random()*30});
     }
-    fwRing3dCd = Math.max(9, 24-bass*17);
+    fwRing3dCd = rearmCooldown(fwRing3dCd, Math.max(9, 24-bass*17), dt);
   }
   g2.globalCompositeOperation='lighter';
   function proj(x,y,z){
@@ -25138,17 +25225,18 @@ function drawFireworkFountain3D(bass, dt){
     const zc=z+camDist, scale=focal/zc;
     return {x:cx+x*base*0.4*scale, y:cy+y*base*0.4*scale, scale, zc};
   }
-  const spawnCount = 2+Math.floor(bass*6);
-  for(let s=0;s<spawnCount;s++){
+  // 每个 60fps 帧喷 2~8 颗；30fps 下分两批喷（见 emitOverFrame），不然喷出来一坨一坨的
+  emitOverFrame(2+Math.floor(bass*6), dt, lag=>{
     const ang=Math.random()*Math.PI*2;
     const spread=0.15+Math.random()*0.1;
+    const vx=Math.cos(ang)*spread, vz=Math.sin(ang)*spread;
+    const vy=-(0.35+Math.random()*0.2)*(1+bass*0.4);
     fwFountain3dParts.push({
-      x:0, y:originY, z:0,
-      vx:Math.cos(ang)*spread, vz:Math.sin(ang)*spread,
-      vy:-(0.35+Math.random()*0.2)*(1+bass*0.4),
-      life:1, hue:hue+Math.random()*30-15
+      x:vx*0.02*lag, y:originY+vy*0.02*lag, z:vz*0.02*lag,
+      vx, vz, vy:vy+0.01*lag,
+      life:1-0.01*lag, hue:hue+Math.random()*30-15
     });
-  }
+  });
   for(let i=fwFountain3dParts.length-1;i>=0;i--){
     const p=fwFountain3dParts[i];
     p.x+=p.vx*0.02*dt; p.y+=p.vy*0.02*dt; p.z+=p.vz*0.02*dt;
@@ -25186,7 +25274,7 @@ function drawFireworkDoubleBurst3D(bass, dt){
     const hue=Math.random()*360;
     spawnDoubleBurst3D(hue, 0, 0.5, 20);
     spawnDoubleBurst3D((hue+180)%360, 0.4, 1, 40);
-    fwDoubleCd = Math.max(11, 28-bass*18);
+    fwDoubleCd = rearmCooldown(fwDoubleCd, Math.max(11, 28-bass*18), dt);
   }
   g2.globalCompositeOperation='lighter';
   function proj(x,y,z){
@@ -25281,10 +25369,17 @@ function renderModeThumbnail(key){
     for(let i=0;i<freq.length;i++) freq[i] = 70 + Math.sin(i*0.12)*45 + Math.sin(i*0.35+2)*35;
     for(let i=0;i<wave.length;i++) wave[i] = 128 + Math.sin(i*0.09)*50;
     let now = performance.now(), dt = 16;
-    for(let f=0; f<30; f++){
+    const STEPS = 30;
+    for(let f=0; f<STEPS; f++){
       rot += (0.0016+0.35*0.004)*dt;
       g2.clearRect(0,0,W,H);
-      dispatchModeDraw(key, 0.55, 0.45, 0.5, now, dt);
+      /* 每一步开头都清屏，截下来的只有最后一步。前面的步骤只为推进状态：剪到空区域，
+         绘制调用照常跑、状态照常走，但不落像素。dt=16 一步快进 16 帧，粒子效果场上几百颗，
+         逐步真画要上百毫秒（喷泉 103 ms → 见 HANDOFF）；最后一步照常画，缩略图逐像素不变。 */
+      const last = f === STEPS-1;
+      if(!last){ g2.save(); g2.beginPath(); g2.rect(0,0,0,0); g2.clip(); }
+      try{ dispatchModeDraw(key, 0.55, 0.45, 0.5, now, dt); }
+      finally{ if(!last) g2.restore(); }
       now += dt;
     }
     thumbCtx.clearRect(0,0,thumbCanvas.width,thumbCanvas.height);
@@ -25597,7 +25692,7 @@ function renderPreviewInto(ctx, w, h, dpr, now, dt){
   const savedG2=g2, savedW=W, savedH=H, savedCX=CX, savedCY=CY, savedDPR=DPR;
   const savedFxOffX=fxOffX, savedFxOffY=fxOffY;
   g2 = ctx; W = w; H = h; CX = W/2; CY = H/2; DPR = dpr;
-  g2.fillStyle = 'rgba(5,6,14,0.16)';
+  g2.fillStyle = trailFadeStyle(dt);
   g2.fillRect(0,0,W,H);
   fxOffX = 0; fxOffY = 0;
   const m = MODES[previewIdx];

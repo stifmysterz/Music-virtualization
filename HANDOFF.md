@@ -118,7 +118,18 @@
 ### 6. 已知问题(待用户决定,本轮未改)
 
 - 27 条槽位循环隧道里的 `wz = i*SPACING - scroll` 不是元素的物理坐标:每次退格它对同一个元素跳 −SPACING,用 `wz` 驱动的摆动/旋转/波形在退格时有小幅阶跃。
-- ~~部分灯光强度渐变按帧不按时间~~ **已修(2026-09-27)**:LiquidGrid / ChromeFlow / EventHorizon 的灯组、3D 镜头抖动、Auto Director 的 Drop 冲击、2D Neon / Particle Storm 的粒子阻尼,共 9 处改成按 dt(`1 - 0.88^dt` 这类),60 fps 下逐位不变。测试 `frame-rate-independence.spec.js`。**2D 还有一类没查完**:很多 2D 效果每帧固定生成一批粒子(例如 Particle Storm 每帧 `spawnStorm(1+…)`),60 fps 下粒子数是 30 fps 的两倍 —— 要全面查 2D,得逐个效果人眼复核,未做。
+- ~~部分灯光强度渐变按帧不按时间~~ **已修(2026-09-27)**:LiquidGrid / ChromeFlow / EventHorizon 的灯组、3D 镜头抖动、Auto Director 的 Drop 冲击、2D Neon / Particle Storm 的粒子阻尼,共 9 处改成按 dt(`1 - 0.88^dt` 这类),60 fps 下逐位不变。测试 `frame-rate-independence.spec.js`。
+- ~~2D 按帧生成的粒子~~ **已修(用户要求,2026-09-27)**。240 个 2D 效果用人为时间戳各跑 60 / 30 fps 比画面(每个效果重设随机种子,取后 1.5 s 平均),亮度差超过 20% 的从 24 个降到 3 个(剩下的见下面两条和 rainbowCoil)。改了这几类:
+  - **节拍检测**:能量历史原来是「最近 43 个样本」,60 fps 是 0.72 s、30 fps 拉长到 1.43 s、120 fps 缩到 0.36 s —— 一段大声之后变安静,30 fps 的机器要多等 0.7 s 才重新抓得到鼓点。改成按时间的 718 ms 窗口,60 fps 下与原来逐帧一致(3600 帧随机音频、含 ±0.4 ms 抖动比对过)。涟漪一家 5 个效果(audioRipple / bassRipple / pulseEcho / frequencyRipples / beatTrails)的差异全是它造成的。测试 `beat-detect.spec.js`「能量历史的窗口按时间算」。
+  - **按帧生成 / 按帧掷骰子**:13 个效果(pondRipples、wakeTrail、paddleSplash、driftSmoke、radarDome、hourglass、pianoFall、solarFlare、ledCascade、fireworkFountain3d、fireworkCrackle、particleStorm、glitch 扫描线)。共用 `spawnsThisFrame(rate, dt)`、`chanceThisFrame(p, dt)`、`emitOverFrame(rate, dt, spawn)`,放在 `trailFadeStyle` 旁边。连续喷射的效果 30 fps 下一帧分两批生,晚的那批往回退一帧,不叠成一坨。改前 30 fps 的出生数约是 60 fps 的一半、120 fps 约两倍;改后 30 / 120 fps 都在 ±15% 以内(随机性大的几条),持续喷射的完全一样。
+  - **冷却计时**:15 处 `cd = X` 改成 `rearmCooldown(cd, X, dt)`,把这一帧超出去的部分带进下一轮、周期取 `ceil(X)`,60 fps 触发时刻不变。流星 X=2.5 时 30 fps 原来少四分之一。
+  - **拖尾 / 拖影 / 淡出**:特效层的全局残影淡出(每帧 16% → `1-0.84^dt`)、starfield / speedTunnel 的拖影、lightTrails 和 fireworkWillow 的拖尾(改成按时间留)、fireworkWillow / Chrysanthemum 的阻尼、barWaterfall 的行(按 50 ms 排,原来 30 fps 慢四分之一)。
+  - **logo 和文字的 spin / orbit** 每帧转固定角度,改成按 dt;另外「Behind FX」的文字一帧里被算两次,转速是别的文字的两倍 —— 角度推进挪到 `advanceTextSpin()`,每帧一次。
+  - 测试:`frame-rate-independence.spec.js` 新增 4 条(出生数、连续喷射分批、spin、瀑布/拖尾/淡出),在改前的 61.html 上全部失败、改后全部通过。
+- **没改的(帧率相关,但不是 bug 或改了会变样)**:glitchBarsFlash 的闪白就是「一帧」,30 fps 下一帧 33 ms,比 60 fps 亮一倍的时间 —— 频闪按帧是它的本意;多个 2D 效果叠加时的「前后层次」淡化(每多一层 destination-out 35%)在开着残影拖尾时也会按帧复合,只影响叠加 + 拖尾的组合。
+- **rainbowCoil 的投影单位错了(与帧率无关,未改,待用户决定)**:螺旋的深度 `z` 是像素(半径约 100 px),相机距离 `camDist=3.4` 是归一化单位 —— 大部分时间缩放只有约 0.02,整个螺旋几乎看不见(亮像素 0.04%);偶尔某段深度经过 0,线宽被放大几百倍,整屏闪一下彩色楔形。修了它会从「看不见」变成「看得见」,画面变化大,属于视觉决定。
+- `renderModeThumbnail` 生成模式缩略图时用自己的时钟先跑 30 帧,且共用效果的状态(粒子数组、角度等),时间在主循环回来时等于倒退。lightTrails 已处理(丢掉比现在还新的点),barWaterfall 遇到时间倒退会重新排;其他效果原来就共用状态,没改。
+- 缩略图每步传 `dt = 16`(一步快进 16 帧,30 步 ≈ 8 s 的运动)。以前按帧生成时这个 dt 被忽略,运动快进了粒子却只生 30 帧的量;现在生成也跟着快进,喷泉的缩略图 8 → 65 ms、crackle 28 → 49 ms。同时把前 29 步剪到空区域(每步开头都清屏,只有最后一步被截下来):状态照常推进、不落像素。240 个缩略图用固定种子逐个比 dataURL,239 个逐像素相同(solarSystem 自己两次跑就不一样)。全部缩略图总耗时 2321 → 2245 ms,最慢的一个 glitchBarsRgbBloom 295 → 103 ms。
 - ~~VJ 自动轮换每次切换都会存一条撤销记录~~ **已修(2026-09-27)**:2D / 3D / VJ 三层的定时器和突变检测都走 `withoutUndo()`,不记撤销、不清重做;手动 Random / Next Look 照常记。测试 `undo-auto-shuffle.spec.js`。
 - ~~VoxelPulseTerrain 是最重的一条~~ **已改(用户决定,2026-09-27)**:瓶颈是三角面(2801 个圆角方块),方块在屏幕上只有十几像素。`vjBevelBox` 加了可选的 `{maxSegments}` 封顶段数,这条三档都用单段倒角(每块 44 面,仍是共享几何):balanced 30.6 万 → 12.7 万面,ultra 84.4 万 → 12.7 万面;同进程交替实测 balanced 约 38 → 34 ms、ultra 约 53 → 38 ms。同一帧只有约 0.5% 的亮像素看得出差别。测试:`vj-bevel-box`、`vj-voxel-pulse-terrain` 各一条。
 - `shuffle-all-layers.spec.js`「突变检测真的会触发对应那一层」在全量跑时偶发失败(「触发了但隧道没换」),单独跑稳定通过 —— 负载下的时序敏感,和去塑料感改动无关。
@@ -242,4 +253,5 @@ npx playwright test                             # 全量约 13 分钟(单 worker
 - 测完性能之前先 `taskkill //F //IM electron.exe`——自己遗留的 Electron 探针进程会抢 GPU,导致性能测试假性超时(上一轮真的踩过,VJ 全循环测试假性超时两次,清完残留进程就正常了)。
 - 不要把 `npx playwright test` 强行改成并发跑,`playwright.config.js` 里 `workers: 1` 是刻意锁的,Electron+WebGL 并发会偶发超时。
 - Canvas 2D 的 `ctx.filter` 是逐绘制调用生效的,不是设一次管一片——如果这次做的是 2D 层效果,批量模糊/滤镜前先把内容画到离屏 canvas,再一次性 `drawImage` 加 filter 贴回来,不要在循环里每次都套 filter。
+- 2D 效果的生成、衰减、冷却都要按 `dt` 写(`dt` 的单位是 60 fps 的一帧)。不要写 `if(Math.random()<p) push(...)`、`for(n 次) push(...)`、`x *= 0.99`、`cd = X`、`trail.length > N` —— 30 fps 下粒子少一半、拖尾长一倍。用现成的:`spawnsThisFrame(rate, dt)`(这一帧生几个)、`chanceThisFrame(p, dt)`(状态跳一下)、`emitOverFrame(rate, dt, (lag, back) => …)`(连续喷射,分批错开)、`rearmCooldown(cd, X, dt)`、`Math.pow(k, dt)`;拖尾按时间戳留。`frame-rate-independence.spec.js` 里有现成的出生数测试,新效果加一行就能测。
 - 改完材质/灯光后,如果这条隧道之前被 `vjSourceAllows`/预热逻辑或 VJ 自动切换路径引用过场景缓存(`bg3DScenes`),记得该测试组(`vj-adaptive-quality.spec.js`、`vj-beat-switch.spec.js`)也跑一下,确认没有被材质改动间接影响到缓存假设。
