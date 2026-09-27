@@ -59,3 +59,21 @@ test('启动后预热玻璃着色器:切到任何用玻璃预设的隧道都不�
     expect(r.compiledHere, '这些玻璃变体没被预热,第一次切过去会卡一帧').toEqual([]);
   });
 });
+
+/* 冷缓存下一次编完全部变体要卡住主线程 2 s 多(装好后第一次启动,开场画面就停在那)。
+   拆成每个变体各在一个空闲回调里编:每段只卡一个变体的时间,中间画面还能走。 */
+test('预热分成小段:每段只编一个变体(双面半透明再分背面、正面),没有一段卡满全部', async () => {
+  await withApp('shader-warmup-steps', async win => {
+    await win.waitForFunction(() => vjWarmupSettled === true, null, { timeout: 30_000 });
+    const r = await win.evaluate(() => ({
+      variants: VJ_WARM_GLASS_VARIANTS.length,
+      steps: vjWarmupLog.map(s => ({ kind: s.kind, index: s.index, ms: s.ms, start: s.start, end: s.end })),
+    }));
+    const covered = new Set(r.steps.filter(s => s.kind === 'variant').map(s => s.index));
+    expect([...covered].sort((a, b) => a - b), '每个变体都要编到').toEqual([...Array(r.variants).keys()]);
+    // 相邻两段之间要有空档:是各自的回调,不是同一个任务里连着编
+    for (let i = 1; i < r.steps.length; i++) expect(r.steps[i].start, `第 ${i + 1} 段紧跟在上一段后面`).toBeGreaterThan(r.steps[i - 1].end);
+    // 单个变体冷编译约 0.2~0.5 s,建渲染器 + 环境贴图单独一段;一次编完全部要 2 s 多
+    expect(Math.max(...r.steps.map(s => s.ms)), '有一段卡太久').toBeLessThan(800);
+  });
+});

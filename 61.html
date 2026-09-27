@@ -27687,7 +27687,7 @@ function prepareNextVjTunnel(){
 /* 玻璃预设(MeshPhysicalMaterial + 清漆)在集显 / ANGLE 上冷编译一个变体约 0.4 s,第一次切到用玻璃的
    隧道会卡住一帧 —— r149 的 compile 是同步的,放不到后台。开场画面画出来之后,在空闲时先把隧道里
    实际用到的玻璃变体编好;预热用的材质一直留着,隧道材质的缓存键相同就直接复用同一个程序。
-   只有装好后第一次启动慢(约 0.8 s),之后 Chromium 的着色器磁盘缓存会让这一步很快。
+   只有装好后第一次启动慢(全部变体合计约 2.3 s,分成每个变体一段),之后 Chromium 的着色器磁盘缓存会让这一步很快(约 0.35 s)。
    变体必须和隧道里的逐项一致:FogExp2 + vjLightRig,点光源数量(Top 20 由 ensureVjPremiumRig 加 2 盏,其余 0 盏),
    编到离屏目标上(输出编码、色调映射跟合成器一样)。金属约 0.13 s、low 档 matcap 几十毫秒,不值得预热。
    新的玻璃用法没被覆盖时 vj-shader-warmup.spec.js 会报出来,在下面补一个变体。 */
@@ -27702,47 +27702,78 @@ const VJ_WARM_GLASS_VARIANTS = [
 ];
 let vjLitProgramsWarm = false, vjWarmupSettled = false;
 const vjWarmMaterials = [];   // 不 dispose:程序跟着材质活着
-function warmVjGlassPrograms(){
-  if(vjLitProgramsWarm || vjQuality === 'low') return;
+const vjWarmupLog = [];       // 每一段编了哪个变体、卡了多久:冷缓存下单个变体约 0.3~0.5 s
+function warmVjGlassVariant(v){
   const renderer = ensureBg3DRenderer();
   const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
   const target = new THREE.WebGLRenderTarget(4, 4), prevTarget = renderer.getRenderTarget();
   renderer.setRenderTarget(target);
   try{
-    for(const v of VJ_WARM_GLASS_VARIANTS){
-      const scene = new THREE.Scene();
-      scene.fog = new THREE.FogExp2(0x000000, 0.01);
-      vjLightRig(scene);
-      for(let i=0;i<v.pointLights;i++) scene.add(new THREE.PointLight(0xffffff, 0.5, 60, 2));
-      const material = vjMaterial(v.preset, { side:v.side, opacity:v.opacity });
-      if(v.emissive) material.emissive.set(0x512300);
-      material.vertexColors = !!v.vertexColors;
-      const mesh = v.vertexColors
-        ? new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
-            new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -3)
-          ]), 4, 1, 8, false), material)
-        : new THREE.InstancedMesh(v.pointLights === 1 ? new THREE.SphereGeometry(1,8,6) : new THREE.BoxGeometry(), material, 1);
-      if(v.vertexColors) mesh.geometry.setAttribute('color', new THREE.Float32BufferAttribute(
-        new Float32Array(mesh.geometry.attributes.position.count*3).fill(1), 3));
-      if(mesh.isInstancedMesh && v.instanceColor !== false) mesh.setColorAt(0, VJ_C.setRGB(1, 1, 1));
-      scene.add(mesh);
-      renderer.compile(scene, camera);
-      mesh.geometry.dispose();
-      vjWarmMaterials.push(material);
-    }
-    vjLitProgramsWarm = true;
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x000000, 0.01);
+    vjLightRig(scene);
+    for(let i=0;i<v.pointLights;i++) scene.add(new THREE.PointLight(0xffffff, 0.5, 60, 2));
+    const material = vjMaterial(v.preset, { side:v.side, opacity:v.opacity });
+    if(v.emissive) material.emissive.set(0x512300);
+    material.vertexColors = !!v.vertexColors;
+    const mesh = v.vertexColors
+      ? new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+          new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -3)
+        ]), 4, 1, 8, false), material)
+      : new THREE.InstancedMesh(v.pointLights === 1 ? new THREE.SphereGeometry(1,8,6) : new THREE.BoxGeometry(), material, 1);
+    if(v.vertexColors) mesh.geometry.setAttribute('color', new THREE.Float32BufferAttribute(
+      new Float32Array(mesh.geometry.attributes.position.count*3).fill(1), 3));
+    if(mesh.isInstancedMesh && v.instanceColor !== false) mesh.setColorAt(0, VJ_C.setRGB(1, 1, 1));
+    scene.add(mesh);
+    renderer.compile(scene, camera);
+    mesh.geometry.dispose();
+    vjWarmMaterials.push(material);
   }finally{
     renderer.setRenderTarget(prevTarget);
     target.dispose();
   }
 }
+/* 冷缓存下一次编完全部变体要卡 2 s 多,开场画面就停在那。拆成每个空闲回调只编一个变体:
+   每段只卡一个变体的时间(约 0.3~0.5 s),段与段之间画面照常走。
+   切到 low 档就停(matcap 便宜,不用预热),编过的程序照样留着。 */
 {
-  const warm = ()=>{
-    try{ warmVjGlassPrograms(); }catch(e){ console.warn('VJ shader warm-up skipped:', e); }
-    vjWarmupSettled = true;
+  // 双面 + 半透明在 r149 里要编背面、正面两个程序(渲染时分两遍),拆成两段各编一个
+  const queue = [];
+  VJ_WARM_GLASS_VARIANTS.forEach((v, index)=>{
+    if(v.side === THREE.DoubleSide && v.opacity < 1) queue.push({ ...v, side:THREE.BackSide, index }, { ...v, side:THREE.FrontSide, index });
+    else queue.push({ ...v, index });
+  });
+  let next = 0, prepared = false;
+  const schedule = ()=>{
+    if(window.requestIdleCallback) requestIdleCallback(step, {timeout:1500});
+    else setTimeout(step, 200);
   };
-  if(window.requestIdleCallback) requestIdleCallback(warm, {timeout:1500});
-  else setTimeout(warm, 200);
+  const step = ()=>{
+    if(next >= queue.length || vjQuality === 'low'){
+      vjLitProgramsWarm = next >= queue.length;
+      vjWarmupSettled = true;
+      return;
+    }
+    // 第一段只建渲染器和环境贴图(环境贴图的生成本身也要编着色器),不和第一个变体挤在一起
+    if(!prepared){
+      prepared = true;
+      const start = performance.now();
+      try{ ensureBg3DRenderer(); vjEnvMap(); }
+      catch(e){ console.warn('VJ shader warm-up skipped:', e); next = queue.length; }
+      const end = performance.now();
+      vjWarmupLog.push({ kind:'prepare', start, end, ms:Math.round(end - start) });
+      schedule();
+      return;
+    }
+    const v = queue[next++];
+    const start = performance.now();
+    try{ warmVjGlassVariant(v); }
+    catch(e){ console.warn('VJ shader warm-up skipped:', e); next = queue.length; }
+    const end = performance.now();
+    vjWarmupLog.push({ kind:'variant', index:v.index, preset:v.preset, pointLights:v.pointLights, start, end, ms:Math.round(end - start) });
+    schedule();
+  };
+  schedule();
 }
 // Keep one bitmap of the outgoing tunnel. The new scene uses the normal renderer and cache.
 const vjTransitionFrame = document.createElement('canvas');
