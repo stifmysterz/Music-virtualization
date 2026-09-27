@@ -1,6 +1,6 @@
-# 交接状态 — 去塑料感第 4 批通过,可以开始第 5 批(最后一批,2026-09-27)
+# 交接状态 — 去塑料感全部完成:50 条 VJ 都已改造(2026-09-27)
 
-**当前状态**:第 1 批 10 条全部通过并提交到 `main`。vjVoidNebula、vjBioMembrane 返工一次后通过(说明见 `docs/vj-anti-plastic-batch1-rework.md`,结果见第 5b 节)。验收中 Claude Code 加了玻璃着色器的启动预热(见第 2 节「玻璃 / 液态金属的着色器要预热」)。第 2 批 9 条、第 3 批 10 条也已提交(结果见第 5c、5d 节)。DustShaft、RaceTrack 返工后通过。第 4 批 10 条返工一次后通过(结果见第 5e 节)。**下一步:ChatGPT 做第 5 批**(其中 FoilCrumple 有现存的槽位编号 bug,改法见 `docs/vj-slot-index-audit-2026-09-26.md`)。**交回前验收测试必须全部通过,交回时贴出测试结果的最后几行** —— 第 3、4 批都是带着失败的测试交回的。顺手可做:BioMembrane 的细胞核仍是平涂的 `neonCore`,近处大细胞核看得出 8×6 段球的棱角;SolarFlare 的光弧飞到镜头前会糊成一大团黄光(原有构图问题)。
+**当前状态**:第 1 批 10 条全部通过并提交到 `main`。vjVoidNebula、vjBioMembrane 返工一次后通过(说明见 `docs/vj-anti-plastic-batch1-rework.md`,结果见第 5b 节)。验收中 Claude Code 加了玻璃着色器的启动预热(见第 2 节「玻璃 / 液态金属的着色器要预热」)。第 2 批 9 条、第 3 批 10 条也已提交(结果见第 5c、5d 节)。DustShaft、RaceTrack 返工后通过。第 4 批 10 条返工一次后通过(结果见第 5e 节),第 5 批 9 条一次通过(第 5f 节)。**50 条 VJ 全部改造完成,`CONVERTED` 已包含全部 50 条。** 以后再改任何一条 VJ,第 2、3 节的规则和验收流程照样适用;交回前验收测试必须全部通过,交回时贴出测试结果的最后几行。顺手可做:BioMembrane 的细胞核仍是平涂的 `neonCore`,近处大细胞核看得出 8×6 段球的棱角;SolarFlare 的光弧飞到镜头前会糊成一大团黄光(原有构图问题)。
 
 ---
 
@@ -38,6 +38,7 @@
 - **判据留余量。** lit 在 40%~90% 之间,改完别贴着线:两头都至少留 3 个百分点。**不要为了过下限去堆满画面**(第 3 批 DustShaft 就是加多加粗光柱把 35% 顶到 82%,顶上去的是一整屏雾)。偏暗的氛围型效果做好了还是过不了 40%,停下来说,由用户决定要不要单独放宽 —— 放宽的写在 `vj-anti-plastic.spec.js` 的 `LIT_FLOOR` 里(目前只有 vjDustShaft 35%),**只有用户能往里加**。原因见下一条 —— 布局会因为无关的改动整体换位置,贴线的数值会随机挂。第 2 批 low 档有 4 条只在 40.4%~41.3%。
 - **固定种子的截图布局会被 three.js 打乱。** three.js 每创建一个对象(材质、几何、灯)都要生成 ID,每次消耗 4 次 `Math.random`。所以在建场景函数里,随机摆放之前多建一盏灯、换一种材质(low 档的 matcap 和受光档创建的对象数不同),后面所有随机位置都会变。用户实际使用时本来就不固定种子,不受影响;但对比网页里「改前 / 改后」甚至「low / balanced」可能不是同一个布局,看图时要考虑这一点。
 - **三档都要亲眼看。** 第 1 批的 BioMembrane 在 balanced/ultra 把膜的不透明度压到 0.015,结果 low 档反而最好看。数值判据过了不代表画面对,高画质不能比 low 差。
+- **建场景时新建的贴图必须能被回收。** `vjDropCachedScene` 只 dispose 几何和材质;每次建场景都新建的 CanvasTexture 之类,要么做成全局只建一次(VoidNebula、DustShaft 的做法),要么挂在材质的 `userData.vjOwnedMap` 上(RingWorldRun、BlackGoldFluid)。不然 GPU 上每重建一次就多留一张。`vj-scene-rebuild-leak.spec.js` 会对全部 50 条检查。
 - **InstancedMesh 设 `frustumCulled = false`**:r149 按底座几何在原点的包围球做视锥剔除,镜头运动选「flythrough」时整条实例化隧道会被剔掉消失(审查时实测 ChromeFlow、NeonTubeRoom 都会)。
 
 ### 3. 每批的验收流程
@@ -100,6 +101,17 @@
 - 平稳帧(本机集显 balanced):**VoxelPulseTerrain 44 → 53 ms**(最重的一条,约 19 fps,以后可以考虑减负)、RingWorldRun 27 → 39 ms、AsteroidSlalom 27 → 34 ms,其余持平或更快。
 - 全量测试抓到 StarLane 的光带从双面变成了单面(`vjSolidMat` 默认双面,`neonCore` 默认单面):半透明条少了背面那层,条芯变暗,硬边只剩约六分之一,`bg3d-post-aa` 的前提不成立。Claude Code 把它改回双面。**用 `neonCore` 替换 `vjSolidMat` 时,半透明的部件要想清楚要不要 `side:THREE.DoubleSide`** —— lit 判据数不出这种变化。
 - 贴线:VoxelPulseTerrain、WaveCorridor 的 low 档 43.0% / 43.1%。HexPulse 风格从细线 + 小方块变成粗的发光六边形框(用户看过对比网页后通过)。
+
+### 5f. 第 5 批验收结果(Claude Code,2026-09-27)
+
+- 9 条一次通过:验收测试 32/32,vj-neon-black-gold + bg3d-post-aa 11/11,三档全部达标。CandyOrbs、LightWell 从整屏发白(95.7% / 90.1%)变成饱和的实体;BlackGoldFluid 的液池改成径向光团;PlasmaRings 36 个独立圆环合并成一个实例化网格。
+- FoilCrumple 的槽位编号 bug 已修,新用例验证过能抓到它(改回旧写法跳变 429 次)。
+- **Claude Code 修了 BlackGoldFluid 的 GPU 贴图泄漏**:液池贴图每次建场景都新建、回收时不释放,每重建一次 GPU 上多一张。新增 `vj-scene-rebuild-leak.spec.js`(全部 50 条反复建、丢,GPU 上未释放的贴图数不能涨),修前只抓到它一条。
+- 平稳帧最多 +4 ms。
+
+### 5g. 启动预热的代价(2026-09-27 实测)
+
+各批新增的玻璃 / 液态金属用法让 `VJ_WARM_GLASS_VARIANTS` 从 1 种涨到 7 种、9 个程序。**装好后第一次启动,开场画面会卡住 2.3~2.6 s**(第 4 批时 6 个程序 1.6~1.9 s);第二次启动起约 0.35 s(Chromium 着色器磁盘缓存)。可选改进(用户未定):把预热拆成每个空闲回调编一个程序,首次启动变成若干次约 0.3 s 的小停顿,而不是一次卡 2 s 多。
 
 ### 6. 已知问题(待用户决定,本轮未改)
 

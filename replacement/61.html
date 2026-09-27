@@ -18036,6 +18036,7 @@ function buildBg3DVjBlackGoldFluid(){
     const pool=new THREE.Mesh(new THREE.CircleGeometry(12,64),
       vjMaterial('neonCore',{color:0xffffff,side:THREE.DoubleSide}));
     pool.material.map=poolMap;pool.material.transparent=true;pool.material.depthWrite=false;
+    pool.material.userData.vjOwnedMap=poolMap;   // 每次建场景都新建一张,回收场景时随材质释放(三个液池共用,重复 dispose 无害)
     pool.position.set((i-1)*11,(i%2?5:-5),-28-i*3); scene.add(pool); pools.push(pool);
   }
   const rig=vjLightRig(scene,{keyColor:0xffca62,keyI:.92,rimColor:0xff7a12,rimI:1.12,skyColor:0x231609,groundColor:0,fillI:.28});
