@@ -194,3 +194,34 @@ test('3D 抗锯齿开关:默认开,点击关掉 SMAA 并记住,标签跟语言�
     expect(r.back).toBe(true);
   });
 });
+
+/* 应用刚启动、SMAA 的两张查找图还没解码完时就开了 3D:贴图要等解码完再上传,不能上传一张空图。 */
+test('SMAA 查找图还没解码完时建的 pass:解码完成后才上传贴图', async () => {
+  await withApp('post-aa-undecoded', async win => {
+    const r = await win.evaluate(async () => {
+      const A = THREE_R149_ADDONS;
+      const saved = { images: A.smaaImages, ready: A.smaaReady };
+      let release;
+      // 替身:明确还没解码完(不能用没设 src 的 new Image(),它的 complete 按规范是 true)
+      A.smaaImages = { area: { complete: false }, search: { complete: false } };
+      A.smaaReady = new Promise(res => { release = res; });
+      try {
+        setBg3DPostAA('smaa');
+        const p = makeBg3DAAPass();
+        // SMAAPass 的构造函数自己也会解码一份同样的图、解完在 onload 里标记上传 —— 给它时间,它不能抢先触发
+        await new Promise(res => setTimeout(res, 300));
+        const before = { area: p.areaTexture.version, search: p.searchTexture.version };
+        release();
+        await A.smaaReady; await Promise.resolve();
+        const after = { area: p.areaTexture.version, search: p.searchTexture.version };
+        p.dispose();
+        return { before, after };
+      } finally {
+        A.smaaImages = saved.images; A.smaaReady = saved.ready;
+      }
+    });
+    expect(r.before, '解码完之前不能标记上传').toEqual({ area: 0, search: 0 });
+    expect(r.after.area, '解码完成后要标记上传').toBeGreaterThan(0);
+    expect(r.after.search).toBeGreaterThan(0);
+  });
+});

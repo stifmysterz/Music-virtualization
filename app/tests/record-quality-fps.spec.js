@@ -202,3 +202,31 @@ test('录制掉帧时才给建议，而且到了最低档就改口 —— 那时
     await win.evaluate(() => { recordingResolutionActive = false; recordQuality = '4k'; });
   });
 });
+
+/* 「录制时 3D」开成跟随录制画质时,3D 层按录制分辨率渲染,4K 下本机只有 6~8 fps —— 这时掉帧的头号原因
+   是它,最有效的一步是切回屏幕尺寸,而不是先劝人调低录制画质或少开 mode。 */
+test('录制时 3D 跟随录制画质、3D 开着又掉帧:提示先把「录制时 3D」切回屏幕尺寸', async () => {
+  await withApp('fps-tip-3d', async (win) => {
+    const r = await win.evaluate(() => {
+      fpsHudOn = true;
+      const tip = (sharp, quality, with3D) => {
+        if (with3D) enableBg3D('vjChromeFlow'); else disableBg3D();
+        record3DSharp = sharp; recordQuality = quality; recordingResolutionActive = true;
+        fpsWindowStart = 1000; fpsFrames = 9; updateFpsHud(2000);   // 10 帧 / 1 秒
+        const el = document.getElementById('fpsHudTip');
+        return el.style.display === 'none' ? '' : el.textContent;
+      };
+      const out = {
+        sharp4k: tip(true, '4k', true), sharp1080: tip(true, '1080p', true),
+        screen4k: tip(false, '4k', true), sharpNo3D: tip(true, '4k', false),
+        screenLabel: t2('record3DScreen'), quality: t2('fpsTipQuality'),
+      };
+      recordingResolutionActive = false; record3DSharp = false; fpsHudOn = false;
+      return out;
+    });
+    expect(r.sharp4k, '应该先劝切回屏幕尺寸').toContain(r.screenLabel);
+    expect(r.sharp1080, '1080p 也一样:按录制画质渲染 3D 仍是最贵的那一项').toContain(r.screenLabel);
+    expect(r.screen4k, '没开跟随录制画质时,照旧劝调低录制画质').toBe(r.quality);
+    expect(r.sharpNo3D, '没开 3D 时这个开关不花钱,照旧劝调低录制画质').toBe(r.quality);
+  });
+});

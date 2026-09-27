@@ -7313,6 +7313,7 @@ const T2 = {
       fpsLabel:'FPS Meter',recordQualityLabel:'Quality',fpsRecording:'recording',seeThroughLabel:'See Through',aa3DLabel:'3D Anti-aliasing',filmGradeLabel:'Film Grade',autoDirectorLabel:'Auto Director',
       fpsTipQuality:'Recording is dropping frames — try a lower Quality in Tools.',
       fpsTipLayers:'Still dropping frames at 1080p — try using fewer modes at once.',
+      fpsTip3D:'Recording is dropping frames — set "3D in Recording" back to Screen Size in Tools; that helps most.',
       recordQualityLocked:'Stop the recording before changing quality.',
       record3DLabel:'3D in Recording',record3DScreen:'Screen Size',record3DMatch:'Recording Quality',
       bgAdjustBanner:'🎯 Adjusting background — click here or press Esc to finish',
@@ -7354,6 +7355,7 @@ const T2 = {
       fpsLabel:'帧率',recordQualityLabel:'录制画质',fpsRecording:'录制中',seeThroughLabel:'透出背景',aa3DLabel:'3D 抗锯齿',filmGradeLabel:'电影调色',autoDirectorLabel:'自动导演',
       fpsTipQuality:'录制掉帧了 —— 到 Tools 里把录制画质调低一档试试。',
       fpsTipLayers:'1080p 还是掉帧 —— 试试同时少开几个 mode。',
+      fpsTip3D:'录制掉帧了 —— 到 Tools 里把「录制时 3D」切回「屏幕尺寸」，这一步最有效。',
       recordQualityLocked:'先停止录制，再改画质。',
       record3DLabel:'录制时 3D',record3DScreen:'屏幕尺寸',record3DMatch:'跟随录制画质',
       bgAdjustBanner:'🎯 正在调整背景 — 点这里或按 Esc 结束',
@@ -8348,6 +8350,9 @@ function makeBg3DAAPass(){
   const A = THREE_R149_ADDONS;
   const p = new A.SMAAPass(Math.max(1, size.x), Math.max(1, size.y));
   [p.materialEdges, p.materialWeights, p.materialBlend].forEach(m => { m.blending = THREE.NoBlending; });
+  /* SMAAPass 的构造函数会自己再解码一遍这两张 base64 图,解完在 onload 里标记上传。我们用共享的已解码图,
+     把它那两张掐掉:省掉每建一个 pass 的两次解码,也免得共享图还没解完时被它的 onload 抢先触发上传(传一张空图)。 */
+  for(const img of [p.areaTexture.image, p.searchTexture.image]){ img.onload = null; img.removeAttribute('src'); }
   p.areaTexture.image = A.smaaImages.area;
   p.searchTexture.image = A.smaaImages.search;
   const upload = () => { p.areaTexture.needsUpdate = true; p.searchTexture.needsUpdate = true; };
@@ -14836,7 +14841,7 @@ function vjPhysMat(o){
 const vjBevelGeoCache = new Map();
 function vjBevelSegments(){ return vjQuality === 'low' ? 0 : (vjQuality === 'ultra' ? 2 : 1); }
 function vjBevelBox(w, h, d, radius){
-  // r149 的 RoundedBoxGeometry 不夹紧半径:超过半边长时几何会翻折
+  // 自写的倒角盒半径超过半边长会翻折;r149 的 RoundedBoxGeometry 自己夹到半边长。两条路径统一夹到略小于半边长
   const r = Math.min(radius, Math.min(w, h, d) / 2 * 0.999);
   const seg = vjBevelSegments();
   const key = `${w}|${h}|${d}|${r}|${seg}`;
@@ -14914,9 +14919,9 @@ const VJ_MATCAP_LOOKS = {
 const vjMatcapCache = {};
 function vjMatcapTexture(paint){
   if(vjMatcapCache[paint]) return vjMatcapCache[paint];
-  const S = 256, R = S / 2, cv = document.createElement('canvas');
-  cv.width = cv.height = S;
-  const g = cv.getContext('2d');
+  const S = 256, R = S / 2, canvas = document.createElement('canvas');   // 别叫 cv:会遮住主画布的全局 cv
+  canvas.width = canvas.height = S;
+  const g = canvas.getContext('2d');
   g.fillStyle = '#000'; g.fillRect(0, 0, S, S);
   g.save(); g.beginPath(); g.arc(R, R, R, 0, Math.PI * 2); g.clip();
   const radial = (x, y, r0, r1, stops) => {
@@ -14941,7 +14946,7 @@ function vjMatcapTexture(paint){
     radial(R * 1.35, R * 1.4, 0, R * 0.2, [[0, 'rgba(255,255,255,0.5)'], [1, 'rgba(255,255,255,0)']]);
   }
   g.restore();
-  return (vjMatcapCache[paint] = new THREE.CanvasTexture(cv));
+  return (vjMatcapCache[paint] = new THREE.CanvasTexture(canvas));
 }
 function vjMaterial(preset, o){
   if(!VJ_MATERIAL_PRESETS.includes(preset)) throw new Error(`unknown VJ material preset: ${preset}`);
@@ -26812,7 +26817,9 @@ function updateFpsHud(now){
   const showTip = recordingResolutionActive && fpsValue < 40;
   tipEl.style.display = showTip ? 'block' : 'none';
   if(showTip){
-    tipEl.textContent = recordQuality === '1080p' ? t2('fpsTipLayers') : t2('fpsTipQuality');
+    /* 3D 跟随录制画质时,按录制分辨率渲染 3D 是最贵的一项(本机录 4K 只有 6~8 fps),先劝切回屏幕尺寸 */
+    const sharp3D = record3DSharp && hasBg3D && bg3DVisible;
+    tipEl.textContent = sharp3D ? t2('fpsTip3D') : recordQuality === '1080p' ? t2('fpsTipLayers') : t2('fpsTipQuality');
     tipEl.style.color = color;
   }
 }
@@ -27805,6 +27812,8 @@ function clearVjTransition(){
   vjPendingSwitch = null;
   vjTransitionStart = 0;
   vjTransitionFrame.style.display = 'none';
+  // 截图跟 3D 画布一样大 —— 录 4K 且 3D 跟随录制画质时约 33 MB,淡出完就释放,下次切换再按需分配
+  vjTransitionFrame.width = vjTransitionFrame.height = 0;
 }
 function updateVjAutoSwitch(now){
   if(vjPendingSwitch && vjShuffleOn){
