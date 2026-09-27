@@ -77,3 +77,26 @@ test('预热分成小段:每段只编一个变体(双面半透明再分背面、
     expect(Math.max(...r.steps.map(s => s.ms)), '有一段卡太久').toBeLessThan(800);
   });
 });
+
+/* 冷缓存下每段预热要卡主线程约 0.3 s。用户正在操作(滚轮转背景、点按钮、按键)时开始编,
+   手势、过渡动画就会顿一下 —— 有输入的那段时间预热要让路,停手之后再接着编。 */
+test('用户在操作时预热让路:有输入的那段时间里不开始新的一段', async () => {
+  await withApp('shader-warmup-yield', async win => {
+    const r = await win.evaluate(async () => {
+      const settledAtStart = vjWarmupSettled;
+      const t0 = performance.now();
+      const iv = setInterval(() => document.getElementById('bgImage').dispatchEvent(new WheelEvent('wheel', { deltaY: 1, bubbles: true })), 100);
+      await new Promise(res => setTimeout(res, 1200));
+      clearInterval(iv);
+      const t1 = performance.now();
+      return { settledAtStart, t0, t1 };
+    });
+    test.skip(r.settledAtStart, '预热在测试开始前就做完了,测不到让路');
+    await win.waitForFunction(() => vjWarmupSettled === true, null, { timeout: 30_000 });
+    const steps = await win.evaluate(() => vjWarmupLog.map(s => ({ start: s.start })));
+    // 第一个输入之后留 150 ms 余量(那时可能正好有一段在跑、或刚被排进队列),到最后一个输入为止不能再开始新的一段
+    const during = steps.filter(s => s.start > r.t0 + 150 && s.start < r.t1);
+    expect(during, '用户在操作时还在开始新的预热段').toEqual([]);
+    expect(steps.some(s => s.start >= r.t1), '停手之后要接着把剩下的编完').toBe(true);
+  });
+});

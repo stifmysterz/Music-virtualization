@@ -27735,7 +27735,13 @@ function warmVjGlassVariant(v){
 }
 /* 冷缓存下一次编完全部变体要卡 2 s 多,开场画面就停在那。拆成每个空闲回调只编一个变体:
    每段只卡一个变体的时间(约 0.3~0.5 s),段与段之间画面照常走。
-   切到 low 档就停(matcap 便宜,不用预热),编过的程序照样留着。 */
+   切到 low 档就停(matcap 便宜,不用预热),编过的程序照样留着。
+   用户正在操作(点、滚轮、按键、触摸)时让路:0.8 s 内有过输入就先不编,停手之后再接着编 ——
+   不然转背景、拖面板时正好卡一下,手势和过渡动画会顿。 */
+let vjLastUserInputAt = -Infinity;
+for(const type of ['pointerdown', 'wheel', 'keydown', 'touchstart']){
+  window.addEventListener(type, ()=>{ vjLastUserInputAt = performance.now(); }, { capture:true, passive:true });
+}
 {
   // 双面 + 半透明在 r149 里要编背面、正面两个程序(渲染时分两遍),拆成两段各编一个
   const queue = [];
@@ -27754,6 +27760,7 @@ function warmVjGlassVariant(v){
       vjWarmupSettled = true;
       return;
     }
+    if(performance.now() - vjLastUserInputAt < 800){ setTimeout(schedule, 300); return; }
     // 第一段只建渲染器和环境贴图(环境贴图的生成本身也要编着色器),不和第一个变体挤在一起
     if(!prepared){
       prepared = true;
