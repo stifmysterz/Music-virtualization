@@ -98,6 +98,7 @@
 - 返工后 30 格全部达标,验收测试 31/31,Voxel / Hive / Reactor 专用测试 9/9。Kaleido、HexPulse 的方块改回发光体;RingWorldRun 加了发光边和一团行星辉光(贴图随场景释放,`vjDropCachedScene` 现在会释放材质上 `userData.vjOwnedMap` 标记的贴图);NeonReactorDescent 压暗墙体留出纵深。
 - HexPulse 的槽位编号 bug 已修,新用例验证过能抓到它(改回旧写法跳变 990 次)。
 - 平稳帧(本机集显 balanced):**VoxelPulseTerrain 44 → 53 ms**(最重的一条,约 19 fps,以后可以考虑减负)、RingWorldRun 27 → 39 ms、AsteroidSlalom 27 → 34 ms,其余持平或更快。
+- 全量测试抓到 StarLane 的光带从双面变成了单面(`vjSolidMat` 默认双面,`neonCore` 默认单面):半透明条少了背面那层,条芯变暗,硬边只剩约六分之一,`bg3d-post-aa` 的前提不成立。Claude Code 把它改回双面。**用 `neonCore` 替换 `vjSolidMat` 时,半透明的部件要想清楚要不要 `side:THREE.DoubleSide`** —— lit 判据数不出这种变化。
 - 贴线:VoxelPulseTerrain、WaveCorridor 的 low 档 43.0% / 43.1%。HexPulse 风格从细线 + 小方块变成粗的发光六边形框(用户看过对比网页后通过)。
 
 ### 6. 已知问题(待用户决定,本轮未改)
@@ -105,6 +106,7 @@
 - 27 条槽位循环隧道里的 `wz = i*SPACING - scroll` 不是元素的物理坐标:每次退格它对同一个元素跳 −SPACING,用 `wz` 驱动的摆动/旋转/波形在退格时有小幅阶跃。
 - 部分灯光强度渐变按帧不按时间(例如 ChromeFlow 的 `rig.key.intensity += (…) * 0.12`),30fps 和 60fps 下快慢不同(CLAUDE.md §13)。
 - VJ 自动轮换每次切换都会存一条撤销记录(上限 50),长时间开着会把手动操作挤出撤销历史。
+- `shuffle-all-layers.spec.js`「突变检测真的会触发对应那一层」在全量跑时偶发失败(「触发了但隧道没换」),单独跑稳定通过 —— 负载下的时序敏感,和去塑料感改动无关。
 
 ---
 

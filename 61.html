@@ -15478,8 +15478,9 @@ function buildBg3DVjStarLane(){
     hue: Math.random(),
   });
   /* 体积层：把拖尾也做成实体条。1px 的线在投影上几乎不占面积 —— 实测这个效果
-     原来只点亮 6.8% 的像素，是三十个里最稀的。实体条既保留速度感又有厚度。 */
-  const streaks = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), vjMaterial('neonCore', {opacity:0.72}), N);
+     原来只点亮 6.8% 的像素，是三十个里最稀的。实体条既保留速度感又有厚度。
+     双面是有意的:半透明条的背面叠在正面后面,条芯才够亮、边缘才利落(单面时硬边只剩约六分之一)。 */
+  const streaks = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), vjMaterial('neonCore', {opacity:0.72, side:THREE.DoubleSide}), N);
   streaks.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   streaks.frustumCulled = false;
   scene.add(streaks);
