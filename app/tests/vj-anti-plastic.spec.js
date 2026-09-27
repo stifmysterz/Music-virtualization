@@ -14,7 +14,9 @@ const CONVERTED = ['vjChromeFlow', 'vjNeonTubeRoom',
   'vjHoverCity', 'vjDerelictHall', 'vjCollapsedGrid', 'vjShatteredPanes', 'vjDustShaft',
   'vjAsteroidSlalom', 'vjRingWorldRun', 'vjVoxelPulseTerrain', 'vjNeonGeometryTunnel',
   'vjUltravioletHiveRush', 'vjNeonReactorDescent', 'vjHexPulse', 'vjWaveCorridor',
-  'vjStarLane', 'vjKaleido'];
+  'vjStarLane', 'vjKaleido',
+  'vjPlasmaRings', 'vjCandyOrbs', 'vjLightWell', 'vjIonTrail', 'vjBlackGoldFluid',
+  'vjFoilCrumple', 'vjChromeBubbles', 'vjChromeDrips', 'vjRustPipes'];
 /* 个别偏暗的氛围型隧道,用户看过画面后单独放宽的 lit 下限(其余一律 40%)。只有用户能决定往这里加。
    vjDustShaft(2026-09-26):暗场 + 几道细光柱 + 浮尘。low 档没有 MSAA、像素比 1,细而柔的光数出来的亮像素少,
    画面做对了 low 也只有 40.0%;硬顶到 40% 以上的那一版是一整屏红棕色雾,被退回过。 */

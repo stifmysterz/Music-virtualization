@@ -60,6 +60,15 @@ function zTrack({ kind, frames, dt }) {
     },
     vjHexPulse: () => s.scene.children.filter(o => o.isLine && !o.isLineSegments)
       .map(o => ({ z: o.position.z, shape: o.rotation.z })),
+    vjFoilCrumple: () => {
+      const mesh=s.scene.children.find(o=>o.isInstancedMesh && o.count===40*40);
+      const m=new THREE.Matrix4(),p=new THREE.Vector3(),q=new THREE.Quaternion(),scale=new THREE.Vector3(),out=[];
+      for(let i=0;i<40;i++){
+        mesh.getMatrixAt(i*40,m);m.decompose(p,q,scale);
+        out.push({z:p.z,quat:[q.x,q.y,q.z,q.w]});
+      }
+      return out;
+    },
     // SpeedGates:上横梁(每扇门一根)
     vjSpeedGates: () => {
       const bars = s.scene.children.find(o => o.isInstancedMesh && o.count === 25*2);
@@ -114,7 +123,7 @@ function zTrack({ kind, frames, dt }) {
 }
 
 for (const kind of ['vjSpeedGates', 'vjNeonTubeRoom', 'vjCubeMatrix', 'vjHoverCity',
-  'vjDerelictHall', 'vjCollapsedGrid', 'vjDustShaft', 'vjHexPulse']) {
+  'vjDerelictHall', 'vjCollapsedGrid', 'vjDustShaft', 'vjHexPulse', 'vjFoilCrumple']) {
   test(`${kind}: 按槽位编号取的外观不能在每次退格时跳变`, async () => {
     await withApp(`continuity-${kind}`, async win => {
       const r = await win.evaluate(zTrack, { kind, frames: 160, dt: 0.25 });
