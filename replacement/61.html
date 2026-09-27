@@ -27739,6 +27739,9 @@ function warmVjGlassVariant(v){
    用户正在操作(点、滚轮、按键、触摸)时让路:0.8 s 内有过输入就先不编,停手之后再接着编 ——
    不然转背景、拖面板时正好卡一下,手势和过渡动画会顿。 */
 let vjLastUserInputAt = -Infinity;
+/* 每段之后先让画面走一会儿再排下一段:紧挨着排的话空闲回调在每帧后面立刻又卡 0.3 s,
+   帧间隔变成「16 ms、300 ms」交替,开场动画一顿一顿(连 2D 帧时间的中位数都被拉高)。 */
+const VJ_WARMUP_BREATHER_MS = 200;
 for(const type of ['pointerdown', 'wheel', 'keydown', 'touchstart']){
   window.addEventListener(type, ()=>{ vjLastUserInputAt = performance.now(); }, { capture:true, passive:true });
 }
@@ -27769,7 +27772,7 @@ for(const type of ['pointerdown', 'wheel', 'keydown', 'touchstart']){
       catch(e){ console.warn('VJ shader warm-up skipped:', e); next = queue.length; }
       const end = performance.now();
       vjWarmupLog.push({ kind:'prepare', start, end, ms:Math.round(end - start) });
-      schedule();
+      setTimeout(schedule, VJ_WARMUP_BREATHER_MS);
       return;
     }
     const v = queue[next++];
@@ -27778,7 +27781,7 @@ for(const type of ['pointerdown', 'wheel', 'keydown', 'touchstart']){
     catch(e){ console.warn('VJ shader warm-up skipped:', e); next = queue.length; }
     const end = performance.now();
     vjWarmupLog.push({ kind:'variant', index:v.index, preset:v.preset, pointLights:v.pointLights, start, end, ms:Math.round(end - start) });
-    schedule();
+    setTimeout(schedule, VJ_WARMUP_BREATHER_MS);
   };
   schedule();
 }

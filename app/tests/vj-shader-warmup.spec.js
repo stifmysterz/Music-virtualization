@@ -71,8 +71,8 @@ test('预热分成小段:每段只编一个变体(双面半透明再分背面、
     }));
     const covered = new Set(r.steps.filter(s => s.kind === 'variant').map(s => s.index));
     expect([...covered].sort((a, b) => a - b), '每个变体都要编到').toEqual([...Array(r.variants).keys()]);
-    // 相邻两段之间要有空档:是各自的回调,不是同一个任务里连着编
-    for (let i = 1; i < r.steps.length; i++) expect(r.steps[i].start, `第 ${i + 1} 段紧跟在上一段后面`).toBeGreaterThan(r.steps[i - 1].end);
+    // 相邻两段之间要留出画面喘气的时间:紧挨着排的话帧间隔会变成「16 ms、300 ms」交替,动画一顿一顿
+    for (let i = 1; i < r.steps.length; i++) expect(r.steps[i].start - r.steps[i - 1].end, `第 ${i + 1} 段离上一段太近`).toBeGreaterThanOrEqual(150);
     // 单个变体冷编译约 0.2~0.5 s,建渲染器 + 环境贴图单独一段;一次编完全部要 2 s 多
     expect(Math.max(...r.steps.map(s => s.ms)), '有一段卡太久').toBeLessThan(800);
   });

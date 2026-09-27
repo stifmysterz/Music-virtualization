@@ -32,6 +32,9 @@ test('glitchBarsRgbBloom 的帧时间要跟同族变体在一个量级', async (
     });
     win = await app.firstWindow();
     await expect.poll(() => win.evaluate(() => document.getElementById('cv').width)).toBeGreaterThan(300);
+    // 启动后几秒里 3D 着色器在分段预热(测试每次都是冷缓存,每段卡主线程约 0.3 s);
+    // 这里量的是 2D 效果稳定后的帧耗时,等预热做完再量,不然量进去的是编译
+    await win.waitForFunction(() => vjWarmupSettled === true, null, { timeout: 30_000 });
     // Chromium 会把失焦/被遮挡的窗口节流到 1fps，量帧率之前必须解除
     await app.evaluate(async ({ BrowserWindow }) => {
       const w = BrowserWindow.getAllWindows()[0];
