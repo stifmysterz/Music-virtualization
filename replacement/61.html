@@ -23021,25 +23021,29 @@ function drawSpectrumWaves(bass, now, dt){
 /* --- Rainbow Coil Spiral — a single rainbow-gradient coil rotating around its axis --- */
 let coilRot = 0;
 function drawRainbowCoil(bass, now, dt){
-  coilRot += (0.008+bass*0.02)*dt;
+  coilRot = (coilRot + (0.008+bass*0.02)*dt) % (Math.PI*2);   // 线圈转一圈就回到原样，绕回来免得越积越大
   const cx=CX+fxOffX, cy=CY+fxOffY;
   const base=Math.min(W,H);
-  const R=base*0.16, height=base*0.55, turns=5, N=100;
-  const camDist=3.4, focal=2.3;
+  // R、height 是线圈在平均深度下的屏幕尺寸。每圈 48 段：1080p 下半径一百多像素，每圈 20 段看得出折角
+  const R=base*0.16, height=base*0.55, turns=5, N=turns*48;
+  /* 透视：深度和相机距离要用同一套单位。原来深度用的是像素（±R）、相机距离是 3.4，
+     缩放大部分时间只有 0.02（线圈缩成几个像素），某段深度经过 -3.4 时又放大几百倍（整屏闪一下）。
+     现在线圈在相机空间里的半径是 DEPTH，缩放 camDist/(camDist+z) 在 0.79~1.36 之间，永远不穿过相机。 */
+  const camDist=3.4, DEPTH=0.9;
   g2.globalCompositeOperation='lighter';
   let prev=null;
   for(let i=0;i<=N;i++){
     const t=i/N;
     const ang=t*turns*Math.PI*2+coilRot;
-    const y=(t-0.5)*height;
-    const x=Math.cos(ang)*R, z=Math.sin(ang)*R;
-    const zc=z+camDist, scale=focal/zc;
-    const px=cx+x*scale, py=cy+y*scale;
+    const s=Math.sin(ang);
+    const k=camDist/(camDist + s*DEPTH);   // s>0 在后面（小）、s<0 在前面（大）
+    const px=cx+Math.cos(ang)*R*k, py=cy+(t-0.5)*height*k;
+    const near=(1-s)/2;                     // 0 最远、1 最近：近的亮、远的暗，才读得出前后
     const hue=(t*360+now/15)%360;
     const v = freq[Math.floor(t*400)]/255;
     if(prev){
-      g2.strokeStyle=`hsla(${hue},95%,65%,${0.4+v*0.5})`;
-      g2.lineWidth=(2+v*3)*DPR*scale;
+      g2.strokeStyle=`hsla(${hue},95%,65%,${(0.4+v*0.5)*(0.45+0.55*near)})`;
+      g2.lineWidth=(2+v*3)*DPR*k;
       g2.beginPath(); g2.moveTo(prev.x,prev.y); g2.lineTo(px,py); g2.stroke();
     }
     prev={x:px,y:py};
