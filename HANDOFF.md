@@ -1,6 +1,6 @@
-# 交接状态 — 去塑料感第 3 批全部通过,可以开始第 4 批(2026-09-26)
+# 交接状态 — 去塑料感第 4 批通过,可以开始第 5 批(最后一批,2026-09-27)
 
-**当前状态**:第 1 批 10 条全部通过并提交到 `main`。vjVoidNebula、vjBioMembrane 返工一次后通过(说明见 `docs/vj-anti-plastic-batch1-rework.md`,结果见第 5b 节)。验收中 Claude Code 加了玻璃着色器的启动预热(见第 2 节「玻璃 / 液态金属的着色器要预热」)。第 2 批 9 条、第 3 批 10 条也已提交(结果见第 5c、5d 节)。DustShaft、RaceTrack 返工后通过。**下一步:ChatGPT 做第 4 批**(其中 HexPulse 有现存的槽位编号 bug,第 5 批的 FoilCrumple 也是,改法见 `docs/vj-slot-index-audit-2026-09-26.md`)。顺手可做:BioMembrane 的细胞核仍是平涂的 `neonCore`,近处大细胞核看得出 8×6 段球的棱角;SolarFlare 的光弧飞到镜头前会糊成一大团黄光(原有构图问题)。
+**当前状态**:第 1 批 10 条全部通过并提交到 `main`。vjVoidNebula、vjBioMembrane 返工一次后通过(说明见 `docs/vj-anti-plastic-batch1-rework.md`,结果见第 5b 节)。验收中 Claude Code 加了玻璃着色器的启动预热(见第 2 节「玻璃 / 液态金属的着色器要预热」)。第 2 批 9 条、第 3 批 10 条也已提交(结果见第 5c、5d 节)。DustShaft、RaceTrack 返工后通过。第 4 批 10 条返工一次后通过(结果见第 5e 节)。**下一步:ChatGPT 做第 5 批**(其中 FoilCrumple 有现存的槽位编号 bug,改法见 `docs/vj-slot-index-audit-2026-09-26.md`)。**交回前验收测试必须全部通过,交回时贴出测试结果的最后几行** —— 第 3、4 批都是带着失败的测试交回的。顺手可做:BioMembrane 的细胞核仍是平涂的 `neonCore`,近处大细胞核看得出 8×6 段球的棱角;SolarFlare 的光弧飞到镜头前会糊成一大团黄光(原有构图问题)。
 
 ---
 
@@ -91,6 +91,14 @@
 - 进步最大:GridMorph、RaceTrack(原来整屏发白/发青)、CubeMatrix(发光色块 → 倒角金属)、DerelictHall、CollapsedGrid。SpeedGates 的 lit 从贴线的约 46% 升到 62.8%。
 - 平稳帧最多 +9 ms(CubeMatrix 28 → 37 ms);SpeedGates 第一次切过去 180 → 36 ms。
 - **返工**:DustShaft 画面变成一整屏红棕色雾;RaceTrack balanced/ultra lit 89.6% 贴着上限。返工后通过:DustShaft 改成 26 片带中心亮、边缘渐隐贴图的叠加光柱 + 发光浮尘,回到「暗场 + 分明的光柱」;low 档 lit 做对了也只有 40.0%(无 MSAA、像素比 1,细光的亮像素少),**用户决定给它单独放宽到 35%**(`LIT_FLOOR`),balanced/ultra 44.5%。RaceTrack 降到 76%。
+
+### 5e. 第 4 批验收结果(Claude Code,2026-09-27)
+
+- 第一次交回时 30 格里 15 格不达标,3 条验收测试和 NeonReactorDescent 的专用测试失败;共同原因是把受光材质的颜色亮度开到 0.65 以上(粉彩 / 灰白,Kaleido 饱和度 100% → 48%)。退回 6 条(说明见 `docs/vj-anti-plastic-batch4-rework.md`)。
+- 返工后 30 格全部达标,验收测试 31/31,Voxel / Hive / Reactor 专用测试 9/9。Kaleido、HexPulse 的方块改回发光体;RingWorldRun 加了发光边和一团行星辉光(贴图随场景释放,`vjDropCachedScene` 现在会释放材质上 `userData.vjOwnedMap` 标记的贴图);NeonReactorDescent 压暗墙体留出纵深。
+- HexPulse 的槽位编号 bug 已修,新用例验证过能抓到它(改回旧写法跳变 990 次)。
+- 平稳帧(本机集显 balanced):**VoxelPulseTerrain 44 → 53 ms**(最重的一条,约 19 fps,以后可以考虑减负)、RingWorldRun 27 → 39 ms、AsteroidSlalom 27 → 34 ms,其余持平或更快。
+- 贴线:VoxelPulseTerrain、WaveCorridor 的 low 档 43.0% / 43.1%。HexPulse 风格从细线 + 小方块变成粗的发光六边形框(用户看过对比网页后通过)。
 
 ### 6. 已知问题(待用户决定,本轮未改)
 

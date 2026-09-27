@@ -58,6 +58,8 @@ function zTrack({ kind, frames, dt }) {
       for(let i=0;i<26;i++) { mesh.getMatrixAt(i,m); out.push({z:m.elements[14], shape:m.elements[12]}); }
       return out;
     },
+    vjHexPulse: () => s.scene.children.filter(o => o.isLine && !o.isLineSegments)
+      .map(o => ({ z: o.position.z, shape: o.rotation.z })),
     // SpeedGates:上横梁(每扇门一根)
     vjSpeedGates: () => {
       const bars = s.scene.children.find(o => o.isInstancedMesh && o.count === 25*2);
@@ -112,7 +114,7 @@ function zTrack({ kind, frames, dt }) {
 }
 
 for (const kind of ['vjSpeedGates', 'vjNeonTubeRoom', 'vjCubeMatrix', 'vjHoverCity',
-  'vjDerelictHall', 'vjCollapsedGrid', 'vjDustShaft']) {
+  'vjDerelictHall', 'vjCollapsedGrid', 'vjDustShaft', 'vjHexPulse']) {
   test(`${kind}: 按槽位编号取的外观不能在每次退格时跳变`, async () => {
     await withApp(`continuity-${kind}`, async win => {
       const r = await win.evaluate(zTrack, { kind, frames: 160, dt: 0.25 });
