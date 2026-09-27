@@ -85,3 +85,23 @@ test('Voxel Pulse Terrain 实际渲染有密度、有颜色且在性能预算内
     expect(r.snapshot.triangles, 'triangles').toBeLessThanOrEqual(r.budget.maxTriangles);
   });
 });
+
+/* 2801 个 1 段圆角方块 = 30.6 万面,是这条隧道慢的主因(本机 balanced 约 50 ms / 帧)。
+   方块在屏幕上只有十几像素,单段倒角同一帧只有约 0.5% 的亮像素看得出差别,帧时间降到约 37 ms。 */
+test('Voxel Pulse Terrain 的体素三档都用单段倒角(每块 44 面)', async () => {
+  await withApp('voxel-chamfer', async (win) => {
+    const r = await win.evaluate(() => {
+      document.getElementById('intro')?.classList.add('hidden');
+      const out = {};
+      for (const tier of ['low', 'balanced', 'ultra']) {
+        setVjQualityTier(tier);
+        vjDropCachedScene('vjVoxelPulseTerrain'); enableBg3D('vjVoxelPulseTerrain');
+        let vox; bg3DScenes.vjVoxelPulseTerrain.scene.traverse(o => { if (o.isInstancedMesh && (!vox || o.count > vox.count)) vox = o; });
+        const g = vox.geometry;
+        out[tier] = { tris: (g.index ? g.index.count : g.attributes.position.count) / 3, shared: g.userData.vjShared === true };
+      }
+      return out;
+    });
+    for (const tier of ['low', 'balanced', 'ultra']) expect(r[tier], tier).toEqual({ tris: 44, shared: true });
+  });
+});

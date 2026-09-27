@@ -14840,10 +14840,12 @@ function vjPhysMat(o){
    同尺寸同档位共用一份;共享几何带 vjShared,场景回收时不释放,切档时统一清。 */
 const vjBevelGeoCache = new Map();
 function vjBevelSegments(){ return vjQuality === 'low' ? 0 : (vjQuality === 'ultra' ? 2 : 1); }
-function vjBevelBox(w, h, d, radius){
+/* opts.maxSegments:封顶倒角段数(0 = 单段倒角)。方块在屏幕上只有十几像素、数量又多的隧道用它 ——
+   圆角看不出来,三角面却是主要开销(VoxelPulseTerrain)。 */
+function vjBevelBox(w, h, d, radius, opts){
   // 自写的倒角盒半径超过半边长会翻折;r149 的 RoundedBoxGeometry 自己夹到半边长。两条路径统一夹到略小于半边长
   const r = Math.min(radius, Math.min(w, h, d) / 2 * 0.999);
-  const seg = vjBevelSegments();
+  const seg = Math.min(vjBevelSegments(), opts?.maxSegments ?? Infinity);
   const key = `${w}|${h}|${d}|${r}|${seg}`;
   let g = vjBevelGeoCache.get(key);
   if(!g){
@@ -17902,7 +17904,9 @@ function buildBg3DVjVoxelPulseTerrain(){
       if(x*x+z*z<=R*R) coords.push({x,z,edge,seed:((ix*92821+iz*68917)>>>0)%997/997*Math.PI*2});
     }
   }
-  const geo=vjBevelBox(CELL*0.72,1,CELL*0.72,0.08);
+  /* 2801 块 × 1 段圆角 = 30.6 万面,是这条隧道慢的主因(本机 balanced 约 50 ms / 帧)。方块在屏幕上只有十几像素,
+     三档都用单段倒角:同一帧只有约 0.5% 的亮像素看得出差别,帧时间约 37 ms(用户 2026-09-27 决定)。 */
+  const geo=vjBevelBox(CELL*0.72,1,CELL*0.72,0.08,{maxSegments:0});
   const mat=vjMaterial('satin');
   const voxels=new THREE.InstancedMesh(geo,mat,coords.length);
   voxels.instanceMatrix.setUsage(THREE.DynamicDrawUsage); voxels.frustumCulled=false;

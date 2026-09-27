@@ -102,3 +102,28 @@ test('共享倒角几何不能被变换:会连带改坏所有用同尺寸的隧�
                         applyQuaternion: 'threw', unchanged: true, readOk: true });
   });
 });
+
+/* 方块在屏幕上只有十几像素的隧道(VoxelPulseTerrain 有 2801 块),圆角看不出来,却是主要的三角面开销:
+   可以用 maxSegments 把段数封顶,仍然是共享的倒角几何。 */
+test('maxSegments 封顶倒角段数:balanced / ultra 也能用单段倒角,仍然共享', async () => {
+  await withApp('bevel-maxseg', async win => {
+    const r = await win.evaluate(() => {
+      const tris = g => (g.index ? g.index.count : g.attributes.position.count) / 3;
+      const out = {};
+      for (const tier of ['low', 'balanced', 'ultra']) {
+        setVjQualityTier(tier);
+        const capped = vjBevelBox(1.2, 1, 1.2, 0.08, { maxSegments: 0 });
+        out[tier] = { capped: tris(capped), shared: capped.userData.vjShared === true,
+          same: capped === vjBevelBox(1.2, 1, 1.2, 0.08, { maxSegments: 0 }), normal: tris(vjBevelBox(1.2, 1, 1.2, 0.08)) };
+      }
+      return out;
+    });
+    for (const tier of ['low', 'balanced', 'ultra']) {
+      expect(r[tier].capped, `${tier}: 封顶后应该是单段倒角`).toBe(44);
+      expect(r[tier].shared).toBe(true);
+      expect(r[tier].same, '同参数要复用同一份').toBe(true);
+    }
+    expect(r.balanced.normal, '不封顶时照旧按档位').toBe(108);
+    expect(r.ultra.normal).toBe(300);
+  });
+});
