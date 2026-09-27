@@ -7814,9 +7814,10 @@ function spawnParts(n, power){
 }
 function drawNeon(p, dt){
   p.wob += p.wobSp*dt;
-  p.vx += Math.cos(p.wob)*0.05*DPR; p.vy += Math.sin(p.wob)*0.05*DPR;
+  p.vx += Math.cos(p.wob)*0.05*DPR*dt; p.vy += Math.sin(p.wob)*0.05*DPR*dt;
   p.x += p.vx*dt; p.y += p.vy*dt;
-  p.vx *= 0.988; p.vy *= 0.988;
+  const damp = Math.pow(0.988, dt);   // 按时间衰减,不按帧数
+  p.vx *= damp; p.vy *= damp;
   p.life -= 0.010*dt;
   if(p.life<=0) return false;
 
@@ -15134,8 +15135,8 @@ function buildBg3DVjLiquidGrid(){
     }
     vjFlush(nodes);
     /* 灯跟着音乐推，lerp 平滑 —— 不把 analyser 原始值直接怼上去 */
-    rig.key.intensity += ((1.00 + bass*0.75) - rig.key.intensity) * 0.12;
-    rig.rim.intensity += ((1.30 + high*1.00) - rig.rim.intensity) * 0.12;
+    rig.key.intensity += ((1.00 + bass*0.75) - rig.key.intensity) * (1 - Math.pow(0.88, dt));   // 按时间追,不按帧数
+    rig.rim.intensity += ((1.30 + high*1.00) - rig.rim.intensity) * (1 - Math.pow(0.88, dt));
     camera.fov = 80 + bass*14;
     scene.rotation.z = Math.sin(clock*0.7)*0.10*(0.4+mid);
   }};
@@ -15777,8 +15778,8 @@ function buildBg3DVjChromeFlow(){
     vjFlush(mesh);
     /* 灯跟着音乐推：低音顶 key（体积感），高音提 rim（边缘闪）。
        lerp 平滑，不把 analyser 的原始值直接怼上去。 */
-    rig.key.intensity  += ((1.05 + bass*0.85) - rig.key.intensity) * 0.12;
-    rig.rim.intensity  += ((1.30 + high*1.10) - rig.rim.intensity) * 0.12;
+    rig.key.intensity  += ((1.05 + bass*0.85) - rig.key.intensity) * (1 - Math.pow(0.88, dt));   // 按时间追,不按帧数
+    rig.rim.intensity  += ((1.30 + high*1.10) - rig.rim.intensity) * (1 - Math.pow(0.88, dt));
     camera.fov = 82 + bass*13;
     scene.rotation.z = Math.sin(clock*0.5)*0.13*(0.4+mid);
   }};
@@ -16401,7 +16402,7 @@ function buildBg3DVjEventHorizon(){
     photon.scale.set(hs*1.06, hs*1.06, hs*1.06);
     photon.rotation.set(Math.PI*0.5 - 0.34, 0, ph*0.12);
     photon.material.color.setRGB(1, 0.62 + bass*0.15, 0.28 + high*0.15);
-    rig.rim.intensity += ((0.95 + high*0.85) - rig.rim.intensity) * 0.12;
+    rig.rim.intensity += ((0.95 + high*0.85) - rig.rim.intensity) * (1 - Math.pow(0.88, dt));   // 按时间追,不按帧数
     camera.fov = 80 + bass*14;
   }};
 }
@@ -18462,7 +18463,7 @@ function applyBg3DCameraMotion(camera, bass, mid, high, dt){
     camera.zoom *= 1 + beat*0.5 + bass*0.15;
   }else if(bg3DCameraMotion==='shake'){
     if(beat) u.shakeAmt = 1;
-    u.shakeAmt *= 0.85;
+    u.shakeAmt *= Math.pow(0.85, dt);   // 按时间衰减,30 fps 录制和 60 fps 现场一样快
     camera.position.x += (Math.random()-0.5)*u.shakeAmt*1.6;
     camera.position.y += (Math.random()-0.5)*u.shakeAmt*1.6;
   }else if(bg3DCameraMotion==='drift'){
@@ -18599,7 +18600,7 @@ function renderBg3D(bass, mid, high, dt){
   s.camera.updateProjectionMatrix();
   if(s.composer) s.composer.render();
   else bg3DRenderer.render(s.scene, s.camera);
-  if(bg3DDirectorOn) dirDropPunch *= 0.9;   // 它的亮度冲击由 applyBg3DFilter 一并合成，不再单独改写 filter
+  if(bg3DDirectorOn) dirDropPunch *= Math.pow(0.9, dt);   // 按时间衰减;它的亮度冲击由 applyBg3DFilter 一并合成，不再单独改写 filter
 }
 const BG3D_PERFORMANCE_BUDGET = Object.freeze({
   low:      Object.freeze({maxCachedScenes:BG3D_SCENE_CACHE_LIMIT, maxDrawCalls:80, maxTriangles:1500000}),
@@ -20727,10 +20728,11 @@ function drawParticleStorm(bass, mid, high, dt){
   spawnStorm(1+Math.floor(mid*3), bass*0.3);
   g2.globalCompositeOperation='lighter';
   const t = performance.now();
+  const damp = Math.pow(0.985, dt);   // 按时间衰减,不按帧数
   for(let i=stormParticles.length-1;i>=0;i--){
     const p = stormParticles[i];
     p.x += p.vx*dt*(1+mid); p.y += p.vy*dt*(1+mid);
-    p.vx*=0.985; p.vy*=0.985;
+    p.vx*=damp; p.vy*=damp;
     p.life -= 0.006*dt;
     if(p.life<=0){ stormParticles.splice(i,1); continue; }
     const flick = 0.6+0.4*Math.sin(t/80 + p.seed)*(0.4+high);
