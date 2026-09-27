@@ -5735,7 +5735,7 @@ function startMicShuffleTimer(){
   }else{
     interval = parseInt(sel?.value, 10) || 32000;
   }
-  micShuffleTimer = setInterval(runMicShuffleTick, interval);
+  micShuffleTimer = setInterval(()=> withoutUndo(runMicShuffleTick), interval);
 }
 function stopMicShuffleTimer(){
   if(micShuffleTimer){ clearInterval(micShuffleTimer); micShuffleTimer = null; }
@@ -7608,7 +7608,15 @@ function startTransition(){
    meaningful change, so you can step backward/forward through your edits */
 let undoStack = [], redoStack = [];
 const UNDO_LIMIT = 50;
+/* 自动轮换(定时器、突变检测)切换时不记撤销:撤销是给「你的编辑」用的。否则开着轮换演出几分钟,
+   50 条上限就被自动切换塞满、手动操作全被挤掉;pushUndo 还会清空重做,轮换一切,刚撤销的就重做不回来。 */
+let undoPaused = 0;
+function withoutUndo(fn){
+  undoPaused++;
+  try{ return fn(); }finally{ undoPaused--; }
+}
 function pushUndo(){
+  if(undoPaused) return;
   try{
     undoStack.push(JSON.stringify(getPresetState()));
     if(undoStack.length > UNDO_LIMIT) undoStack.shift();
@@ -27815,7 +27823,7 @@ function updateVjAutoSwitch(now){
           vjTransitionFrame.style[property] = bgThreeCanvas.style[property];
         vjTransitionAlpha = Number(getComputedStyle(bgThreeCanvas).opacity);
       }
-      pushUndo();
+      // 这里只有自动轮换会走到(定时器 / 突变检测),不记撤销 —— 见 withoutUndo
       enableBg3D(pending.target);
       if(canFade && hasBg3D){
         vjTransitionStart = now;
@@ -28100,8 +28108,8 @@ document.addEventListener('click', ()=> setTimeout(syncNowPlayingTimer, 0));
 /* 三层各自注册到「突变时切换」。isArmed 是「开着 + 这一档选的是 change」，
    fire 就是各自平时定时器里跑的那件事。 */
 SUDDEN_CHANGE_SUBSCRIBERS.push(
-  { isArmed: ()=> micShuffleOn && document.getElementById('micShuffleIntervalSel')?.value === 'change', fire: runMicShuffleTick },
-  { isArmed: ()=> bg3DShuffleOn && document.getElementById('bg3DShuffleIntervalSel')?.value === 'change', fire: runBg3DShuffleTick },
+  { isArmed: ()=> micShuffleOn && document.getElementById('micShuffleIntervalSel')?.value === 'change', fire: ()=> withoutUndo(runMicShuffleTick) },
+  { isArmed: ()=> bg3DShuffleOn && document.getElementById('bg3DShuffleIntervalSel')?.value === 'change', fire: ()=> withoutUndo(runBg3DShuffleTick) },
   { isArmed: ()=> vjShuffleOn && document.getElementById('vjShuffleIntervalSel')?.value === 'change', fire: runVjShuffleTick },
 );
 /* ---------- accessibility: role/aria-haspopup for the dock's menu buttons and dropdowns —
@@ -29286,7 +29294,7 @@ function startBg3DShuffleTimer(){
   }else{
     interval = parseInt(sel?.value, 10) || 32000;
   }
-  bg3DShuffleTimer = setInterval(runBg3DShuffleTick, interval);
+  bg3DShuffleTimer = setInterval(()=> withoutUndo(runBg3DShuffleTick), interval);
 }
 function stopBg3DShuffleTimer(){
   if(bg3DShuffleTimer){ clearInterval(bg3DShuffleTimer); bg3DShuffleTimer = null; }
