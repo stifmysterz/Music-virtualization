@@ -1,0 +1,11 @@
+# 文本文件一律按 LF 检出,不管机器上的 core.autocrlf 怎么设。
+# 没有这条时,autocrlf=true 的机器一切分支 / checkout 就把 61.html 检出成 CRLF:内容没变,
+# SHA256 却跟安装包、Replace ZIP 对不上(app/tests/line-endings.spec.js)。
+* text=auto eol=lf
+
+# 二进制:不做任何换行转换
+*.zip binary
+*.png binary
+*.ico binary
+*.woff2 binary
+*.exe binary
