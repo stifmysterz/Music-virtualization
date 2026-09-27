@@ -238,7 +238,7 @@ test('logo 和文字的 spin / orbit：转速跟帧率无关，「Behind FX」�
   });
 });
 
-test('瀑布、拖尾、特效层淡出：按时间走，不按帧数走', async () => {
+test('瀑布、拖尾：按时间走，不按帧数走', async () => {
   await withApp('fps-2d-time', async win => {
     const r = await win.evaluate((install) => {
       eval('(' + install + ')')();
@@ -257,9 +257,7 @@ test('瀑布、拖尾、特效层淡出：按时间走，不按帧数走', async
         // 时间倒退（模式缩略图用自己的时钟先跑过）：拖尾里不能留下比现在还「新」的点
         drawLightTrails(0.5, 0.5, 50000, 1);
         const futurePoints = trailOrbs.reduce((n, o) => n + o.trail.filter(p => p.t > 50000).length, 0);
-        // 全局淡出：两帧 dt=1 剩下的，跟一帧 dt=2 剩下的一样
-        const alpha = dt => +trailFadeStyle(dt).match(/,([\d.]+)\)$/)[1];
-        return { rows60, rows30, span60, span30, futurePoints, keep60: (1 - alpha(1)) ** 2, keep30: 1 - alpha(2), a60: alpha(1) };
+        return { rows60, rows30, span60, span30, futurePoints };
       } finally { window.__restore2DSim(); }
     }, install2DSim.toString());
     expect(r.rows60).toBeGreaterThanOrEqual(19);
@@ -267,7 +265,38 @@ test('瀑布、拖尾、特效层淡出：按时间走，不按帧数走', async
     expect(r.span60).toBeGreaterThan(100);
     expect(Math.abs(r.span60 - r.span30), `拖尾长度（ms）：60fps ${r.span60}、30fps ${r.span30}`).toBeLessThanOrEqual(34);
     expect(r.futurePoints, '时间倒退后拖尾里还留着「未来」的点').toBe(0);
-    expect(r.a60).toBeCloseTo(0.16, 4);   // 60fps 下跟原来一样
-    expect(Math.abs(r.keep60 - r.keep30)).toBeLessThan(1e-3);
+  });
+});
+
+/* 特效层的残影拖尾故意按帧淡、不按 dt（见 61.html 的 FX_TRAIL_FADE）：特效每帧都往上画一遍，
+   稳定下来的亮度 ≈ 每帧画的亮度 ÷ 每帧淡掉的比例。按 dt 淡的话 30fps 只有一半亮、
+   144Hz 亮 2.3 倍过曝 —— 2026-09-27 这样改过一次，logo-screen-blend 在慢帧下就暗掉了。 */
+test('开着残影拖尾时，每帧都画的东西在 30 / 60 / 120 fps 下一样亮', async () => {
+  await withApp('fps-trail-steady', async win => {
+    const r = await win.evaluate(() => {
+      window.requestAnimationFrame = () => 0;   // 停掉真实循环，自己推时间
+      const saved = { analyser, hasBgMedia, activeModes: activeModes.slice() };
+      freq = freq || new Uint8Array(1024); wave = wave || new Uint8Array(2048);
+      analyser = { frequencyBinCount: 1024, fftSize: 2048, getByteFrequencyData(a) { a.fill(0); }, getByteTimeDomainData(a) { a.fill(128); } };
+      disableBg3D(); hasBgMedia = false;         // 没有背景素材：特效层刷残影、不清屏
+      activeModes = [];
+      const fx = document.getElementById('cvFx'), ctx = fx.getContext('2d');
+      const steady = dt => {
+        ctx.clearRect(0, 0, fx.width, fx.height);
+        let T = 200000; t0 = T;
+        for (let f = 0; f < Math.round(90 / dt); f++) {   // 1.5 秒，足够稳定下来
+          T += 16.7 * dt; draw(T);
+          // 一个每帧都画的特效：同一块地方、同样的亮度
+          ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(40,40,40,1)';
+          ctx.fillRect(10, 10, 20, 20); ctx.globalCompositeOperation = 'source-over';
+        }
+        return ctx.getImageData(20, 20, 1, 1).data[0];
+      };
+      try { return { at60: steady(1), at30: steady(2), at120: steady(0.5) }; }
+      finally { ({ analyser, hasBgMedia } = saved); activeModes = saved.activeModes; }
+    });
+    expect(r.at60, '60fps 下应该叠到很亮').toBeGreaterThan(150);
+    expect(Math.abs(r.at30 - r.at60), `30fps ${r.at30} vs 60fps ${r.at60}`).toBeLessThanOrEqual(8);
+    expect(Math.abs(r.at120 - r.at60), `120fps ${r.at120} vs 60fps ${r.at60}`).toBeLessThanOrEqual(8);
   });
 });

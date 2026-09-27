@@ -19179,11 +19179,12 @@ function drawSelectionIndicators(){
     g2.restore();
   }
 }
-/* 特效层的残影拖尾：60fps 下每帧刷一层 16% 的暗色。按帧刷的话 30fps 每秒只刷一半次数，
-   拖尾长一倍；120fps 短一半。按 dt 折算成同样的「每秒剩多少」。 */
-function trailFadeStyle(dt){
-  return 'rgba(5,6,14,' + (1 - Math.pow(1 - 0.16, Math.max(0, dt))).toFixed(4) + ')';
-}
+/* 特效层的残影拖尾：每帧刷一层 16% 的暗色 —— 故意按帧、不按 dt。
+   特效每帧都往这一层上画一遍，画面稳定下来的亮度 ≈ 每帧画的亮度 ÷ 每帧淡掉的比例。
+   按 dt 折算成「每秒剩多少」的话，30fps 每帧淡 29%，持续画着的东西只有 60fps 的一半亮；
+   144Hz 每帧只淡 7%，亮 2.3 倍、直接过曝（2026-09-27 试过，logo-screen-blend 在慢帧下就暗掉了）。
+   按帧淡的代价是拖尾在时间上的长短随帧率变 —— 比亮度随帧率变好得多。 */
+const FX_TRAIL_FADE = 'rgba(5,6,14,0.16)';
 /* 2D 效果里很多生成是按帧写的：「每帧有 p 的机会生一个」「每帧生 N 个」。30fps 下每秒只跑一半
    的帧，粒子就少一半；120fps 多一倍。rate 一律是「60fps 下每帧平均生几个」，下面按 dt 折算。 */
 // 这一帧该生几个：整数部分照生，小数部分按概率。60fps（dt=1）下跟原来的 Math.random()<rate 同分布
@@ -19260,7 +19261,7 @@ function draw(now){
   if(hasBgMedia || hasBg3D || !analyser){
     fxCtx.clearRect(0,0,W,H);
   }else{
-    fxCtx.fillStyle = trailFadeStyle(dt);
+    fxCtx.fillStyle = FX_TRAIL_FADE;
     fxCtx.fillRect(0,0,W,H);
   }
   g2 = backCtx;
@@ -21057,10 +21058,13 @@ function drawStarfield(bass, dt){
   const speed60 = (3+bass*22)*DPR, speed = speed60*dt;
   g2.globalCompositeOperation='lighter';
   for(const s of stars){
+    const prevZ = s.z;
     s.z -= speed;
     if(s.z <= 20){ Object.assign(s, makeStar()); s.z = W; continue; }
-    // 拖影固定是一个 60fps 帧走的距离。用上一帧的位置的话，30fps 下拖影长一倍
-    const k = 140/s.z, pk = 140/(s.z + speed60);
+    /* 拖影 = 上一帧到这一帧走过的路（跟帧间隔走的动态模糊）。开着残影拖尾时一帧接一帧连成线，
+       30fps 下要是只画 60fps 一帧的长度，拖尾会断成虚线。只在帧比 60fps 短（120Hz）时
+       保底画 60fps 一帧的长度，免得拖影缩成点。 */
+    const k = 140/s.z, pk = 140/Math.max(prevZ, s.z + speed60);
     const px = cx+s.x*k, py = cy+s.y*k;
     const ppx = cx+s.x*pk, ppy = cy+s.y*pk;
     if(px<-50||px>W+50||py<-50||py>H+50) continue;
@@ -22588,8 +22592,9 @@ function drawSpeedTunnel(bass, dt){
   speedStreaks.forEach(s=>{
     const prevZ=s.z;
     s.z -= speed;
-    // 拖影固定是一个 60fps 帧走的距离（刚重生的那一帧照旧用重生前的位置，跟原来一样）
-    let tailZ = s.z + speed60;
+    // 拖影 = 上一帧到这一帧走过的路，帧比 60fps 短时保底 60fps 一帧的长度（见 drawStarfield）；
+    // 刚重生的那一帧照旧用重生前的位置，跟原来一样
+    let tailZ = Math.max(prevZ, s.z + speed60);
     if(s.z<=20){ s.z=1000; s.x=(Math.random()*2-1)*1000; s.y=(Math.random()*2-1)*500; tailZ = prevZ; }
     const k=140/s.z, pk=140/tailZ;
     const px=cx+s.x*k, py=cy+s.y*k*0.4;
@@ -25696,7 +25701,7 @@ function renderPreviewInto(ctx, w, h, dpr, now, dt){
   const savedG2=g2, savedW=W, savedH=H, savedCX=CX, savedCY=CY, savedDPR=DPR;
   const savedFxOffX=fxOffX, savedFxOffY=fxOffY;
   g2 = ctx; W = w; H = h; CX = W/2; CY = H/2; DPR = dpr;
-  g2.fillStyle = trailFadeStyle(dt);
+  g2.fillStyle = FX_TRAIL_FADE;
   g2.fillRect(0,0,W,H);
   fxOffX = 0; fxOffY = 0;
   const m = MODES[previewIdx];
